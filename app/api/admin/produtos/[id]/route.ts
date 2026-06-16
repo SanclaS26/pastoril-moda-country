@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { validarEstoqueParaGrade } from '@/config/grades-tamanho';
 import { requireActiveAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin, type EstoqueProdutoInsert, type EstoqueProdutoRow, type ProdutoUpdate, type ProdutoRow } from '@/lib/supabase-admin';
 
@@ -304,7 +305,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     const precoPromocional = parsePrice(formData.get('preco_promocional'), 'Preço promocional', false);
     const emPromocao = parseBoolean(formData.get('em_promocao'), false);
     const validatedPromotionalPrice = validatePromotion(emPromocao, preco ?? 0, precoPromocional);
-    const stock = parseStock(formData.get('estoques') ?? formData.get('estoque'));
+    const publico = parseOptionalString(formData.get('publico'));
+    const stock = validarEstoqueParaGrade(parseStock(formData.get('estoques') ?? formData.get('estoque')), departamento, publico);
     const imageFile = formData.get('imagem');
     const image = imageFile instanceof File ? imageFile : null;
     const extension = validateImage(image);
@@ -368,7 +370,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       nome,
       departamento,
       categoria,
-      publico: parseOptionalString(formData.get('publico')),
+      publico,
       marca: parseOptionalString(formData.get('marca')),
       preco: preco ?? 0,
       preco_promocional: validatedPromotionalPrice,

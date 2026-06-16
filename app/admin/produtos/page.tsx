@@ -2,6 +2,16 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  TAMANHO_UNICO,
+  departamentosProduto,
+  getOpcoesTamanho,
+  getTipoGradeTamanho,
+  isGradeSemSeletor,
+  isGradeSemTamanho,
+  isGradeTamanhoUnico,
+  normalizeEstoqueParaGrade,
+} from '@/config/grades-tamanho';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
 
@@ -55,33 +65,7 @@ const emptyForm: ProductFormState = {
   destaque: false,
 };
 
-const departamentos = [
-  'Camisas',
-  'Blusas',
-  'Calças',
-  'Bermudas',
-  'Shorts',
-  'Saias',
-  'Vestidos',
-  'Conjuntos',
-  'Macacões',
-  'Jaquetas',
-  'Coletes',
-  'Botas',
-  'Botinas',
-  'Tênis',
-  'Sandálias',
-  'Chapéus',
-  'Cintos',
-  'Bolsas',
-  'Carteiras',
-  'Fivelas',
-  'Lenços',
-  'Bijuterias',
-  'Bonés',
-];
 const publicos = ['Feminino', 'Masculino', 'Infantil', 'Unissex'];
-const sizeOptions = ['PP', 'P', 'M', 'G', 'GG', 'XG', '1', '2', '3', '4', ...Array.from({ length: 21 }, (_, i) => String(i + 28)), 'Outro'];
 
 async function getSessionToken() {
   const { data, error } = await supabase.auth.getSession();
@@ -102,6 +86,16 @@ function getTotalStock(product: Product) {
 
 function getStockSummary(product: Product) {
   if (!product.estoque.length) return '-';
+  const tipoGrade = getTipoGradeTamanho(product.departamento, product.publico);
+
+  if (isGradeSemTamanho(tipoGrade)) {
+    return `${getTotalStock(product)} unidades`;
+  }
+
+  if (isGradeTamanhoUnico(tipoGrade)) {
+    return `Tamanho único: ${getTotalStock(product)}`;
+  }
+
   return product.estoque.map((item) => `${item.tamanho}: ${item.quantidade}`).join(' | ');
 }
 
@@ -136,7 +130,6 @@ export default function AdminProdutosPage() {
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const [stock, setStock] = useState<StockItem[]>([]);
   const [stockSize, setStockSize] = useState('');
-  const [customStockSize, setCustomStockSize] = useState('');
   const [stockQuantity, setStockQuantity] = useState('');
   const [editingStockIndex, setEditingStockIndex] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -149,6 +142,17 @@ export default function AdminProdutosPage() {
     () => products.filter((product) => promotionFilter === 'todos' || product.em_promocao),
     [products, promotionFilter],
   );
+  const tipoGradeAtual = useMemo(
+    () => getTipoGradeTamanho(form.departamento, form.publico || null),
+    [form.departamento, form.publico],
+  );
+  const opcoesTamanhoAtuais = useMemo(
+    () => getOpcoesTamanho(form.departamento, form.publico || null),
+    [form.departamento, form.publico],
+  );
+  const produtoSemSeletor = isGradeSemSeletor(tipoGradeAtual);
+  const produtoSemTamanho = isGradeSemTamanho(tipoGradeAtual);
+  const produtoTamanhoUnico = isGradeTamanhoUnico(tipoGradeAtual);
 
   const fetchProducts = async () => {
     try {
@@ -177,7 +181,6 @@ export default function AdminProdutosPage() {
     setForm(emptyForm);
     setStock([]);
     setStockSize('');
-    setCustomStockSize('');
     setStockQuantity('');
     setEditingStockIndex(null);
     setImageFile(null);
@@ -192,7 +195,6 @@ export default function AdminProdutosPage() {
     setForm(productToForm(product));
     setStock(product.estoque);
     setStockSize('');
-    setCustomStockSize('');
     setStockQuantity('');
     setEditingStockIndex(null);
     setImageFile(null);
@@ -206,10 +208,25 @@ export default function AdminProdutosPage() {
     if (!saving) setFormOpen(false);
   };
 
+  const applyGradeChange = (nextForm: ProductFormState) => {
+    setStock((current) => normalizeEstoqueParaGrade(current, nextForm.departamento, nextForm.publico || null));
+    setStockSize('');
+    setStockQuantity('');
+    setEditingStockIndex(null);
+  };
+
   const updateForm = (field: keyof ProductFormState, value: string | boolean) => {
     setForm((current) => {
       const next = { ...current, [field]: value };
       if (field === 'em_promocao' && value === false) next.preco_promocional = '';
+      return next;
+    });
+  };
+
+  const updateFormAndGrade = (field: 'departamento' | 'publico', value: string) => {
+    setForm((current) => {
+      const next = { ...current, [field]: value };
+      applyGradeChange(next);
       return next;
     });
   };
@@ -221,24 +238,32 @@ export default function AdminProdutosPage() {
 
   const clearStockEntry = () => {
     setStockSize('');
-    setCustomStockSize('');
     setStockQuantity('');
     setEditingStockIndex(null);
   };
 
-  const getCurrentStockSize = () => (stockSize === 'Outro' ? customStockSize.trim() : stockSize.trim());
+  const getCurrentStockSize = () => (produtoSemSeletor ? TAMANHO_UNICO : stockSize.trim());
 
   const addOrUpdateStockItem = () => {
     const tamanho = getCurrentStockSize();
     const quantidade = Number(stockQuantity);
-    if (!tamanho) return setFormError('Selecione ou informe um tamanho.');
+    if (!produtoSemSeletor && !tamanho) return setFormError('Selecione um tamanho.');
     if (!Number.isInteger(quantidade) || quantidade <= 0) return setFormError('Informe uma quantidade maior que zero.');
+
+    if (!produtoSemSeletor && !opcoesTamanhoAtuais.includes(tamanho)) {
+      return setFormError('O tamanho selecionado não pertence à grade da categoria.');
+    }
+
     if (stock.some((item, index) => item.tamanho.toLowerCase() === tamanho.toLowerCase() && index !== editingStockIndex)) {
       return setFormError('Este tamanho já foi adicionado.');
     }
 
     setStock((current) => {
       const nextItem = { ...(editingStockIndex !== null ? current[editingStockIndex] : {}), tamanho, quantidade };
+      if (produtoSemSeletor) {
+        const existingId = current[0]?.id;
+        return [{ ...(existingId ? { id: existingId } : {}), tamanho: TAMANHO_UNICO, quantidade }];
+      }
       return editingStockIndex === null
         ? [...current, nextItem]
         : current.map((item, index) => (index === editingStockIndex ? nextItem : item));
@@ -249,9 +274,7 @@ export default function AdminProdutosPage() {
 
   const editStockItem = (index: number) => {
     const item = stock[index];
-    const knownSize = sizeOptions.includes(item.tamanho) ? item.tamanho : 'Outro';
-    setStockSize(knownSize);
-    setCustomStockSize(knownSize === 'Outro' ? item.tamanho : '');
+    setStockSize(produtoSemSeletor ? '' : item.tamanho);
     setStockQuantity(String(item.quantidade));
     setEditingStockIndex(index);
   };
@@ -282,7 +305,15 @@ export default function AdminProdutosPage() {
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(imageFile.type)) return 'A imagem deve ser JPG, PNG ou WebP.';
       if (imageFile.size > 5 * 1024 * 1024) return 'A imagem deve ter no máximo 5 MB.';
     }
-    if (!stock.length) return 'Adicione pelo menos um tamanho ao produto.';
+    const normalizedStock = normalizeEstoqueParaGrade(stock, form.departamento, form.publico || null);
+    if (!normalizedStock.length) return produtoSemTamanho ? 'Informe a quantidade em estoque.' : 'Adicione pelo menos um tamanho ao produto.';
+
+    if (produtoSemSeletor) {
+      if (normalizedStock.length !== 1 || normalizedStock[0].tamanho !== TAMANHO_UNICO) return 'Produtos sem grade devem ter apenas uma quantidade em estoque.';
+    } else if (normalizedStock.length !== stock.length) {
+      return 'Remova tamanhos que não pertencem à grade da categoria selecionada.';
+    }
+
     return '';
   };
 
@@ -300,7 +331,8 @@ export default function AdminProdutosPage() {
     formData.append('descricao', form.descricao.trim());
     formData.append('ativo', String(form.ativo));
     formData.append('destaque', String(form.destaque));
-    formData.append('estoques', JSON.stringify(stock.map((item) => ({
+    const normalizedStock = normalizeEstoqueParaGrade(stock, form.departamento, form.publico || null);
+    formData.append('estoques', JSON.stringify(normalizedStock.map((item) => ({
       id: item.id,
       tamanho: item.tamanho.trim(),
       quantidade: item.quantidade,
@@ -472,9 +504,9 @@ export default function AdminProdutosPage() {
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-slate-700">Departamento</span>
-                  <select value={form.departamento} onChange={(event) => updateForm('departamento', event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                  <select value={form.departamento} onChange={(event) => updateFormAndGrade('departamento', event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
                     <option value="">Selecione</option>
-                    {departamentos.map((departamento) => <option key={departamento} value={departamento}>{departamento}</option>)}
+                    {departamentosProduto.map((departamento) => <option key={departamento} value={departamento}>{departamento}</option>)}
                   </select>
                 </label>
                 <label className="block">
@@ -483,7 +515,7 @@ export default function AdminProdutosPage() {
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-slate-700">Público</span>
-                  <select value={form.publico} onChange={(event) => updateForm('publico', event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                  <select value={form.publico} onChange={(event) => updateFormAndGrade('publico', event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
                     <option value="">Selecione</option>
                     {publicos.map((publico) => <option key={publico} value={publico}>{publico}</option>)}
                   </select>
@@ -527,33 +559,48 @@ export default function AdminProdutosPage() {
                 <h3 className="mb-3 text-base font-bold text-slate-900">Tamanhos e quantidades</h3>
                 <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1fr_160px_auto]">
                   <div className="space-y-3">
-                    <label className="block">
-                      <span className="mb-2 block text-sm font-semibold text-slate-700">Tamanho</span>
-                      <select value={stockSize} onChange={(event) => setStockSize(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
-                        <option value="">Selecione</option>
-                        {sizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}
-                      </select>
-                    </label>
-                    {stockSize === 'Outro' && <input value={customStockSize} onChange={(event) => setCustomStockSize(event.target.value)} placeholder="Digite o tamanho" className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200" />}
+                    {produtoSemTamanho ? (
+                      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        Produto sem variação de tamanho
+                      </div>
+                    ) : produtoTamanhoUnico ? (
+                      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                        Tamanho único
+                      </div>
+                    ) : (
+                      <label className="block">
+                        <span className="mb-2 block text-sm font-semibold text-slate-700">Tamanho</span>
+                        <select value={stockSize} onChange={(event) => setStockSize(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                          <option value="">Selecione</option>
+                          {opcoesTamanhoAtuais.map((size) => <option key={size} value={size}>{size}</option>)}
+                        </select>
+                      </label>
+                    )}
                   </div>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-semibold text-slate-700">Quantidade</span>
+                    <span className="mb-2 block text-sm font-semibold text-slate-700">{produtoSemSeletor ? 'Quantidade em estoque' : 'Quantidade'}</span>
                     <input value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} type="number" min={1} className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200" />
                   </label>
                   <div className="flex items-end">
                     <button type="button" onClick={addOrUpdateStockItem} className="w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-700">
-                      {editingStockIndex === null ? 'Adicionar tamanho' : 'Atualizar tamanho'}
+                      {produtoSemSeletor
+                        ? (stock.length ? 'Atualizar estoque' : 'Adicionar estoque')
+                        : (editingStockIndex === null ? 'Adicionar tamanho' : 'Atualizar tamanho')}
                     </button>
                   </div>
                 </div>
 
                 <div className="mt-4 space-y-2">
                   {stock.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-600">Nenhum tamanho adicionado.</div>
+                    <div className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-600">
+                      {produtoSemSeletor ? 'Nenhuma quantidade informada.' : 'Nenhum tamanho adicionado.'}
+                    </div>
                   ) : (
                     stock.map((item, index) => (
                       <div key={`${item.id ?? 'new'}-${item.tamanho}`} className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-sm font-semibold text-slate-900">{item.tamanho} - {item.quantidade} unidades</p>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {produtoSemTamanho ? 'Quantidade em estoque' : produtoTamanhoUnico ? 'Tamanho único' : item.tamanho} - {item.quantidade} unidades
+                        </p>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => editStockItem(index)} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Editar</button>
                           <button type="button" onClick={() => removeStockItem(index)} className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100">Remover</button>

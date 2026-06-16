@@ -65,6 +65,27 @@ export type EstoqueProdutoInsert = {
   quantidade: number;
 };
 
+export type BannerRow = {
+  id: number;
+  titulo: string | null;
+  imagem_url: string;
+  imagem_path: string;
+  ativo: boolean;
+  principal: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type BannerInsert = {
+  titulo?: string | null;
+  imagem_url: string;
+  imagem_path: string;
+  ativo: boolean;
+  principal: boolean;
+};
+
+export type BannerUpdate = Partial<BannerInsert>;
+
 type Database = {
   public: {
     Tables: {
@@ -84,6 +105,12 @@ type Database = {
         Row: EstoqueProdutoRow;
         Insert: EstoqueProdutoInsert;
         Update: Partial<EstoqueProdutoInsert>;
+        Relationships: [];
+      };
+      banners: {
+        Row: BannerRow;
+        Insert: BannerInsert;
+        Update: BannerUpdate;
         Relationships: [];
       };
     };

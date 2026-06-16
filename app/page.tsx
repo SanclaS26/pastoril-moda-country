@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { TAMANHO_UNICO, getTipoGradeTamanho, isGradeSemSeletor } from '@/config/grades-tamanho';
 
 type Product = {
   id: number;
@@ -10,6 +11,8 @@ type Product = {
   preco_promocional: number | null;
   em_promocao: boolean;
   imagem_principal: string | null;
+  departamento: string;
+  publico: string | null;
   estoque: StockItem[];
 };
 
@@ -24,16 +27,63 @@ type CartItem = Product & {
   quantity: number;
 };
 
+type MainBanner = {
+  id: number;
+  titulo: string | null;
+  imagem_url: string;
+};
+
 const categories = ['Feminino', 'Masculino', 'Infantil', 'Calçados', 'Acessórios'];
 
 function getProductPrice(product: Product) {
   return product.em_promocao && product.preco_promocional !== null ? product.preco_promocional : product.preco;
 }
 
+function productUsesVisibleSize(product: Product) {
+  return !isGradeSemSeletor(getTipoGradeTamanho(product.departamento, product.publico));
+}
+
+function getAvailableUniqueStock(product: Product) {
+  return product.estoque.find((item) => item.tamanho === TAMANHO_UNICO) ?? product.estoque[0];
+}
+
+function ProductSizeSelector({
+  product,
+  selectedSize,
+  onSelect,
+}: {
+  product: Product;
+  selectedSize: string;
+  onSelect: (value: string) => void;
+}) {
+  if (!productUsesVisibleSize(product)) {
+    return null;
+  }
+
+  return (
+    <label className="mt-4 block">
+      <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-600">Tamanho</span>
+      <select
+        value={selectedSize}
+        onChange={(event) => onSelect(event.target.value)}
+        className="w-full rounded-full border border-amber-900/10 bg-white px-4 py-2 text-sm text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
+      >
+        <option value="">Selecione</option>
+        {product.estoque.map((stock) => (
+          <option key={stock.id} value={stock.tamanho}>
+            {stock.tamanho} ({stock.quantidade} disp.)
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState('');
+  const [mainBanner, setMainBanner] = useState<MainBanner | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({});
@@ -67,12 +117,34 @@ export default function Home() {
     fetchProducts();
   }, []);
 
+  useEffect(() => {
+    const fetchMainBanner = async () => {
+      try {
+        const response = await fetch('/api/banners/principal', { cache: 'no-store' });
+        const data = await response.json();
+
+        if (!response.ok) {
+          return;
+        }
+
+        setMainBanner(data.banner ?? null);
+      } catch {
+        setMainBanner(null);
+      }
+    };
+
+    fetchMainBanner();
+  }, []);
+
   const addToCart = (product: Product) => {
-    const selectedSize = selectedSizes[product.id];
-    const stockItem = product.estoque.find((item) => item.tamanho === selectedSize);
+    const usesVisibleSize = productUsesVisibleSize(product);
+    const selectedSize = usesVisibleSize ? selectedSizes[product.id] : TAMANHO_UNICO;
+    const stockItem = usesVisibleSize
+      ? product.estoque.find((item) => item.tamanho === selectedSize)
+      : getAvailableUniqueStock(product);
 
     if (!stockItem) {
-      setCartError('Selecione um tamanho disponível antes de adicionar ao carrinho.');
+      setCartError(usesVisibleSize ? 'Selecione um tamanho disponível antes de adicionar ao carrinho.' : 'Produto sem estoque disponível.');
       return;
     }
 
@@ -104,7 +176,9 @@ export default function Home() {
             return item;
           }
 
-          const stockItem = item.estoque.find((stock) => stock.tamanho === selectedSize);
+          const stockItem = productUsesVisibleSize(item)
+            ? item.estoque.find((stock) => stock.tamanho === selectedSize)
+            : getAvailableUniqueStock(item);
           const maxQuantity = stockItem?.quantidade ?? item.quantity;
           return { ...item, quantity: Math.min(Math.max(item.quantity + delta, 0), maxQuantity) };
         })
@@ -128,7 +202,10 @@ export default function Home() {
 
   const whatsappMessage = encodeURIComponent(
     `Olá, gostaria de fazer um pedido na Pastoril Moda Country.${cartItems.length ? '\n' : ''}${cartItems
-      .map((item) => `${item.quantity}x ${item.nome} (${item.codigo_produto}) tamanho ${item.tamanhoSelecionado} - R$ ${getProductPrice(item).toFixed(2)}`)
+      .map((item) => {
+        const tamanho = productUsesVisibleSize(item) ? ` tamanho ${item.tamanhoSelecionado}` : '';
+        return `${item.quantity}x ${item.nome} (${item.codigo_produto})${tamanho} - R$ ${getProductPrice(item).toFixed(2)}`;
+      })
       .join('\n')}${cartItems.length ? `\nTotal: R$ ${totalPrice.toFixed(2)}` : ''}`,
   );
 
@@ -176,7 +253,11 @@ export default function Home() {
         </div>
       </header>
 
-      <section className="relative bg-gradient-to-r from-slate-900 via-amber-900/30 to-slate-900 py-16 sm:py-24 lg:py-32">
+      <section
+        className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-amber-900/30 to-slate-900 py-16 sm:py-24 lg:py-32"
+        style={mainBanner ? { backgroundImage: `url(${mainBanner.imagem_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+      >
+        {mainBanner && <div className="absolute inset-0 bg-slate-950/55" />}
         <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-sm uppercase tracking-widest text-amber-400 mb-4">Pastoril Moda Country</p>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
@@ -239,24 +320,14 @@ export default function Home() {
                     <p className="text-sm text-slate-500 line-through">R$ {product.preco.toFixed(2)}</p>
                     <p className="text-2xl font-bold text-amber-800">R$ {getProductPrice(product).toFixed(2)}</p>
                   </div>
-                  <label className="mt-4 block">
-                    <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-600">Tamanho</span>
-                    <select
-                      value={selectedSizes[product.id] ?? ''}
-                      onChange={(event) => {
-                        setSelectedSizes((current) => ({ ...current, [product.id]: event.target.value }));
-                        setCartError('');
-                      }}
-                      className="w-full rounded-full border border-amber-900/10 bg-white px-4 py-2 text-sm text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                    >
-                      <option value="">Selecione</option>
-                      {product.estoque.map((stock) => (
-                        <option key={stock.id} value={stock.tamanho}>
-                          {stock.tamanho} ({stock.quantidade} disp.)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <ProductSizeSelector
+                    product={product}
+                    selectedSize={selectedSizes[product.id] ?? ''}
+                    onSelect={(value) => {
+                      setSelectedSizes((current) => ({ ...current, [product.id]: value }));
+                      setCartError('');
+                    }}
+                  />
                   <button
                     onClick={() => addToCart(product)}
                     disabled={!product.estoque.length}
@@ -318,24 +389,14 @@ export default function Home() {
                       Promoção
                     </span>
                   )}
-                  <label className="mt-4 block">
-                    <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-600">Tamanho</span>
-                    <select
-                      value={selectedSizes[product.id] ?? ''}
-                      onChange={(event) => {
-                        setSelectedSizes((current) => ({ ...current, [product.id]: event.target.value }));
-                        setCartError('');
-                      }}
-                      className="w-full rounded-full border border-amber-900/10 bg-white px-4 py-2 text-sm text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200"
-                    >
-                      <option value="">Selecione</option>
-                      {product.estoque.map((stock) => (
-                        <option key={stock.id} value={stock.tamanho}>
-                          {stock.tamanho} ({stock.quantidade} disp.)
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <ProductSizeSelector
+                    product={product}
+                    selectedSize={selectedSizes[product.id] ?? ''}
+                    onSelect={(value) => {
+                      setSelectedSizes((current) => ({ ...current, [product.id]: value }));
+                      setCartError('');
+                    }}
+                  />
                   <button
                     onClick={() => addToCart(product)}
                     disabled={!product.estoque.length}
@@ -379,7 +440,10 @@ export default function Home() {
                     <div className="flex justify-between items-start gap-2 mb-2">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-900 truncate">{item.nome}</p>
-                        <p className="text-xs text-slate-600">{item.codigo_produto} · Tam. {item.tamanhoSelecionado}</p>
+                        <p className="text-xs text-slate-600">
+                          {item.codigo_produto}
+                          {productUsesVisibleSize(item) ? ` · Tam. ${item.tamanhoSelecionado}` : ''}
+                        </p>
                       </div>
                       <button
                         onClick={() => removeFromCart(item.id, item.tamanhoSelecionado)}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { TAMANHO_UNICO, getTipoGradeTamanho, isGradeSemSeletor } from '@/config/grades-tamanho';
 
 type Product = {
@@ -305,9 +306,11 @@ export default function Home() {
                       Promoção
                     </span>
                     {product.imagem_principal ? (
-                      <img
+                      <Image
                         src={product.imagem_principal}
                         alt={product.nome}
+                        fill
+                        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
@@ -367,9 +370,11 @@ export default function Home() {
                 <div key={product.id} className="group">
                   <div className="relative overflow-hidden rounded-2xl bg-stone-200 aspect-square mb-4">
                     {product.imagem_principal ? (
-                      <img
+                      <Image
                         src={product.imagem_principal}
                         alt={product.nome}
+                        fill
+                        sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (

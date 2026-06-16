@@ -1,10 +1,10 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   TAMANHO_UNICO,
-  departamentosProduto,
   getOpcoesTamanho,
   getTipoGradeTamanho,
   isGradeSemSeletor,
@@ -17,10 +17,15 @@ import { supabase } from '@/lib/supabase';
 
 type StockItem = { id?: number; tamanho: string; quantidade: number };
 
+type Departamento = { id: number; nome: string; ativo: boolean; ordem: number | null };
+type Categoria = { id: number; departamento_id: number; nome: string; ativo: boolean; ordem: number | null };
+
 type Product = {
   id: number;
   codigo_produto: string;
   nome: string;
+  departamento_id: number | null;
+  categoria_id: number | null;
   departamento: string;
   categoria: string;
   publico: string | null;
@@ -38,6 +43,8 @@ type Product = {
 type ProductFormState = {
   codigo_produto: string;
   nome: string;
+  departamento_id: string;
+  categoria_id: string;
   departamento: string;
   categoria: string;
   publico: string;
@@ -53,6 +60,8 @@ type ProductFormState = {
 const emptyForm: ProductFormState = {
   codigo_produto: '',
   nome: '',
+  departamento_id: '',
+  categoria_id: '',
   departamento: '',
   categoria: '',
   publico: '',
@@ -103,6 +112,8 @@ function productToForm(product: Product): ProductFormState {
   return {
     codigo_produto: product.codigo_produto,
     nome: product.nome,
+    departamento_id: product.departamento_id ? String(product.departamento_id) : '',
+    categoria_id: product.categoria_id ? String(product.categoria_id) : '',
     departamento: product.departamento,
     categoria: product.categoria,
     publico: product.publico ?? '',
@@ -121,6 +132,10 @@ export default function AdminProdutosPage() {
   useProtectedRoute();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loadingDepartamentos, setLoadingDepartamentos] = useState(true);
+  const [loadingCategorias, setLoadingCategorias] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -171,14 +186,62 @@ export default function AdminProdutosPage() {
     }
   };
 
+  const fetchDepartamentos = async () => {
+    try {
+      setLoadingDepartamentos(true);
+      const token = await getSessionToken();
+      const response = await fetch('/api/admin/departamentos', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Erro ao carregar departamentos.');
+      setDepartamentos(Array.isArray(data.departamentos) ? data.departamentos : []);
+    } catch (fetchError) {
+      setDepartamentos([]);
+      setError(fetchError instanceof Error ? fetchError.message : 'Erro ao carregar departamentos.');
+    } finally {
+      setLoadingDepartamentos(false);
+    }
+  };
+
+  const fetchCategorias = async (departamentoId: string) => {
+    if (!departamentoId) {
+      setCategorias([]);
+      return [];
+    }
+
+    try {
+      setLoadingCategorias(true);
+      const token = await getSessionToken();
+      const response = await fetch(`/api/admin/categorias?departamento_id=${departamentoId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || 'Erro ao carregar categorias.');
+      const nextCategorias = Array.isArray(data.categorias) ? data.categorias : [];
+      setCategorias(nextCategorias);
+      return nextCategorias as Categoria[];
+    } catch (fetchError) {
+      setCategorias([]);
+      setFormError(fetchError instanceof Error ? fetchError.message : 'Erro ao carregar categorias.');
+      return [];
+    } finally {
+      setLoadingCategorias(false);
+    }
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchProducts(), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchDepartamentos(), 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   const openCreateForm = () => {
     setEditingProduct(null);
     setForm(emptyForm);
+    setCategorias([]);
     setStock([]);
     setStockSize('');
     setStockQuantity('');
@@ -190,9 +253,24 @@ export default function AdminProdutosPage() {
     setFormOpen(true);
   };
 
-  const openEditForm = (product: Product) => {
+  const openEditForm = async (product: Product) => {
     setEditingProduct(product);
-    setForm(productToForm(product));
+    const foundDepartamento = product.departamento_id
+      ? departamentos.find((departamento) => departamento.id === product.departamento_id)
+      : departamentos.find((departamento) => departamento.nome.toLowerCase() === product.departamento.toLowerCase());
+    const departamentoId = foundDepartamento?.id ?? product.departamento_id;
+    const nextCategorias = departamentoId ? await fetchCategorias(String(departamentoId)) : [];
+    const foundCategoria = product.categoria_id
+      ? nextCategorias.find((categoria) => categoria.id === product.categoria_id)
+      : nextCategorias.find((categoria) => categoria.nome.toLowerCase() === product.categoria.toLowerCase());
+
+    setForm({
+      ...productToForm(product),
+      departamento_id: departamentoId ? String(departamentoId) : '',
+      categoria_id: foundCategoria?.id ? String(foundCategoria.id) : product.categoria_id ? String(product.categoria_id) : '',
+      departamento: foundDepartamento?.nome ?? product.departamento,
+      categoria: foundCategoria?.nome ?? product.categoria,
+    });
     setStock(product.estoque);
     setStockSize('');
     setStockQuantity('');
@@ -223,12 +301,38 @@ export default function AdminProdutosPage() {
     });
   };
 
-  const updateFormAndGrade = (field: 'departamento' | 'publico', value: string) => {
+  const updateFormAndGrade = (field: 'publico', value: string) => {
     setForm((current) => {
       const next = { ...current, [field]: value };
       applyGradeChange(next);
       return next;
     });
+  };
+
+  const handleDepartamentoChange = async (departamentoId: string) => {
+    const selectedDepartamento = departamentos.find((departamento) => String(departamento.id) === departamentoId);
+    const nextForm = {
+      ...form,
+      departamento_id: departamentoId,
+      departamento: selectedDepartamento?.nome ?? '',
+      categoria_id: '',
+      categoria: '',
+    };
+
+    setForm(nextForm);
+    applyGradeChange(nextForm);
+    setCategorias([]);
+    setFormError('');
+    await fetchCategorias(departamentoId);
+  };
+
+  const handleCategoriaChange = (categoriaId: string) => {
+    const selectedCategoria = categorias.find((categoria) => String(categoria.id) === categoriaId);
+    setForm((current) => ({
+      ...current,
+      categoria_id: categoriaId,
+      categoria: selectedCategoria?.nome ?? '',
+    }));
   };
 
   const handleImageChange = (file: File | null) => {
@@ -287,8 +391,8 @@ export default function AdminProdutosPage() {
   const validateClientForm = () => {
     if (!form.codigo_produto.trim()) return 'Código da peça é obrigatório.';
     if (!form.nome.trim()) return 'Nome é obrigatório.';
-    if (!form.departamento) return 'Departamento é obrigatório.';
-    if (!form.categoria.trim()) return 'Categoria é obrigatória.';
+    if (!form.departamento_id || !form.departamento) return 'Departamento é obrigatório.';
+    if (!form.categoria_id || !form.categoria.trim()) return 'Categoria é obrigatória.';
 
     const price = Number(form.preco.replace(',', '.'));
     if (!Number.isFinite(price) || price < 0) return 'Preço deve ser maior ou igual a zero.';
@@ -321,6 +425,8 @@ export default function AdminProdutosPage() {
     const formData = new FormData();
     formData.append('codigo_produto', form.codigo_produto.trim());
     formData.append('nome', form.nome.trim());
+    formData.append('departamento_id', form.departamento_id);
+    formData.append('categoria_id', form.categoria_id);
     formData.append('departamento', form.departamento);
     formData.append('categoria', form.categoria.trim());
     formData.append('publico', form.publico);
@@ -441,7 +547,11 @@ export default function AdminProdutosPage() {
                   filteredProducts.map((product) => (
                     <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3">
-                        {product.imagem_principal ? <img src={product.imagem_principal} alt={product.nome} className="h-14 w-14 rounded-md object-cover" /> : <div className="h-14 w-14 rounded-md bg-slate-100" />}
+                        {product.imagem_principal ? (
+                          <div className="relative h-14 w-14 overflow-hidden rounded-md">
+                            <Image src={product.imagem_principal} alt={product.nome} fill sizes="56px" className="object-cover" />
+                          </div>
+                        ) : <div className="h-14 w-14 rounded-md bg-slate-100" />}
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-slate-900">{product.codigo_produto}</td>
                       <td className="px-4 py-3 text-sm text-slate-900">{product.nome}</td>
@@ -464,7 +574,7 @@ export default function AdminProdutosPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button onClick={() => openEditForm(product)} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Editar</button>
+                          <button onClick={() => void openEditForm(product)} className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Editar</button>
                           <button onClick={() => handleDeactivate(product)} disabled={!product.ativo || deactivatingId === product.id} className="rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50">
                             {deactivatingId === product.id ? 'Desativando...' : 'Desativar'}
                           </button>
@@ -504,14 +614,26 @@ export default function AdminProdutosPage() {
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-slate-700">Departamento</span>
-                  <select value={form.departamento} onChange={(event) => updateFormAndGrade('departamento', event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
-                    <option value="">Selecione</option>
-                    {departamentosProduto.map((departamento) => <option key={departamento} value={departamento}>{departamento}</option>)}
+                  <select value={form.departamento_id} onChange={(event) => void handleDepartamentoChange(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                    <option value="">{loadingDepartamentos ? 'Carregando departamentos...' : 'Selecione'}</option>
+                    {departamentos.map((departamento) => <option key={departamento.id} value={departamento.id}>{departamento.nome}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-slate-700">Categoria</span>
-                  <input value={form.categoria} onChange={(event) => updateForm('categoria', event.target.value)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                  <select
+                    value={form.categoria_id}
+                    onChange={(event) => handleCategoriaChange(event.target.value)}
+                    disabled={!form.departamento_id || loadingCategorias}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {!form.departamento_id ? (
+                      <option value="">Selecione primeiro um departamento</option>
+                    ) : (
+                      <option value="">{loadingCategorias ? 'Carregando categorias...' : 'Selecione'}</option>
+                    )}
+                    {categorias.map((categoria) => <option key={categoria.id} value={categoria.id}>{categoria.nome}</option>)}
+                  </select>
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold text-slate-700">Público</span>
@@ -550,8 +672,17 @@ export default function AdminProdutosPage() {
                   <span className="mb-2 block text-sm font-semibold text-slate-700">Foto</span>
                   <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => handleImageChange(event.target.files?.[0] ?? null)} className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900" />
                 </label>
-                <div className="h-40 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                  {imagePreview ? <img src={imagePreview} alt="Pré-visualização" className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-sm text-slate-500">Sem foto</div>}
+                <div className="relative h-40 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                  {imagePreview ? (
+                    <Image
+                      src={imagePreview}
+                      alt="Pré-visualização"
+                      fill
+                      sizes="220px"
+                      unoptimized={imagePreview.startsWith('blob:')}
+                      className="object-cover"
+                    />
+                  ) : <div className="flex h-full items-center justify-center text-sm text-slate-500">Sem foto</div>}
                 </div>
               </div>
 

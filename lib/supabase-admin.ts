@@ -21,6 +21,8 @@ export type ProdutoRow = {
   id: number;
   codigo_produto: string;
   nome: string;
+  departamento_id: number | null;
+  categoria_id: number | null;
   departamento: string;
   categoria: string;
   publico: string | null;
@@ -37,6 +39,8 @@ export type ProdutoRow = {
 export type ProdutoInsert = {
   codigo_produto: string;
   nome: string;
+  departamento_id?: number | null;
+  categoria_id?: number | null;
   departamento: string;
   categoria: string;
   publico?: string | null;
@@ -86,6 +90,25 @@ export type BannerInsert = {
 
 export type BannerUpdate = Partial<BannerInsert>;
 
+export type DepartamentoRow = {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  ordem: number | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type CategoriaRow = {
+  id: number;
+  departamento_id: number;
+  nome: string;
+  ativo: boolean;
+  ordem: number | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
 type Database = {
   public: {
     Tables: {
@@ -111,6 +134,18 @@ type Database = {
         Row: BannerRow;
         Insert: BannerInsert;
         Update: BannerUpdate;
+        Relationships: [];
+      };
+      departamentos: {
+        Row: DepartamentoRow;
+        Insert: Omit<DepartamentoRow, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<DepartamentoRow, 'id' | 'created_at' | 'updated_at'>>;
+        Relationships: [];
+      };
+      categorias: {
+        Row: CategoriaRow;
+        Insert: Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>>;
         Relationships: [];
       };
     };

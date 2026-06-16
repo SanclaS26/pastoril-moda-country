@@ -49,7 +49,7 @@ export function useAuth(): AuthContextType {
           setIsAuthenticated(true);
           setAdminError(null);
         }
-      } catch (error) {
+      } catch {
         if (mounted) {
           setIsAuthenticated(false);
           setAdminError(null);

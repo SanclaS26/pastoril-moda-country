@@ -6,7 +6,7 @@ export async function GET() {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('produtos')
-      .select('id, codigo_produto, nome, preco, preco_promocional, em_promocao, imagem_principal, categoria, departamento, publico, destaque')
+      .select('id, codigo_produto, nome, preco, preco_promocional, em_promocao, imagem_principal, categoria_id, categoria, departamento_id, departamento, publico, destaque')
       .eq('ativo', true)
       .order('destaque', { ascending: false })
       .order('id', { ascending: false });

@@ -47,6 +47,16 @@ function parseRequiredString(value: FormDataEntryValue | null, field: string) {
   return value.trim();
 }
 
+function parseRequiredId(value: FormDataEntryValue | null, field: string) {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`${field} é obrigatório.`);
+  }
+
+  return id;
+}
+
 function parsePrice(value: FormDataEntryValue | null, field: string, required: boolean) {
   if (typeof value !== 'string' || !value.trim()) {
     if (required) {
@@ -171,6 +181,48 @@ function formatProduct(product: ProdutoRow, stock: EstoqueProdutoRow[]) {
     ...product,
     estoque: stock,
   };
+}
+
+async function validateDepartmentAndCategory(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  departamentoId: number,
+  categoriaId: number,
+) {
+  const { data: departamento, error: departamentoError } = await supabaseAdmin
+    .from('departamentos')
+    .select('id, nome, ativo')
+    .eq('id', departamentoId)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (departamentoError) {
+    throw new Error(`Erro ao validar departamento: ${departamentoError.message}`);
+  }
+
+  if (!departamento) {
+    throw new Error('Departamento inválido ou inativo.');
+  }
+
+  const { data: categoria, error: categoriaError } = await supabaseAdmin
+    .from('categorias')
+    .select('id, departamento_id, nome, ativo')
+    .eq('id', categoriaId)
+    .eq('ativo', true)
+    .maybeSingle();
+
+  if (categoriaError) {
+    throw new Error(`Erro ao validar categoria: ${categoriaError.message}`);
+  }
+
+  if (!categoria) {
+    throw new Error('Categoria inválida ou inativa.');
+  }
+
+  if (categoria.departamento_id !== departamento.id) {
+    throw new Error('A categoria selecionada não pertence ao departamento informado.');
+  }
+
+  return { departamento, categoria };
 }
 
 async function getProductWithStock(supabaseAdmin: ReturnType<typeof getSupabaseAdmin>, productId: number) {
@@ -299,14 +351,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     const formData = await request.formData();
     const codigoProduto = parseRequiredString(formData.get('codigo_produto'), 'Código da peça');
     const nome = parseRequiredString(formData.get('nome'), 'Nome');
-    const departamento = parseRequiredString(formData.get('departamento'), 'Departamento');
-    const categoria = parseRequiredString(formData.get('categoria'), 'Categoria');
+    const departamentoId = parseRequiredId(formData.get('departamento_id'), 'Departamento');
+    const categoriaId = parseRequiredId(formData.get('categoria_id'), 'Categoria');
+    const { departamento, categoria } = await validateDepartmentAndCategory(supabaseAdmin, departamentoId, categoriaId);
     const preco = parsePrice(formData.get('preco'), 'Preço', true);
     const precoPromocional = parsePrice(formData.get('preco_promocional'), 'Preço promocional', false);
     const emPromocao = parseBoolean(formData.get('em_promocao'), false);
     const validatedPromotionalPrice = validatePromotion(emPromocao, preco ?? 0, precoPromocional);
     const publico = parseOptionalString(formData.get('publico'));
-    const stock = validarEstoqueParaGrade(parseStock(formData.get('estoques') ?? formData.get('estoque')), departamento, publico);
+    const stock = validarEstoqueParaGrade(parseStock(formData.get('estoques') ?? formData.get('estoque')), departamento.nome, publico);
     const imageFile = formData.get('imagem');
     const image = imageFile instanceof File ? imageFile : null;
     const extension = validateImage(image);
@@ -368,8 +421,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     const productPayload: ProdutoUpdate = {
       codigo_produto: codigoProduto,
       nome,
-      departamento,
-      categoria,
+      departamento_id: departamento.id,
+      categoria_id: categoria.id,
+      departamento: departamento.nome,
+      categoria: categoria.nome,
       publico,
       marca: parseOptionalString(formData.get('marca')),
       preco: preco ?? 0,

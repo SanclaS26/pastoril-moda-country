@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -202,9 +203,16 @@ export default function AdminBannersPage() {
               />
             </label>
 
-            <div className="mt-4 aspect-[16/7] overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+            <div className="relative mt-4 aspect-[16/7] overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
               {imagePreview ? (
-                <img src={imagePreview} alt="Prévia do banner" className="h-full w-full object-cover" />
+                <Image
+                  src={imagePreview}
+                  alt="Prévia do banner"
+                  fill
+                  sizes="(min-width: 1024px) 420px, 100vw"
+                  unoptimized={imagePreview.startsWith('blob:')}
+                  className="object-cover"
+                />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm text-slate-500">Prévia do banner</div>
               )}
@@ -232,8 +240,14 @@ export default function AdminBannersPage() {
               <div className="divide-y divide-slate-100">
                 {banners.map((banner) => (
                   <div key={banner.id} className="grid gap-4 px-6 py-4 md:grid-cols-[180px_1fr_auto] md:items-center">
-                    <div className="aspect-[16/7] overflow-hidden rounded-lg bg-slate-100">
-                      <img src={banner.imagem_url} alt={banner.titulo || 'Banner'} className="h-full w-full object-cover" />
+                    <div className="relative aspect-[16/7] overflow-hidden rounded-lg bg-slate-100">
+                      <Image
+                        src={banner.imagem_url}
+                        alt={banner.titulo || 'Banner'}
+                        fill
+                        sizes="(min-width: 768px) 180px, 100vw"
+                        className="object-cover"
+                      />
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">

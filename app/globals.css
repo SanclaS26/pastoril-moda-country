@@ -2,25 +2,23 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f5f3;
-  --surface: #ffffff;
-  --muted: #737373;
-  --accent-blue: #1756b8; /* deep blue */
-  --accent-yellow: #f6b72b; /* warm yellow */
-  --accent-earth: #8b5e3c; /* terracotta */
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b0b0b;
-    --surface: #0f1724;
-    --muted: #9ca3af;
-  }
+  --pastoril-bg: #F9F6F1;
+  --pastoril-card: #FFFFFF;
+  --pastoril-brown: #4A2D1A;
+  --pastoril-caramel: #C8722C;
+  --pastoril-promo: #C8722C;
+  --pastoril-text: #241C17;
+  --pastoril-muted: #6E625A;
+  --pastoril-border: #E7E0D8;
+  --pastoril-soft: #F7F0E7;
+  --background: var(--pastoril-bg);
+  --surface: var(--pastoril-card);
+  --muted: var(--pastoril-muted);
 }
 
 body {
   background: var(--background);
-  color: rgba(15, 23, 42, 0.95);
+  color: var(--pastoril-text);
   font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }
 
@@ -28,11 +26,6 @@ h1,h2,h3,h4,h5 {
   font-family: 'Playfair Display', serif;
 }
 
-.brand-gradient {
-  background: linear-gradient(90deg,var(--accent-blue),#2b7be4 60%);
-}
-
-.glass {
-  background: linear-gradient(180deg, rgba(255,255,255,0.7), rgba(250,250,250,0.6));
-  backdrop-filter: blur(6px);
+html {
+  scroll-behavior: smooth;
 }

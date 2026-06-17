@@ -14,6 +14,7 @@ import {
 } from '@/config/grades-tamanho';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
+import AdminShell from '../components/AdminShell';
 
 type StockItem = { id?: number; tamanho: string; quantidade: number };
 
@@ -498,7 +499,8 @@ export default function AdminProdutosPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <AdminShell title="Produtos" subtitle="Cadastro real de produtos e estoque por tamanho." active="produtos">
+      <div>
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div>
@@ -764,6 +766,7 @@ export default function AdminProdutosPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AdminShell>
   );
 }

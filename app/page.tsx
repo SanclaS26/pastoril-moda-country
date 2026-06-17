@@ -2,31 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
-import { TAMANHO_UNICO, getTipoGradeTamanho, isGradeSemSeletor } from '@/config/grades-tamanho';
-
-type Product = {
-  id: number;
-  codigo_produto: string;
-  nome: string;
-  preco: number;
-  preco_promocional: number | null;
-  em_promocao: boolean;
-  imagem_principal: string | null;
-  departamento: string;
-  publico: string | null;
-  estoque: StockItem[];
-};
-
-type StockItem = {
-  id: number;
-  tamanho: string;
-  quantidade: number;
-};
-
-type CartItem = Product & {
-  tamanhoSelecionado: string;
-  quantity: number;
-};
+import Link from 'next/link';
+import { TAMANHO_UNICO } from '@/config/grades-tamanho';
+import {
+  type CartItem,
+  type Product,
+  formatCurrency,
+  getAvailableUniqueStock,
+  getProductPrice,
+  productUsesVisibleSize,
+  readStoredCartItems,
+  writeStoredCartItems,
+} from '@/lib/catalog';
 
 type MainBanner = {
   id: number;
@@ -85,22 +72,6 @@ const pngIconSrc: Record<PngIconName, string> = {
   carrinho: '/brand/icons/carrinho.png',
   inicio: '/brand/icons/inicio.png',
 };
-
-function getProductPrice(product: Product) {
-  return product.em_promocao && product.preco_promocional !== null ? product.preco_promocional : product.preco;
-}
-
-function productUsesVisibleSize(product: Product) {
-  return !isGradeSemSeletor(getTipoGradeTamanho(product.departamento, product.publico));
-}
-
-function getAvailableUniqueStock(product: Product) {
-  return product.estoque.find((item) => item.tamanho === TAMANHO_UNICO) ?? product.estoque[0];
-}
-
-function formatCurrency(value: number) {
-  return `R$ ${value.toFixed(2)}`;
-}
 
 function PngIcon({
   name,
@@ -346,26 +317,28 @@ function ProductCard({
             Promo
           </span>
         )}
-        {product.imagem_principal ? (
-          <Image
-            src={product.imagem_principal}
-            alt={product.nome}
-            fill
-            priority={priority}
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-            className="object-cover transition duration-500 group-hover:scale-[1.03]"
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center px-3 text-center text-sm text-[var(--pastoril-muted)]">
-            Sem foto
-          </div>
-        )}
+        <Link href={`/produto/${product.id}`} aria-label={`Ver detalhes de ${product.nome}`} className="absolute inset-0">
+          {product.imagem_principal ? (
+            <Image
+              src={product.imagem_principal}
+              alt={product.nome}
+              fill
+              priority={priority}
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+              className="object-cover transition duration-500 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center px-3 text-center text-sm text-[var(--pastoril-muted)]">
+              Sem foto
+            </div>
+          )}
+        </Link>
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-4">
-        <h3 className="min-h-[2.25rem] text-sm font-semibold leading-snug text-[var(--pastoril-text)] sm:min-h-[2.5rem] sm:text-base">
+        <Link href={`/produto/${product.id}`} className="min-h-[2.25rem] text-sm font-semibold leading-snug text-[var(--pastoril-text)] transition hover:text-[var(--pastoril-caramel)] sm:min-h-[2.5rem] sm:text-base">
           {product.nome}
-        </h3>
+        </Link>
 
         <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <p className="text-base font-black text-[var(--pastoril-brown)] sm:text-xl">
@@ -407,9 +380,25 @@ export default function Home() {
   const [productsError, setProductsError] = useState('');
   const [mainBanner, setMainBanner] = useState<MainBanner | null>(null);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({});
   const [cartError, setCartError] = useState('');
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCartItems(readStoredCartItems());
+      setCartHydrated(true);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (cartHydrated) {
+      writeStoredCartItems(cartItems);
+    }
+  }, [cartHydrated, cartItems]);
 
   useEffect(() => {
     const fetchProducts = async () => {

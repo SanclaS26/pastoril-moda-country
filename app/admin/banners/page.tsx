@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
+import AdminShell from '../components/AdminShell';
 
 type Banner = {
   id: number;
@@ -160,7 +161,8 @@ export default function AdminBannersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 md:px-8">
+    <AdminShell title="Banners" subtitle="Atualize o banner principal exibido na vitrine." active="banners">
+      <div>
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-col gap-4 border-b border-slate-200 pb-6 md:flex-row md:items-center md:justify-between">
           <div>
@@ -276,6 +278,7 @@ export default function AdminBannersPage() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </AdminShell>
   );
 }

@@ -19,6 +19,7 @@ type MainBanner = {
   id: string;
   titulo: string | null;
   imagem_url: string | null;
+  url?: string | null;
   imagem_desktop_url: string | null;
   imagem_mobile_url: string | null;
   principal: boolean;
@@ -278,13 +279,13 @@ function ProductSizeSelector({
 
   return (
     <label className="mt-2 block">
-      <span className="mb-1 block text-[0.58rem] font-semibold uppercase text-[var(--pastoril-muted)]">
+      <span className="type-helper mb-1 block font-semibold uppercase text-[var(--pastoril-muted)]">
         Tamanho
       </span>
       <select
         value={selectedSize}
         onChange={(event) => onSelect(event.target.value)}
-        className="h-8 w-full rounded-lg border border-[var(--pastoril-border)] bg-white px-2 text-xs text-[var(--pastoril-text)] outline-none transition focus:border-[var(--pastoril-caramel)] focus:ring-2 focus:ring-[rgba(184,121,63,0.18)] sm:h-9 sm:text-sm"
+        className="type-helper h-8 w-full rounded-lg border border-[var(--pastoril-border)] bg-white px-2 text-[var(--pastoril-text)] outline-none transition focus:border-[var(--pastoril-caramel)] focus:ring-2 focus:ring-[rgba(184,121,63,0.18)] sm:h-9"
       >
         <option value="">Selecione</option>
         {product.estoque.map((stock) => (
@@ -317,7 +318,7 @@ function ProductCard({
     <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-[0_8px_18px_rgba(74,52,40,0.07)] sm:rounded-2xl">
       <div className="relative aspect-[1.2/1] overflow-hidden bg-[var(--pastoril-soft)]">
         {hasPromotion && (
-          <span className="absolute left-2 top-2 z-10 rounded-lg bg-[var(--pastoril-promo)] px-2 py-1 text-[0.58rem] font-bold uppercase text-white shadow-sm sm:left-3 sm:top-3">
+          <span className="type-helper absolute left-2 top-2 z-10 rounded-lg bg-[var(--pastoril-promo)] px-2 py-1 font-bold uppercase text-white shadow-sm sm:left-3 sm:top-3">
             Promo
           </span>
         )}
@@ -332,7 +333,7 @@ function ProductCard({
               className="object-cover transition duration-500 group-hover:scale-[1.03]"
             />
           ) : (
-            <div className="flex h-full items-center justify-center px-3 text-center text-sm text-[var(--pastoril-muted)]">
+            <div className="type-helper flex h-full items-center justify-center px-3 text-center text-[var(--pastoril-muted)]">
               Sem foto
             </div>
           )}
@@ -340,22 +341,22 @@ function ProductCard({
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-4">
-        <Link href={`/produto/${product.id}`} className="min-h-[2.25rem] text-sm font-semibold leading-snug text-[var(--pastoril-text)] transition hover:text-[var(--pastoril-caramel)] sm:min-h-[2.5rem] sm:text-base">
+        <Link href={`/produto/${product.id}`} className="type-product-name min-h-[2.25rem] transition hover:text-[var(--pastoril-caramel)] sm:min-h-[2.5rem]">
           {product.nome}
         </Link>
 
         <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <p className="text-base font-black text-[var(--pastoril-brown)] sm:text-xl">
+          <p className="type-price">
             {formatCurrency(currentPrice)}
           </p>
           {hasPromotion && (
-            <p className="text-xs text-[var(--pastoril-muted)] line-through">
+            <p className="type-helper text-[var(--pastoril-muted)] line-through">
               {formatCurrency(product.preco)}
             </p>
           )}
         </div>
 
-        <p className="mt-0.5 text-[0.65rem] font-medium text-[var(--pastoril-muted)] sm:text-xs">
+        <p className="type-helper mt-0.5 font-medium text-[var(--pastoril-muted)]">
           Cód. {product.codigo_produto}
         </p>
 
@@ -379,11 +380,11 @@ function ProductCard({
 }
 
 function getBannerDesktopUrl(banner: MainBanner) {
-  return banner.imagem_desktop_url || banner.imagem_url || banner.imagem_mobile_url || '';
+  return banner.imagem_desktop_url || banner.imagem_mobile_url || banner.imagem_url || banner.url || '';
 }
 
 function getBannerMobileUrl(banner: MainBanner) {
-  return banner.imagem_mobile_url || banner.imagem_desktop_url || banner.imagem_url || '';
+  return banner.imagem_mobile_url || banner.imagem_desktop_url || banner.imagem_url || banner.url || '';
 }
 
 function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: boolean }) {
@@ -391,30 +392,103 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
     () => banners.filter((banner) => getBannerDesktopUrl(banner) || getBannerMobileUrl(banner)),
     [banners],
   );
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [interactionVersion, setInteractionVersion] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
+  const [previousImageUrl, setPreviousImageUrl] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const dragStartX = useRef<number | null>(null);
+  const lastImageUrlRef = useRef<string | null>(null);
   const hasMultipleBanners = validBanners.length > 1;
-  const activeSlideIndex = validBanners.length ? activeIndex % validBanners.length : 0;
+  const activeBanner = validBanners[currentIndex] ?? validBanners[0];
+  const desktopUrl =
+    activeBanner?.imagem_desktop_url?.trim() ||
+    activeBanner?.imagem_mobile_url?.trim() ||
+    activeBanner?.imagem_url?.trim() ||
+    activeBanner?.url?.trim() ||
+    '';
+  const mobileUrl =
+    activeBanner?.imagem_mobile_url?.trim() ||
+    desktopUrl;
+  const activeImageUrl = isMobile ? mobileUrl : desktopUrl;
+
+  useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[home-banners-carousel]', {
+        received: banners.length,
+        renderedSlides: validBanners.length,
+        currentIndex,
+      });
+    }
+  }, [banners.length, currentIndex, validBanners.length]);
+
+  useEffect(() => {
+    if (validBanners.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentIndex(0);
+      return;
+    }
+
+    setCurrentIndex((index) => (index >= validBanners.length ? 0 : index));
+  }, [validBanners.length]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 767px)');
+    const updateIsMobile = () => {
+      setIsMobile(mediaQuery.matches);
+    };
+
+    updateIsMobile();
+    mediaQuery.addEventListener('change', updateIsMobile);
+
+    return () => {
+      mediaQuery.removeEventListener('change', updateIsMobile);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeImageUrl) return;
+
+    const lastImageUrl = lastImageUrlRef.current;
+
+    if (!lastImageUrl) {
+      lastImageUrlRef.current = activeImageUrl;
+      setPreviousImageUrl(activeImageUrl);
+      setIsTransitioning(false);
+      return;
+    }
+
+    if (lastImageUrl === activeImageUrl) {
+      return;
+    }
+
+    setPreviousImageUrl(lastImageUrl);
+    setIsTransitioning(true);
+
+    const timeout = window.setTimeout(() => {
+      lastImageUrlRef.current = activeImageUrl;
+      setPreviousImageUrl(activeImageUrl);
+      setIsTransitioning(false);
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [activeImageUrl]);
 
   useEffect(() => {
     if (!hasMultipleBanners) return;
 
-    const timer = window.setInterval(() => {
-      setActiveIndex((current) => (current + 1) % validBanners.length);
+    const interval = window.setInterval(() => {
+      setCurrentIndex((index) => (index + 1) % validBanners.length);
     }, 5000);
 
-    return () => window.clearInterval(timer);
-  }, [hasMultipleBanners, interactionVersion, validBanners.length]);
+    return () => window.clearInterval(interval);
+  }, [hasMultipleBanners, validBanners.length]);
 
   const goToSlide = (index: number) => {
-    setActiveIndex(index);
-    setInteractionVersion((current) => current + 1);
+    setCurrentIndex(index);
   };
 
   const goToRelativeSlide = (direction: 1 | -1) => {
-    setActiveIndex((current) => (current + direction + validBanners.length) % validBanners.length);
-    setInteractionVersion((current) => current + 1);
+    setCurrentIndex((index) => (index + direction + validBanners.length) % validBanners.length);
   };
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -436,62 +510,66 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
   if (loading) {
     return (
       <div
-        className="h-full w-full animate-pulse bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)]"
+        className="aspect-[2.18/1] w-full rounded-3xl bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] lg:aspect-[3.15/1]"
         aria-label="Carregando banners"
       />
     );
   }
 
   if (validBanners.length === 0) {
-    return <div className="h-full w-full bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)]" aria-label="Banner Pastoril Moda Country" />;
+    return <div className="aspect-[2.18/1] w-full rounded-3xl bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] lg:aspect-[3.15/1]" aria-label="Banner Pastoril Moda Country" />;
   }
 
   return (
     <div
-      className="relative h-full w-full touch-pan-y overflow-hidden"
+      data-banner-carousel
+      className="relative w-full overflow-hidden"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {
         dragStartX.current = null;
       }}
     >
-      <div
-        className="flex h-full transition-transform duration-500 ease-out"
-        style={{ transform: `translateX(-${activeSlideIndex * 100}%)` }}
-      >
-        {validBanners.map((banner, index) => {
-          const desktopUrl = getBannerDesktopUrl(banner);
-          const mobileUrl = getBannerMobileUrl(banner);
-          const fallbackUrl = desktopUrl || mobileUrl;
+      {activeBanner && activeImageUrl && (
+        <div
+          key={`banner-container-${activeBanner.id}-${currentIndex}`}
+          className="relative aspect-[2.18/1] w-full overflow-hidden rounded-3xl bg-[#F9F6F1] lg:aspect-[3.15/1]"
+        >
+          {previousImageUrl && previousImageUrl !== activeImageUrl && (
+            <img
+              src={previousImageUrl}
+              alt=""
+              aria-hidden="true"
+              className="banner-image-exit absolute inset-0 h-full w-full object-cover object-center"
+              draggable={false}
+            />
+          )}
 
-          return (
-            <picture key={banner.id} className="block h-full min-w-full">
-              {mobileUrl && mobileUrl !== fallbackUrl && <source media="(max-width: 767px)" srcSet={mobileUrl} />}
-              <img
-                src={fallbackUrl}
-                alt={banner.titulo || 'Banner Pastoril Moda Country'}
-                className="h-full w-full object-cover"
-                loading={index === 0 ? 'eager' : 'lazy'}
-                fetchPriority={index === 0 ? 'high' : 'auto'}
-                draggable={false}
-              />
-            </picture>
-          );
-        })}
-      </div>
+          <img
+            key={`${activeBanner.id}-${currentIndex}-${activeImageUrl}`}
+            src={activeImageUrl}
+            alt={activeBanner.titulo || 'Banner Pastoril Moda Country'}
+            className={`absolute inset-0 h-full w-full object-cover object-center ${
+              isTransitioning ? 'banner-image-enter' : ''
+            }`}
+            draggable={false}
+          />
+        </div>
+      )}
 
       {hasMultipleBanners && (
         <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
           {validBanners.map((banner, index) => (
             <button
               key={banner.id}
+              data-banner-indicator
               type="button"
               onClick={() => goToSlide(index)}
               className={`h-2 rounded-full transition-all ${
-                activeSlideIndex === index ? 'w-6 bg-[var(--pastoril-caramel)]' : 'w-2 bg-white/75 shadow-[0_0_0_1px_rgba(74,45,26,0.12)]'
+                currentIndex === index ? 'w-6 bg-[var(--pastoril-caramel)]' : 'w-2 bg-white/75 shadow-[0_0_0_1px_rgba(74,45,26,0.12)]'
               }`}
               aria-label={`Ir para banner ${index + 1}`}
-              aria-current={activeSlideIndex === index ? 'true' : undefined}
+              aria-current={currentIndex === index ? 'true' : undefined}
             />
           ))}
         </div>
@@ -562,11 +640,13 @@ export default function Home() {
           return;
         }
 
-        if (Array.isArray(data.banners)) {
-          setBanners(data.banners);
-        } else {
-          setBanners(data.banner ? [data.banner] : []);
+        const loadedBanners = Array.isArray(data.banners) ? data.banners : [];
+
+        if (process.env.NODE_ENV !== 'production') {
+          console.info('[home-banners-fetch]', { count: loadedBanners.length });
         }
+
+        setBanners(loadedBanners);
       } catch {
         setBanners([]);
       } finally {
@@ -651,7 +731,7 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
+    <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
       <header className="bg-[rgba(249,246,241,0.96)] backdrop-blur">
         <div className="mx-auto grid h-[78px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-5 sm:h-[96px] sm:px-8 lg:px-8">
           <div className="flex items-center justify-start">
@@ -716,7 +796,7 @@ export default function Home() {
                   <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-[var(--pastoril-brown)] shadow-[inset_0_0_0_1px_rgba(74,45,26,0.04)]">
                     <PngIcon name={category.icon} alt="" className="h-9 w-9" sizes="36px" />
                   </div>
-                  <p className="mt-2 text-sm font-semibold text-[var(--pastoril-text)] sm:text-[0.94rem]">{category.label}</p>
+                  <p className="type-button mt-2 text-[var(--pastoril-text)]">{category.label}</p>
                 </a>
               ))}
             </div>
@@ -726,23 +806,23 @@ export default function Home() {
         <div className="mx-auto max-w-7xl gap-8 border-t border-[var(--pastoril-border)] px-5 py-5 sm:px-8 sm:py-8 lg:grid lg:grid-cols-[1fr_360px] lg:px-8">
           <section id="produtos">
             <div className="mb-5 flex items-center justify-between gap-4">
-              <h2 className="text-3xl font-bold leading-none text-[var(--pastoril-brown)] sm:text-4xl">Destaques</h2>
-              <a href="#produtos" className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--pastoril-caramel)] sm:text-base">
+              <h2 className="type-section-title">Destaques</h2>
+              <a href="#produtos" className="type-button inline-flex items-center gap-1 text-[var(--pastoril-caramel)]">
                 Ver todos
                 <Icon name="chevron" className="h-4 w-4" />
               </a>
             </div>
 
             {loadingProducts ? (
-              <div className="rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
+              <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
                 Carregando produtos...
               </div>
             ) : productsError ? (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-rose-700">
+              <div className="type-body rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-rose-700">
                 {productsError}
               </div>
             ) : products.length === 0 ? (
-              <div className="rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
+              <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
                 Nenhum produto disponível no momento.
               </div>
             ) : (
@@ -774,8 +854,8 @@ export default function Home() {
             >
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-[var(--pastoril-brown)]">Seu pedido</h2>
-                  <p className="text-sm text-[var(--pastoril-muted)]">{totalItems} itens</p>
+                  <h2 className="type-subtitle">Seu pedido</h2>
+                  <p className="type-helper text-[var(--pastoril-muted)]">{totalItems} itens</p>
                 </div>
                 <button
                   onClick={() => setIsCartOpen(false)}
@@ -787,14 +867,14 @@ export default function Home() {
               </div>
 
               {cartError && (
-                <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="type-body mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
                   {cartError}
                 </div>
               )}
 
               <div className="mb-6 max-h-72 space-y-3 overflow-y-auto">
                 {cartItems.length === 0 ? (
-                  <div className="rounded-xl bg-[var(--pastoril-bg)] px-4 py-6 text-center text-[var(--pastoril-muted)]">
+                  <div className="type-body rounded-xl bg-[var(--pastoril-bg)] px-4 py-6 text-center text-[var(--pastoril-muted)]">
                     Carrinho vazio
                   </div>
                 ) : (
@@ -802,26 +882,26 @@ export default function Home() {
                     <div key={`${item.id}-${item.tamanhoSelecionado}`} className="rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-bg)] p-3">
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-[var(--pastoril-brown)]">{item.nome}</p>
-                          <p className="text-xs text-[var(--pastoril-muted)]">
+                          <p className="type-product-name truncate text-[var(--pastoril-brown)]">{item.nome}</p>
+                          <p className="type-helper text-[var(--pastoril-muted)]">
                             {item.codigo_produto}
                             {productUsesVisibleSize(item) ? ` · Tam. ${item.tamanhoSelecionado}` : ''}
                           </p>
                         </div>
                         <button
                           onClick={() => removeFromCart(item.id, item.tamanhoSelecionado)}
-                          className="shrink-0 text-xs font-semibold text-[var(--pastoril-promo)] hover:text-[var(--pastoril-brown)]"
+                          className="type-helper shrink-0 font-semibold text-[var(--pastoril-promo)] hover:text-[var(--pastoril-brown)]"
                         >
                           Remover
                         </button>
                       </div>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center overflow-hidden rounded-full border border-[var(--pastoril-border)] bg-white">
-                          <button onClick={() => updateQuantity(item.id, item.tamanhoSelecionado, -1)} className="h-8 w-8 text-sm text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">-</button>
-                          <span className="w-8 text-center text-xs font-bold text-[var(--pastoril-text)]">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.id, item.tamanhoSelecionado, 1)} className="h-8 w-8 text-sm text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">+</button>
+                          <button onClick={() => updateQuantity(item.id, item.tamanhoSelecionado, -1)} className="type-button h-8 w-8 text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">-</button>
+                          <span className="type-helper w-8 text-center font-bold text-[var(--pastoril-text)]">{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.id, item.tamanhoSelecionado, 1)} className="type-button h-8 w-8 text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">+</button>
                         </div>
-                        <p className="text-sm font-bold text-[var(--pastoril-brown)]">
+                        <p className="type-price">
                           {formatCurrency(getProductPrice(item) * item.quantity)}
                         </p>
                       </div>
@@ -832,12 +912,12 @@ export default function Home() {
 
               <div className="border-t border-[var(--pastoril-border)] pt-4">
                 <div className="mb-4 flex items-center justify-between">
-                  <span className="font-semibold text-[var(--pastoril-brown)]">Total:</span>
-                  <span className="text-2xl font-bold text-[var(--pastoril-brown)]">{formatCurrency(totalPrice)}</span>
+                  <span className="type-button text-[var(--pastoril-brown)]">Total:</span>
+                  <span className="type-price">{formatCurrency(totalPrice)}</span>
                 </div>
                 <a
                   href={`https://wa.me/5568999244811?text=${whatsappMessage}`}
-                  className="block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-[var(--pastoril-brown)]"
+                  className="type-button block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)]"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -849,7 +929,7 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="border-t border-[var(--pastoril-border)] bg-white py-8 text-center text-sm text-[var(--pastoril-muted)]">
+      <footer className="type-helper border-t border-[var(--pastoril-border)] bg-white py-8 text-center text-[var(--pastoril-muted)]">
         <p>&copy; 2026 Pastoril Moda Country. Todos os direitos reservados.</p>
       </footer>
 
@@ -859,21 +939,21 @@ export default function Home() {
         aria-label="Navegação principal"
       >
         <div className="mx-auto grid h-full max-w-[430px] grid-cols-5 items-start">
-          <a href="#" className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#C8722C]">
+          <a href="#" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#C8722C]">
             <PngIcon name="inicio" alt="" className="h-[24px] w-[24px]" sizes="24px" />
             <span>Início</span>
           </a>
-          <a href="#categorias" className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]">
+          <a href="#categorias" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]">
             <Icon name="grid" className="h-[24px] w-[24px]" />
             <span>Categorias</span>
           </a>
-          <a href="#produtos" className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]">
+          <a href="#produtos" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]">
             <Icon name="search" className="h-[24px] w-[24px]" />
             <span>Buscar</span>
           </a>
           <a
             href="https://wa.me/5568999244811"
-            className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]"
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
             target="_blank"
             rel="noreferrer"
           >
@@ -882,7 +962,7 @@ export default function Home() {
           </a>
           <a
             href="https://www.instagram.com/pastorilcountry/"
-            className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]"
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
             target="_blank"
             rel="noreferrer"
           >

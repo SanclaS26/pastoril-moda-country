@@ -315,7 +315,8 @@ export default function AdminBannersPage() {
               />
             </label>
 
-            <div className="relative mt-3 aspect-[16/7] overflow-hidden rounded-lg border border-[#E7E0D8] bg-[#F7F0E7]">
+            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Previa desktop</p>
+            <div className="relative mt-1 aspect-[3.15/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
               {desktopPreview ? (
                 <Image
                   src={desktopPreview}
@@ -323,7 +324,7 @@ export default function AdminBannersPage() {
                   fill
                   sizes="(min-width: 1280px) 420px, 100vw"
                   unoptimized={desktopPreview.startsWith('blob:')}
-                  className="object-cover"
+                  className="object-cover object-center"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm font-medium text-[#6E625A]">
@@ -342,7 +343,8 @@ export default function AdminBannersPage() {
               />
             </label>
 
-            <div className="relative mt-3 aspect-[9/12] max-h-[360px] overflow-hidden rounded-lg border border-[#E7E0D8] bg-[#F7F0E7] sm:aspect-[4/5]">
+            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Previa celular</p>
+            <div className="relative mt-1 aspect-[2.18/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
               {mobilePreview ? (
                 <Image
                   src={mobilePreview}
@@ -350,7 +352,7 @@ export default function AdminBannersPage() {
                   fill
                   sizes="(min-width: 1280px) 420px, 100vw"
                   unoptimized={mobilePreview.startsWith('blob:')}
-                  className="object-cover"
+                  className="object-cover object-center"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm font-medium text-[#6E625A]">
@@ -414,25 +416,25 @@ export default function AdminBannersPage() {
                       <div className="grid grid-cols-[1fr_88px] gap-3">
                         <div>
                           <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Desktop</p>
-                          <div className="relative aspect-[16/7] overflow-hidden rounded-lg bg-[#F7F0E7]">
+                          <div className="relative aspect-[3.15/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
                             <Image
                               src={desktopUrl}
                               alt={banner.titulo || 'Banner desktop'}
                               fill
                               sizes="(min-width: 1280px) 180px, 60vw"
-                              className="object-cover"
+                              className="object-cover object-center"
                             />
                           </div>
                         </div>
                         <div>
                           <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Celular</p>
-                          <div className="relative aspect-[9/12] overflow-hidden rounded-lg bg-[#F7F0E7]">
+                          <div className="relative aspect-[2.18/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
                             <Image
                               src={mobileUrl}
                               alt={banner.titulo || 'Banner celular'}
                               fill
                               sizes="88px"
-                              className="object-cover"
+                              className="object-cover object-center"
                             />
                           </div>
                         </div>

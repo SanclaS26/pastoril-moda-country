@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:wght@600;700&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -14,18 +13,159 @@
   --background: var(--pastoril-bg);
   --surface: var(--pastoril-card);
   --muted: var(--pastoril-muted);
+  --font-body: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-lora), Georgia, "Times New Roman", serif;
+  --type-title-main: 1.875rem;
+  --type-title-section: 1.625rem;
+  --type-subtitle: 1.25rem;
+  --type-body: 0.875rem;
+  --type-product-name: 0.875rem;
+  --type-price: 1.125rem;
+  --type-button: 0.875rem;
+  --type-bottom-menu: 0.72rem;
+  --type-helper: 0.75rem;
 }
 
 body {
   background: var(--background);
   color: var(--pastoril-text);
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-}
-
-h1,h2,h3,h4,h5 {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--font-body);
 }
 
 html {
   scroll-behavior: smooth;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --type-body: 1rem;
+    --type-product-name: 1rem;
+    --type-price: 1.25rem;
+    --type-button: 0.9375rem;
+    --type-helper: 0.875rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --type-title-main: 2.5rem;
+    --type-title-section: 1.75rem;
+    --type-subtitle: 1.375rem;
+    --type-price: 1.375rem;
+  }
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.type-title-main {
+  color: var(--pastoril-brown);
+  font-family: var(--font-display);
+  font-size: var(--type-title-main);
+  font-weight: 700;
+  line-height: 1.16;
+}
+
+.type-section-title {
+  color: var(--pastoril-brown);
+  font-family: var(--font-display);
+  font-size: var(--type-title-section);
+  font-weight: 600;
+  line-height: 1.18;
+}
+
+.type-subtitle {
+  color: var(--pastoril-brown);
+  font-family: var(--font-display);
+  font-size: var(--type-subtitle);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.type-body {
+  color: var(--pastoril-text);
+  font-family: var(--font-body);
+  font-size: var(--type-body);
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.type-product-name {
+  color: var(--pastoril-text);
+  font-family: var(--font-body);
+  font-size: var(--type-product-name);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.type-price {
+  color: var(--pastoril-brown);
+  font-family: var(--font-body);
+  font-size: var(--type-price);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.type-button {
+  font-family: var(--font-body);
+  font-size: var(--type-button);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.type-bottom-menu {
+  font-family: var(--font-body);
+  font-size: var(--type-bottom-menu);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.type-helper {
+  color: var(--pastoril-muted);
+  font-family: var(--font-body);
+  font-size: var(--type-helper);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+@keyframes bannerCrossfadeIn {
+  from {
+    opacity: 0;
+    transform: scale(1.01);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bannerCrossfadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+.banner-image-enter {
+  animation: bannerCrossfadeIn 700ms ease-in-out both;
+}
+
+.banner-image-exit {
+  animation: bannerCrossfadeOut 700ms ease-in-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .banner-image-enter,
+  .banner-image-exit {
+    animation: none;
+  }
 }

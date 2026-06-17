@@ -18,7 +18,7 @@ export async function GET() {
     }
 
     return NextResponse.json(
-      { banners: data ?? [], banner: data?.[0] ?? null },
+      { banners: data ?? [] },
       {
         headers: {
           'Cache-Control': 'no-store',

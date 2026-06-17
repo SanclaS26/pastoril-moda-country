@@ -248,7 +248,7 @@ export default function ProductDetailPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--pastoril-bg)] pb-10 text-[var(--pastoril-text)]">
+    <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-10 text-[var(--pastoril-text)]">
       <header className="bg-[rgba(249,246,241,0.96)]">
         <div className="mx-auto grid h-[78px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-5 sm:h-[96px] sm:px-8">
           <button
@@ -293,11 +293,11 @@ export default function ProductDetailPage() {
         ) : error || !product ? (
           <section className="mx-auto max-w-2xl px-5 py-16 text-center sm:px-8">
             <div className="rounded-3xl border border-[var(--pastoril-border)] bg-white p-8 shadow-[0_12px_28px_rgba(74,52,40,0.08)]">
-              <h1 className="text-3xl font-bold text-[var(--pastoril-brown)]">Produto indisponivel</h1>
-              <p className="mt-3 text-sm text-[var(--pastoril-muted)]">{error || 'Nao encontramos este produto.'}</p>
+              <h1 className="type-title-main">Produto indisponivel</h1>
+              <p className="type-helper mt-3 text-[var(--pastoril-muted)]">{error || 'Nao encontramos este produto.'}</p>
               <Link
                 href="/"
-                className="mt-6 inline-flex rounded-lg bg-[var(--pastoril-caramel)] px-5 py-3 text-sm font-bold text-white transition hover:bg-[var(--pastoril-brown)]"
+                className="type-button mt-6 inline-flex rounded-lg bg-[var(--pastoril-caramel)] px-5 py-3 text-white transition hover:bg-[var(--pastoril-brown)]"
               >
                 Voltar para a loja
               </Link>
@@ -318,7 +318,7 @@ export default function ProductDetailPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center px-6 text-center text-sm text-[var(--pastoril-muted)]">
+                    <div className="type-helper flex h-full items-center justify-center px-6 text-center text-[var(--pastoril-muted)]">
                       Produto sem imagem cadastrada
                     </div>
                   )}
@@ -342,28 +342,28 @@ export default function ProductDetailPage() {
 
               <div className="rounded-3xl border border-[var(--pastoril-border)] bg-white p-5 shadow-[0_12px_28px_rgba(74,52,40,0.08)] sm:p-7">
                 {hasPromotion && (
-                  <span className="mb-4 inline-flex rounded-lg bg-[var(--pastoril-promo)] px-3 py-1 text-xs font-bold uppercase text-white">
+                  <span className="type-helper mb-4 inline-flex rounded-lg bg-[var(--pastoril-promo)] px-3 py-1 font-bold uppercase text-white">
                     Promocao
                   </span>
                 )}
 
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--pastoril-muted)]">
+                <p className="type-helper font-semibold uppercase text-[var(--pastoril-muted)]">
                   {product.categoria || product.departamento}
                 </p>
-                <h1 className="mt-2 text-3xl font-bold leading-tight text-[var(--pastoril-brown)] sm:text-4xl">
+                <h1 className="type-title-main mt-2">
                   {product.nome}
                 </h1>
-                <p className="mt-2 text-sm text-[var(--pastoril-muted)]">Cod. {product.codigo_produto}</p>
+                <p className="type-helper mt-2 text-[var(--pastoril-muted)]">Cod. {product.codigo_produto}</p>
 
                 <div className="mt-5 flex flex-wrap items-end gap-3">
-                  <p className="text-3xl font-black text-[var(--pastoril-brown)]">{formatCurrency(currentPrice)}</p>
+                  <p className="type-price">{formatCurrency(currentPrice)}</p>
                   {hasPromotion && (
-                    <p className="pb-1 text-sm text-[var(--pastoril-muted)] line-through">{formatCurrency(product.preco)}</p>
+                    <p className="type-helper pb-1 text-[var(--pastoril-muted)] line-through">{formatCurrency(product.preco)}</p>
                   )}
                 </div>
 
                 {product.descricao && (
-                  <p className="mt-5 whitespace-pre-line text-sm leading-6 text-[var(--pastoril-muted)]">
+                  <p className="type-body mt-5 whitespace-pre-line text-[var(--pastoril-muted)]">
                     {product.descricao}
                   </p>
                 )}
@@ -372,9 +372,9 @@ export default function ProductDetailPage() {
                   {productUsesVisibleSize(product) ? (
                     <div>
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <h2 className="text-sm font-bold uppercase text-[var(--pastoril-brown)]">Tamanhos disponiveis</h2>
+                        <h2 className="type-button uppercase text-[var(--pastoril-brown)]">Tamanhos disponiveis</h2>
                         {selectedStock && (
-                          <span className="text-xs font-semibold text-[var(--pastoril-muted)]">
+                          <span className="type-helper font-semibold text-[var(--pastoril-muted)]">
                             {selectedStock.quantidade} em estoque
                           </span>
                         )}
@@ -389,7 +389,7 @@ export default function ProductDetailPage() {
                               setCartError('');
                             }}
                             disabled={stock.quantidade <= 0}
-                            className={`min-w-12 rounded-xl border px-4 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                            className={`type-button min-w-12 rounded-xl border px-4 py-3 transition disabled:cursor-not-allowed disabled:opacity-40 ${
                               selectedSize === stock.tamanho
                                 ? 'border-[var(--pastoril-caramel)] bg-[var(--pastoril-caramel)] text-white'
                                 : 'border-[var(--pastoril-border)] bg-[var(--pastoril-bg)] text-[var(--pastoril-brown)] hover:border-[var(--pastoril-caramel)]'
@@ -401,13 +401,13 @@ export default function ProductDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-2xl bg-[var(--pastoril-bg)] p-4 text-sm text-[var(--pastoril-muted)]">
+                    <div className="type-body rounded-2xl bg-[var(--pastoril-bg)] p-4 text-[var(--pastoril-muted)]">
                       {hasStock ? `${maxQuantity} unidade(s) em estoque` : 'Produto sem estoque no momento'}
                     </div>
                   )}
 
                   <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl bg-[var(--pastoril-bg)] p-3">
-                    <span className="text-sm font-bold text-[var(--pastoril-brown)]">Quantidade</span>
+                    <span className="type-button text-[var(--pastoril-brown)]">Quantidade</span>
                     <div className="flex items-center overflow-hidden rounded-full border border-[var(--pastoril-border)] bg-white">
                       <button
                         onClick={() => setQuantity((current) => Math.max(1, current - 1))}
@@ -417,7 +417,7 @@ export default function ProductDetailPage() {
                       >
                         <Icon name="minus" className="h-4 w-4" />
                       </button>
-                      <span className="w-10 text-center text-sm font-black text-[var(--pastoril-text)]">{quantity}</span>
+                      <span className="type-button w-10 text-center text-[var(--pastoril-text)]">{quantity}</span>
                       <button
                         onClick={() => setQuantity((current) => Math.min(maxQuantity || 1, current + 1))}
                         disabled={!maxQuantity || quantity >= maxQuantity}
@@ -430,12 +430,12 @@ export default function ProductDetailPage() {
                   </div>
 
                   {cartError && (
-                    <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                    <div className="type-body mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
                       {cartError}
                     </div>
                   )}
                   {successMessage && (
-                    <div className="mt-4 rounded-xl border border-[#E7E0D8] bg-[var(--pastoril-soft)] px-4 py-3 text-sm font-semibold text-[var(--pastoril-brown)]">
+                    <div className="type-button mt-4 rounded-xl border border-[#E7E0D8] bg-[var(--pastoril-soft)] px-4 py-3 text-[var(--pastoril-brown)]">
                       {successMessage}
                     </div>
                   )}
@@ -443,7 +443,7 @@ export default function ProductDetailPage() {
                   <button
                     onClick={addToCart}
                     disabled={!hasStock || !maxQuantity}
-                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--pastoril-caramel)] px-5 py-4 text-sm font-black uppercase text-white shadow-[0_12px_24px_rgba(200,114,44,0.22)] transition hover:bg-[var(--pastoril-brown)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="type-button mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--pastoril-caramel)] px-5 py-4 uppercase text-white shadow-[0_12px_24px_rgba(200,114,44,0.22)] transition hover:bg-[var(--pastoril-brown)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <Icon name="cart" className="h-5 w-5" />
                     Adicionar ao carrinho
@@ -465,8 +465,8 @@ export default function ProductDetailPage() {
         >
           <div className="mb-5 flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-[var(--pastoril-brown)]">Seu pedido</h2>
-              <p className="text-sm text-[var(--pastoril-muted)]">{totalItems} itens</p>
+              <h2 className="type-subtitle">Seu pedido</h2>
+              <p className="type-helper text-[var(--pastoril-muted)]">{totalItems} itens</p>
             </div>
             <button
               onClick={() => setIsCartOpen(false)}
@@ -479,7 +479,7 @@ export default function ProductDetailPage() {
 
           <div className="mb-6 max-h-72 space-y-3 overflow-y-auto">
             {cartItems.length === 0 ? (
-              <div className="rounded-xl bg-[var(--pastoril-bg)] px-4 py-6 text-center text-[var(--pastoril-muted)]">
+              <div className="type-body rounded-xl bg-[var(--pastoril-bg)] px-4 py-6 text-center text-[var(--pastoril-muted)]">
                 Carrinho vazio
               </div>
             ) : (
@@ -487,26 +487,26 @@ export default function ProductDetailPage() {
                 <div key={`${item.id}-${item.tamanhoSelecionado}`} className="rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-bg)] p-3">
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[var(--pastoril-brown)]">{item.nome}</p>
-                      <p className="text-xs text-[var(--pastoril-muted)]">
+                      <p className="type-product-name truncate text-[var(--pastoril-brown)]">{item.nome}</p>
+                      <p className="type-helper text-[var(--pastoril-muted)]">
                         {item.codigo_produto}
                         {productUsesVisibleSize(item) ? ` - Tam. ${item.tamanhoSelecionado}` : ''}
                       </p>
                     </div>
                     <button
                       onClick={() => removeFromCart(item.id, item.tamanhoSelecionado)}
-                      className="shrink-0 text-xs font-semibold text-[var(--pastoril-promo)] hover:text-[var(--pastoril-brown)]"
+                      className="type-helper shrink-0 font-semibold text-[var(--pastoril-promo)] hover:text-[var(--pastoril-brown)]"
                     >
                       Remover
                     </button>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center overflow-hidden rounded-full border border-[var(--pastoril-border)] bg-white">
-                      <button onClick={() => updateCartQuantity(item, item.tamanhoSelecionado, -1)} className="h-8 w-8 text-sm text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">-</button>
-                      <span className="w-8 text-center text-xs font-bold text-[var(--pastoril-text)]">{item.quantity}</span>
-                      <button onClick={() => updateCartQuantity(item, item.tamanhoSelecionado, 1)} className="h-8 w-8 text-sm text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">+</button>
+                      <button onClick={() => updateCartQuantity(item, item.tamanhoSelecionado, -1)} className="type-button h-8 w-8 text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">-</button>
+                      <span className="type-helper w-8 text-center font-bold text-[var(--pastoril-text)]">{item.quantity}</span>
+                      <button onClick={() => updateCartQuantity(item, item.tamanhoSelecionado, 1)} className="type-button h-8 w-8 text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">+</button>
                     </div>
-                    <p className="text-sm font-bold text-[var(--pastoril-brown)]">
+                    <p className="type-price">
                       {formatCurrency(getProductPrice(item) * item.quantity)}
                     </p>
                   </div>
@@ -517,12 +517,12 @@ export default function ProductDetailPage() {
 
           <div className="border-t border-[var(--pastoril-border)] pt-4">
             <div className="mb-4 flex items-center justify-between">
-              <span className="font-semibold text-[var(--pastoril-brown)]">Total:</span>
-              <span className="text-2xl font-bold text-[var(--pastoril-brown)]">{formatCurrency(totalPrice)}</span>
+              <span className="type-button text-[var(--pastoril-brown)]">Total:</span>
+              <span className="type-price">{formatCurrency(totalPrice)}</span>
             </div>
             <a
               href={`https://wa.me/5568999244811?text=${whatsappMessage}`}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-[var(--pastoril-brown)]"
+              className="type-button flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)]"
               target="_blank"
               rel="noreferrer"
             >

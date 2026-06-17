@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TAMANHO_UNICO } from '@/config/grades-tamanho';
@@ -16,9 +16,13 @@ import {
 } from '@/lib/catalog';
 
 type MainBanner = {
-  id: number;
+  id: string;
   titulo: string | null;
-  imagem_url: string;
+  imagem_url: string | null;
+  imagem_desktop_url: string | null;
+  imagem_mobile_url: string | null;
+  principal: boolean;
+  created_at?: string;
 };
 
 type IconName =
@@ -374,11 +378,134 @@ function ProductCard({
   );
 }
 
+function getBannerDesktopUrl(banner: MainBanner) {
+  return banner.imagem_desktop_url || banner.imagem_url || banner.imagem_mobile_url || '';
+}
+
+function getBannerMobileUrl(banner: MainBanner) {
+  return banner.imagem_mobile_url || banner.imagem_desktop_url || banner.imagem_url || '';
+}
+
+function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: boolean }) {
+  const validBanners = useMemo(
+    () => banners.filter((banner) => getBannerDesktopUrl(banner) || getBannerMobileUrl(banner)),
+    [banners],
+  );
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [interactionVersion, setInteractionVersion] = useState(0);
+  const dragStartX = useRef<number | null>(null);
+  const hasMultipleBanners = validBanners.length > 1;
+  const activeSlideIndex = validBanners.length ? activeIndex % validBanners.length : 0;
+
+  useEffect(() => {
+    if (!hasMultipleBanners) return;
+
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % validBanners.length);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [hasMultipleBanners, interactionVersion, validBanners.length]);
+
+  const goToSlide = (index: number) => {
+    setActiveIndex(index);
+    setInteractionVersion((current) => current + 1);
+  };
+
+  const goToRelativeSlide = (direction: 1 | -1) => {
+    setActiveIndex((current) => (current + direction + validBanners.length) % validBanners.length);
+    setInteractionVersion((current) => current + 1);
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!hasMultipleBanners) return;
+    dragStartX.current = event.clientX;
+  };
+
+  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!hasMultipleBanners || dragStartX.current === null) return;
+
+    const distance = event.clientX - dragStartX.current;
+    dragStartX.current = null;
+
+    if (Math.abs(distance) < 42) return;
+
+    goToRelativeSlide(distance < 0 ? 1 : -1);
+  };
+
+  if (loading) {
+    return (
+      <div
+        className="h-full w-full animate-pulse bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)]"
+        aria-label="Carregando banners"
+      />
+    );
+  }
+
+  if (validBanners.length === 0) {
+    return <div className="h-full w-full bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)]" aria-label="Banner Pastoril Moda Country" />;
+  }
+
+  return (
+    <div
+      className="relative h-full w-full touch-pan-y overflow-hidden"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={() => {
+        dragStartX.current = null;
+      }}
+    >
+      <div
+        className="flex h-full transition-transform duration-500 ease-out"
+        style={{ transform: `translateX(-${activeSlideIndex * 100}%)` }}
+      >
+        {validBanners.map((banner, index) => {
+          const desktopUrl = getBannerDesktopUrl(banner);
+          const mobileUrl = getBannerMobileUrl(banner);
+          const fallbackUrl = desktopUrl || mobileUrl;
+
+          return (
+            <picture key={banner.id} className="block h-full min-w-full">
+              {mobileUrl && mobileUrl !== fallbackUrl && <source media="(max-width: 767px)" srcSet={mobileUrl} />}
+              <img
+                src={fallbackUrl}
+                alt={banner.titulo || 'Banner Pastoril Moda Country'}
+                className="h-full w-full object-cover"
+                loading={index === 0 ? 'eager' : 'lazy'}
+                fetchPriority={index === 0 ? 'high' : 'auto'}
+                draggable={false}
+              />
+            </picture>
+          );
+        })}
+      </div>
+
+      {hasMultipleBanners && (
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+          {validBanners.map((banner, index) => (
+            <button
+              key={banner.id}
+              type="button"
+              onClick={() => goToSlide(index)}
+              className={`h-2 rounded-full transition-all ${
+                activeSlideIndex === index ? 'w-6 bg-[var(--pastoril-caramel)]' : 'w-2 bg-white/75 shadow-[0_0_0_1px_rgba(74,45,26,0.12)]'
+              }`}
+              aria-label={`Ir para banner ${index + 1}`}
+              aria-current={activeSlideIndex === index ? 'true' : undefined}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [productsError, setProductsError] = useState('');
-  const [mainBanner, setMainBanner] = useState<MainBanner | null>(null);
+  const [banners, setBanners] = useState<MainBanner[]>([]);
+  const [loadingBanners, setLoadingBanners] = useState(true);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartHydrated, setCartHydrated] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -425,8 +552,9 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const fetchMainBanner = async () => {
+    const fetchBanners = async () => {
       try {
+        setLoadingBanners(true);
         const response = await fetch('/api/banners/principal', { cache: 'no-store' });
         const data = await response.json();
 
@@ -434,13 +562,19 @@ export default function Home() {
           return;
         }
 
-        setMainBanner(data.banner ?? null);
+        if (Array.isArray(data.banners)) {
+          setBanners(data.banners);
+        } else {
+          setBanners(data.banner ? [data.banner] : []);
+        }
       } catch {
-        setMainBanner(null);
+        setBanners([]);
+      } finally {
+        setLoadingBanners(false);
       }
     };
 
-    fetchMainBanner();
+    fetchBanners();
   }, []);
 
   const addToCart = (product: Product) => {
@@ -569,18 +703,7 @@ export default function Home() {
         <section className="px-5 pt-1 sm:px-8 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="relative aspect-[2.18/1] overflow-hidden rounded-[18px] bg-[var(--pastoril-soft)] shadow-[0_10px_22px_rgba(74,45,26,0.07)] sm:aspect-[2.55/1] sm:rounded-[24px] lg:aspect-[3.15/1]">
-              {mainBanner ? (
-                <Image
-                  src={mainBanner.imagem_url}
-                  alt={mainBanner.titulo || 'Banner Pastoril Moda Country'}
-                  fill
-                  priority
-                  sizes="(min-width: 1280px) 1216px, 100vw"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="h-full w-full bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)]" aria-label="Banner Pastoril Moda Country" />
-              )}
+              <BannerCarousel banners={banners} loading={loadingBanners} />
             </div>
           </div>
         </section>

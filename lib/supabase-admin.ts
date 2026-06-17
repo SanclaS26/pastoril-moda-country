@@ -70,7 +70,7 @@ export type EstoqueProdutoInsert = {
 };
 
 export type BannerRow = {
-  id: number;
+  id: string;
   titulo: string | null;
   imagem_url: string;
   imagem_path: string;

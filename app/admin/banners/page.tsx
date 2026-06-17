@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import AdminShell from '../components/AdminShell';
 
 type Banner = {
-  id: number;
+  id: string;
   titulo: string | null;
   imagem_url: string;
   imagem_path: string;
@@ -66,7 +66,7 @@ export default function AdminBannersPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [busyBanner, setBusyBanner] = useState<{ id: number; action: BannerAction } | null>(null);
+  const [busyBanner, setBusyBanner] = useState<{ id: string; action: BannerAction } | null>(null);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [titulo, setTitulo] = useState('');
   const [ativo, setAtivo] = useState(true);
@@ -193,7 +193,7 @@ export default function AdminBannersPage() {
       if (desktopFile) formData.append('imagem_desktop', desktopFile);
       if (mobileFile) formData.append('imagem_mobile', mobileFile);
 
-      const response = await fetch(isEditing ? `/api/admin/banners/${editingBanner?.id}` : '/api/admin/banners', {
+      const response = await fetch(isEditing ? `/api/admin/banners/${encodeURIComponent(editingBanner?.id || '')}` : '/api/admin/banners', {
         method: isEditing ? 'PATCH' : 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -228,7 +228,7 @@ export default function AdminBannersPage() {
 
     try {
       const token = await getSessionToken();
-      const response = await fetch(`/api/admin/banners/${banner.id}`, {
+      const response = await fetch(`/api/admin/banners/${encodeURIComponent(banner.id)}`, {
         method: action === 'delete' ? 'DELETE' : 'PATCH',
         headers: {
           Authorization: `Bearer ${token}`,

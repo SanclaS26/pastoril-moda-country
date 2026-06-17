@@ -50,6 +50,15 @@ function sanitizeFileName(value: string) {
     .slice(0, 80);
 }
 
+function isMissingResponsiveColumnError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+
+  const code = 'code' in error ? String(error.code) : '';
+  const message = 'message' in error ? String(error.message) : '';
+
+  return code === '42703' && /imagem_(desktop|mobile)_(url|path)/.test(message);
+}
+
 async function ensureBucket(supabaseAdmin: SupabaseAdmin) {
   const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
 
@@ -167,14 +176,38 @@ export async function POST(request: Request) {
       principal,
     };
 
-    const { data: banner, error: insertError } = await supabaseAdmin
+    let usedLegacyColumns = false;
+    let { data: banner, error: insertError } = await supabaseAdmin
       .from('banners')
       .insert([payload])
       .select('*')
       .single();
 
+    if (isMissingResponsiveColumnError(insertError)) {
+      usedLegacyColumns = true;
+      const legacyPayload: BannerInsert = {
+        titulo,
+        imagem_url: desktop.url,
+        imagem_path: desktop.path,
+        ativo,
+        principal,
+      };
+      const legacyResult = await supabaseAdmin
+        .from('banners')
+        .insert([legacyPayload])
+        .select('*')
+        .single();
+
+      banner = legacyResult.data;
+      insertError = legacyResult.error;
+    }
+
     if (insertError || !banner) {
       throw new Error(`Erro ao salvar banner no banco: ${insertError?.message ?? 'banner nao retornado.'}`);
+    }
+
+    if (usedLegacyColumns && mobile.path !== desktop.path) {
+      await supabaseAdmin.storage.from(BUCKET).remove([mobile.path]);
     }
 
     revalidatePath('/');

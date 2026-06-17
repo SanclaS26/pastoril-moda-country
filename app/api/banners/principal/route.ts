@@ -8,19 +8,17 @@ export async function GET() {
     const supabaseAdmin = getSupabaseAdmin();
     const { data, error } = await supabaseAdmin
       .from('banners')
-      .select('id, titulo, imagem_url, imagem_path, ativo, principal, created_at, updated_at')
+      .select('*')
       .eq('ativo', true)
-      .eq('principal', true)
-      .order('id', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .order('principal', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (error) {
-      return NextResponse.json({ error: `Erro ao buscar banner principal: ${error.message}` }, { status: 500 });
+      return NextResponse.json({ error: `Erro ao buscar banners ativos: ${error.message}` }, { status: 500 });
     }
 
     return NextResponse.json(
-      { banner: data ?? null },
+      { banners: data ?? [], banner: data?.[0] ?? null },
       {
         headers: {
           'Cache-Control': 'no-store',
@@ -28,6 +26,6 @@ export async function GET() {
       },
     );
   } catch {
-    return NextResponse.json({ error: 'Erro ao carregar banner principal.' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao carregar banners.' }, { status: 500 });
   }
 }

@@ -16,15 +16,48 @@ type RouteContext = {
 };
 
 type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof requireActiveAdmin>>['supabaseAdmin']>;
+type BannerOperation = 'edit' | 'toggleActive' | 'setPrincipal' | 'delete';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function parseBannerId(value: string) {
-  const bannerId = Number(value);
+  const bannerId = decodeURIComponent(value || '').trim();
 
-  if (!Number.isInteger(bannerId) || bannerId <= 0) {
+  if (!UUID_PATTERN.test(bannerId)) {
     throw new Error('Banner invalido.');
   }
 
   return bannerId;
+}
+
+function getSupabaseError(error: unknown) {
+  if (!error || typeof error !== 'object') return null;
+
+  return {
+    code: 'code' in error ? error.code : undefined,
+    message: 'message' in error ? error.message : undefined,
+    details: 'details' in error ? error.details : undefined,
+    hint: 'hint' in error ? error.hint : undefined,
+  };
+}
+
+function logBannerApiError(operation: BannerOperation, id: string, error: unknown) {
+  console.error('[admin/banners]', {
+    operation,
+    receivedId: id,
+    receivedIdType: typeof id,
+    supabaseError: getSupabaseError(error),
+    error: error instanceof Error ? error.message : error,
+  });
+}
+
+function isMissingResponsiveColumnError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+
+  const code = 'code' in error ? String(error.code) : '';
+  const message = 'message' in error ? String(error.message) : '';
+
+  return code === '42703' && /imagem_(desktop|mobile)_(url|path)/.test(message);
 }
 
 function parseBoolean(value: FormDataEntryValue | null, fallback = false) {
@@ -89,10 +122,11 @@ async function uploadBannerImage(
   return { path, url: data.publicUrl };
 }
 
-async function getExistingBanner(supabaseAdmin: SupabaseAdmin, bannerId: number) {
+async function getExistingBanner(supabaseAdmin: SupabaseAdmin, bannerId: string, operation: BannerOperation) {
   const { data: banner, error } = await supabaseAdmin.from('banners').select('*').eq('id', bannerId).maybeSingle();
 
   if (error) {
+    logBannerApiError(operation, bannerId, error);
     throw new Error(`Erro ao buscar banner: ${error.message}`);
   }
 
@@ -103,8 +137,8 @@ async function getExistingBanner(supabaseAdmin: SupabaseAdmin, bannerId: number)
   return banner;
 }
 
-async function setPrincipal(supabaseAdmin: SupabaseAdmin, bannerId: number) {
-  const existing = await getExistingBanner(supabaseAdmin, bannerId);
+async function setPrincipal(supabaseAdmin: SupabaseAdmin, bannerId: string) {
+  const existing = await getExistingBanner(supabaseAdmin, bannerId, 'setPrincipal');
 
   const { data: previousPrincipal } = await supabaseAdmin
     .from('banners')
@@ -118,6 +152,7 @@ async function setPrincipal(supabaseAdmin: SupabaseAdmin, bannerId: number) {
     .eq('principal', true);
 
   if (clearPrincipalError) {
+    logBannerApiError('setPrincipal', bannerId, clearPrincipalError);
     throw new Error(`Erro ao remover banner principal anterior: ${clearPrincipalError.message}`);
   }
 
@@ -129,6 +164,8 @@ async function setPrincipal(supabaseAdmin: SupabaseAdmin, bannerId: number) {
     .single();
 
   if (updateError || !banner) {
+    logBannerApiError('setPrincipal', bannerId, updateError ?? new Error('banner nao retornado.'));
+
     if (previousPrincipal?.id) {
       await supabaseAdmin.from('banners').update({ principal: true, ativo: true }).eq('id', previousPrincipal.id);
     }
@@ -139,8 +176,8 @@ async function setPrincipal(supabaseAdmin: SupabaseAdmin, bannerId: number) {
   return banner;
 }
 
-async function toggleActive(supabaseAdmin: SupabaseAdmin, bannerId: number) {
-  const existing = await getExistingBanner(supabaseAdmin, bannerId);
+async function toggleActive(supabaseAdmin: SupabaseAdmin, bannerId: string) {
+  const existing = await getExistingBanner(supabaseAdmin, bannerId, 'toggleActive');
 
   if (existing.principal && existing.ativo) {
     throw new Error('O banner principal deve permanecer ativo. Defina outro principal antes de inativar este banner.');
@@ -154,14 +191,15 @@ async function toggleActive(supabaseAdmin: SupabaseAdmin, bannerId: number) {
     .single();
 
   if (error || !banner) {
+    logBannerApiError('toggleActive', bannerId, error ?? new Error('banner nao retornado.'));
     throw new Error(`Erro ao alterar status do banner: ${error?.message ?? 'banner nao retornado.'}`);
   }
 
   return banner;
 }
 
-async function updateBanner(request: Request, supabaseAdmin: SupabaseAdmin, bannerId: number) {
-  const existing = await getExistingBanner(supabaseAdmin, bannerId);
+async function updateBanner(request: Request, supabaseAdmin: SupabaseAdmin, bannerId: string) {
+  const existing = await getExistingBanner(supabaseAdmin, bannerId, 'edit');
   const formData = await request.formData();
   const titulo = parseOptionalString(formData.get('titulo'));
   const wantsPrincipal = parseBoolean(formData.get('principal'), existing.principal);
@@ -194,6 +232,7 @@ async function updateBanner(request: Request, supabaseAdmin: SupabaseAdmin, bann
         .neq('id', bannerId);
 
       if (clearPrincipalError) {
+        logBannerApiError('edit', bannerId, clearPrincipalError);
         throw new Error(`Erro ao remover banner principal anterior: ${clearPrincipalError.message}`);
       }
     }
@@ -215,21 +254,49 @@ async function updateBanner(request: Request, supabaseAdmin: SupabaseAdmin, bann
       imagem_mobile_path: mobile?.path ?? currentMobilePath,
     };
 
-    const { data: banner, error } = await supabaseAdmin
+    let usedLegacyColumns = false;
+    let { data: banner, error } = await supabaseAdmin
       .from('banners')
       .update(payload)
       .eq('id', bannerId)
       .select('*')
       .single();
 
+    if (isMissingResponsiveColumnError(error)) {
+      usedLegacyColumns = true;
+      const legacyPayload: BannerUpdate = {
+        titulo,
+        ativo,
+        principal: wantsPrincipal,
+        imagem_url: payload.imagem_url,
+        imagem_path: payload.imagem_path,
+      };
+      const legacyResult = await supabaseAdmin
+        .from('banners')
+        .update(legacyPayload)
+        .eq('id', bannerId)
+        .select('*')
+        .single();
+
+      banner = legacyResult.data;
+      error = legacyResult.error;
+    }
+
     if (error || !banner) {
+      logBannerApiError('edit', bannerId, error ?? new Error('banner nao retornado.'));
       throw new Error(`Erro ao salvar banner: ${error?.message ?? 'banner nao retornado.'}`);
     }
 
-    const oldPathsToDelete = uniquePaths([
-      desktop ? currentDesktopPath : null,
-      mobile ? currentMobilePath : null,
-    ]).filter((path) => !uploadedPaths.includes(path));
+    const retainedPaths = usedLegacyColumns
+      ? uniquePaths([payload.imagem_path])
+      : uniquePaths([payload.imagem_desktop_path, payload.imagem_mobile_path]);
+    const candidatePathsToDelete = usedLegacyColumns
+      ? uniquePaths([desktop ? currentDesktopPath : null, mobile?.path])
+      : uniquePaths([
+          desktop ? currentDesktopPath : null,
+          mobile ? currentMobilePath : null,
+        ]);
+    const oldPathsToDelete = candidatePathsToDelete.filter((path) => !retainedPaths.includes(path));
 
     if (oldPathsToDelete.length) {
       await supabaseAdmin.storage.from(BUCKET).remove(oldPathsToDelete);
@@ -252,17 +319,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     return authorization.response;
   }
 
+  let rawId = '';
+  let operation: BannerOperation = 'setPrincipal';
+
   try {
     const { id } = await context.params;
-    const bannerId = parseBannerId(id);
+    rawId = id;
     const { supabaseAdmin } = authorization;
     const contentType = request.headers.get('content-type') || '';
     let banner;
 
     if (contentType.includes('multipart/form-data')) {
+      operation = 'edit';
+      const bannerId = parseBannerId(id);
       banner = await updateBanner(request, supabaseAdmin, bannerId);
     } else if (contentType.includes('application/json')) {
       const body = (await request.json().catch(() => ({}))) as { action?: string };
+      operation = body.action === 'toggleActive' ? 'toggleActive' : 'setPrincipal';
+      const bannerId = parseBannerId(id);
 
       if (body.action === 'toggleActive') {
         banner = await toggleActive(supabaseAdmin, bannerId);
@@ -270,6 +344,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         banner = await setPrincipal(supabaseAdmin, bannerId);
       }
     } else {
+      const bannerId = parseBannerId(id);
       banner = await setPrincipal(supabaseAdmin, bannerId);
     }
 
@@ -278,6 +353,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ banner });
   } catch (error) {
+    logBannerApiError(operation, rawId, error);
     const message = error instanceof Error ? error.message : 'Erro ao atualizar banner.';
     const status = message.includes('nao encontrado') ? 404 : 500;
     return NextResponse.json({ error: message }, { status });
@@ -291,11 +367,14 @@ export async function DELETE(request: Request, context: RouteContext) {
     return authorization.response;
   }
 
+  let rawId = '';
+
   try {
     const { id } = await context.params;
+    rawId = id;
     const bannerId = parseBannerId(id);
     const { supabaseAdmin } = authorization;
-    const existing = await getExistingBanner(supabaseAdmin, bannerId);
+    const existing = await getExistingBanner(supabaseAdmin, bannerId, 'delete');
     const pathsToDelete = uniquePaths([
       existing.imagem_path,
       existing.imagem_desktop_path,
@@ -305,6 +384,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     const { error: deleteError } = await supabaseAdmin.from('banners').delete().eq('id', bannerId);
 
     if (deleteError) {
+      logBannerApiError('delete', bannerId, deleteError);
       throw new Error(`Erro ao excluir banner: ${deleteError.message}`);
     }
 
@@ -312,6 +392,7 @@ export async function DELETE(request: Request, context: RouteContext) {
       const { error: storageError } = await supabaseAdmin.storage.from(BUCKET).remove(pathsToDelete);
 
       if (storageError) {
+        logBannerApiError('delete', bannerId, storageError);
         throw new Error(`Banner excluido, mas houve erro ao remover imagens do Storage: ${storageError.message}`);
       }
     }
@@ -321,6 +402,7 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    logBannerApiError('delete', rawId, error);
     const message = error instanceof Error ? error.message : 'Erro ao excluir banner.';
     const status = message.includes('nao encontrado') ? 404 : 500;
     return NextResponse.json({ error: message }, { status });

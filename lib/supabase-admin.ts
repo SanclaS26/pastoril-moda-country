@@ -74,6 +74,10 @@ export type BannerRow = {
   titulo: string | null;
   imagem_url: string;
   imagem_path: string;
+  imagem_desktop_url: string | null;
+  imagem_desktop_path: string | null;
+  imagem_mobile_url: string | null;
+  imagem_mobile_path: string | null;
   ativo: boolean;
   principal: boolean;
   created_at?: string;
@@ -84,6 +88,10 @@ export type BannerInsert = {
   titulo?: string | null;
   imagem_url: string;
   imagem_path: string;
+  imagem_desktop_url?: string | null;
+  imagem_desktop_path?: string | null;
+  imagem_mobile_url?: string | null;
+  imagem_mobile_path?: string | null;
   ativo: boolean;
   principal: boolean;
 };

@@ -1,19 +1,248 @@
 import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { requireActiveAdmin } from '@/lib/admin-auth';
+import { type BannerUpdate } from '@/lib/supabase-admin';
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const BUCKET = 'banners';
+const ALLOWED_IMAGE_TYPES = new Map([
+  ['image/jpeg', 'jpg'],
+  ['image/png', 'png'],
+  ['image/webp', 'webp'],
+]);
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
+type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof requireActiveAdmin>>['supabaseAdmin']>;
+
 function parseBannerId(value: string) {
   const bannerId = Number(value);
 
   if (!Number.isInteger(bannerId) || bannerId <= 0) {
-    throw new Error('Banner inválido.');
+    throw new Error('Banner invalido.');
   }
 
   return bannerId;
+}
+
+function parseBoolean(value: FormDataEntryValue | null, fallback = false) {
+  if (value === null) return fallback;
+  return value === 'true' || value === '1' || value === 'on';
+}
+
+function parseOptionalString(value: FormDataEntryValue | null) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function validateOptionalImage(file: File | null, label: string) {
+  if (!file || file.size === 0) {
+    return null;
+  }
+
+  const extension = ALLOWED_IMAGE_TYPES.get(file.type);
+
+  if (!extension) {
+    throw new Error(`A imagem ${label} deve ser JPG, PNG ou WebP.`);
+  }
+
+  if (file.size > MAX_IMAGE_SIZE) {
+    throw new Error(`A imagem ${label} deve ter no maximo 5 MB.`);
+  }
+
+  return extension;
+}
+
+function sanitizeFileName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 80);
+}
+
+function uniquePaths(paths: Array<string | null | undefined>) {
+  return Array.from(new Set(paths.filter((path): path is string => Boolean(path))));
+}
+
+async function uploadBannerImage(
+  supabaseAdmin: SupabaseAdmin,
+  file: File,
+  folder: 'desktop' | 'mobile',
+  baseName: string,
+  extension: string,
+) {
+  const path = `${folder}/${baseName}-${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (uploadError) {
+    throw new Error(`Erro ao enviar imagem ${folder === 'desktop' ? 'desktop' : 'celular'}: ${uploadError.message}`);
+  }
+
+  const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path);
+  return { path, url: data.publicUrl };
+}
+
+async function getExistingBanner(supabaseAdmin: SupabaseAdmin, bannerId: number) {
+  const { data: banner, error } = await supabaseAdmin.from('banners').select('*').eq('id', bannerId).maybeSingle();
+
+  if (error) {
+    throw new Error(`Erro ao buscar banner: ${error.message}`);
+  }
+
+  if (!banner) {
+    throw new Error('Banner nao encontrado.');
+  }
+
+  return banner;
+}
+
+async function setPrincipal(supabaseAdmin: SupabaseAdmin, bannerId: number) {
+  const existing = await getExistingBanner(supabaseAdmin, bannerId);
+
+  const { data: previousPrincipal } = await supabaseAdmin
+    .from('banners')
+    .select('id')
+    .eq('principal', true)
+    .maybeSingle();
+
+  const { error: clearPrincipalError } = await supabaseAdmin
+    .from('banners')
+    .update({ principal: false })
+    .eq('principal', true);
+
+  if (clearPrincipalError) {
+    throw new Error(`Erro ao remover banner principal anterior: ${clearPrincipalError.message}`);
+  }
+
+  const { data: banner, error: updateError } = await supabaseAdmin
+    .from('banners')
+    .update({ principal: true, ativo: true })
+    .eq('id', existing.id)
+    .select('*')
+    .single();
+
+  if (updateError || !banner) {
+    if (previousPrincipal?.id) {
+      await supabaseAdmin.from('banners').update({ principal: true, ativo: true }).eq('id', previousPrincipal.id);
+    }
+
+    throw new Error(`Erro ao definir banner principal: ${updateError?.message ?? 'banner nao retornado.'}`);
+  }
+
+  return banner;
+}
+
+async function toggleActive(supabaseAdmin: SupabaseAdmin, bannerId: number) {
+  const existing = await getExistingBanner(supabaseAdmin, bannerId);
+
+  if (existing.principal && existing.ativo) {
+    throw new Error('O banner principal deve permanecer ativo. Defina outro principal antes de inativar este banner.');
+  }
+
+  const { data: banner, error } = await supabaseAdmin
+    .from('banners')
+    .update({ ativo: !existing.ativo })
+    .eq('id', bannerId)
+    .select('*')
+    .single();
+
+  if (error || !banner) {
+    throw new Error(`Erro ao alterar status do banner: ${error?.message ?? 'banner nao retornado.'}`);
+  }
+
+  return banner;
+}
+
+async function updateBanner(request: Request, supabaseAdmin: SupabaseAdmin, bannerId: number) {
+  const existing = await getExistingBanner(supabaseAdmin, bannerId);
+  const formData = await request.formData();
+  const titulo = parseOptionalString(formData.get('titulo'));
+  const wantsPrincipal = parseBoolean(formData.get('principal'), existing.principal);
+  const ativo = wantsPrincipal ? true : parseBoolean(formData.get('ativo'), existing.ativo);
+  const desktopFile = formData.get('imagem_desktop');
+  const mobileFile = formData.get('imagem_mobile');
+  const desktopImage = desktopFile instanceof File ? desktopFile : null;
+  const mobileImage = mobileFile instanceof File ? mobileFile : null;
+  const desktopExtension = validateOptionalImage(desktopImage, 'desktop');
+  const mobileExtension = validateOptionalImage(mobileImage, 'celular');
+  const baseName = sanitizeFileName(titulo || existing.titulo || 'banner');
+  const uploadedPaths: string[] = [];
+
+  try {
+    const desktop = desktopExtension
+      ? await uploadBannerImage(supabaseAdmin, desktopImage as File, 'desktop', baseName, desktopExtension)
+      : null;
+    if (desktop) uploadedPaths.push(desktop.path);
+
+    const mobile = mobileExtension
+      ? await uploadBannerImage(supabaseAdmin, mobileImage as File, 'mobile', baseName, mobileExtension)
+      : null;
+    if (mobile) uploadedPaths.push(mobile.path);
+
+    if (wantsPrincipal) {
+      const { error: clearPrincipalError } = await supabaseAdmin
+        .from('banners')
+        .update({ principal: false })
+        .eq('principal', true)
+        .neq('id', bannerId);
+
+      if (clearPrincipalError) {
+        throw new Error(`Erro ao remover banner principal anterior: ${clearPrincipalError.message}`);
+      }
+    }
+
+    const currentDesktopUrl = existing.imagem_desktop_url || existing.imagem_url;
+    const currentDesktopPath = existing.imagem_desktop_path || existing.imagem_path;
+    const currentMobileUrl = existing.imagem_mobile_url || existing.imagem_url;
+    const currentMobilePath = existing.imagem_mobile_path || existing.imagem_path;
+
+    const payload: BannerUpdate = {
+      titulo,
+      ativo,
+      principal: wantsPrincipal,
+      imagem_url: desktop?.url ?? currentDesktopUrl,
+      imagem_path: desktop?.path ?? currentDesktopPath,
+      imagem_desktop_url: desktop?.url ?? currentDesktopUrl,
+      imagem_desktop_path: desktop?.path ?? currentDesktopPath,
+      imagem_mobile_url: mobile?.url ?? currentMobileUrl,
+      imagem_mobile_path: mobile?.path ?? currentMobilePath,
+    };
+
+    const { data: banner, error } = await supabaseAdmin
+      .from('banners')
+      .update(payload)
+      .eq('id', bannerId)
+      .select('*')
+      .single();
+
+    if (error || !banner) {
+      throw new Error(`Erro ao salvar banner: ${error?.message ?? 'banner nao retornado.'}`);
+    }
+
+    const oldPathsToDelete = uniquePaths([
+      desktop ? currentDesktopPath : null,
+      mobile ? currentMobilePath : null,
+    ]).filter((path) => !uploadedPaths.includes(path));
+
+    if (oldPathsToDelete.length) {
+      await supabaseAdmin.storage.from(BUCKET).remove(oldPathsToDelete);
+    }
+
+    return banner;
+  } catch (error) {
+    if (uploadedPaths.length) {
+      await supabaseAdmin.storage.from(BUCKET).remove(uploadedPaths);
+    }
+
+    throw error;
+  }
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -27,45 +256,21 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id } = await context.params;
     const bannerId = parseBannerId(id);
     const { supabaseAdmin } = authorization;
+    const contentType = request.headers.get('content-type') || '';
+    let banner;
 
-    const { data: existingBanner, error: existingError } = await supabaseAdmin
-      .from('banners')
-      .select('id')
-      .eq('id', bannerId)
-      .maybeSingle();
+    if (contentType.includes('multipart/form-data')) {
+      banner = await updateBanner(request, supabaseAdmin, bannerId);
+    } else if (contentType.includes('application/json')) {
+      const body = (await request.json().catch(() => ({}))) as { action?: string };
 
-    if (existingError) {
-      return NextResponse.json({ error: `Erro ao buscar banner: ${existingError.message}` }, { status: 500 });
-    }
-
-    if (!existingBanner) {
-      return NextResponse.json({ error: 'Banner não encontrado.' }, { status: 404 });
-    }
-
-    const { error: clearPrincipalError } = await supabaseAdmin
-      .from('banners')
-      .update({ principal: false })
-      .eq('principal', true);
-
-    if (clearPrincipalError) {
-      return NextResponse.json(
-        { error: `Erro ao remover banner principal anterior: ${clearPrincipalError.message}` },
-        { status: 500 },
-      );
-    }
-
-    const { data: banner, error: updateError } = await supabaseAdmin
-      .from('banners')
-      .update({ principal: true, ativo: true })
-      .eq('id', bannerId)
-      .select('*')
-      .single();
-
-    if (updateError || !banner) {
-      return NextResponse.json(
-        { error: `Erro ao definir banner principal: ${updateError?.message ?? 'banner não retornado.'}` },
-        { status: 500 },
-      );
+      if (body.action === 'toggleActive') {
+        banner = await toggleActive(supabaseAdmin, bannerId);
+      } else {
+        banner = await setPrincipal(supabaseAdmin, bannerId);
+      }
+    } else {
+      banner = await setPrincipal(supabaseAdmin, bannerId);
     }
 
     revalidatePath('/');
@@ -73,6 +278,51 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ banner });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro ao atualizar banner.' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Erro ao atualizar banner.';
+    const status = message.includes('nao encontrado') ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const authorization = await requireActiveAdmin(request);
+
+  if (authorization.response) {
+    return authorization.response;
+  }
+
+  try {
+    const { id } = await context.params;
+    const bannerId = parseBannerId(id);
+    const { supabaseAdmin } = authorization;
+    const existing = await getExistingBanner(supabaseAdmin, bannerId);
+    const pathsToDelete = uniquePaths([
+      existing.imagem_path,
+      existing.imagem_desktop_path,
+      existing.imagem_mobile_path,
+    ]);
+
+    const { error: deleteError } = await supabaseAdmin.from('banners').delete().eq('id', bannerId);
+
+    if (deleteError) {
+      throw new Error(`Erro ao excluir banner: ${deleteError.message}`);
+    }
+
+    if (pathsToDelete.length) {
+      const { error: storageError } = await supabaseAdmin.storage.from(BUCKET).remove(pathsToDelete);
+
+      if (storageError) {
+        throw new Error(`Banner excluido, mas houve erro ao remover imagens do Storage: ${storageError.message}`);
+      }
+    }
+
+    revalidatePath('/');
+    revalidatePath('/admin/banners');
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro ao excluir banner.';
+    const status = message.includes('nao encontrado') ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

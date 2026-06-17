@@ -11,6 +11,8 @@ const ALLOWED_IMAGE_TYPES = new Map([
   ['image/webp', 'webp'],
 ]);
 
+type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof requireActiveAdmin>>['supabaseAdmin']>;
+
 function parseBoolean(value: FormDataEntryValue | null, fallback = false) {
   if (value === null) return fallback;
   return value === 'true' || value === '1' || value === 'on';
@@ -20,19 +22,19 @@ function parseOptionalString(value: FormDataEntryValue | null) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function validateImage(file: File | null) {
+function validateImage(file: File | null, label: string) {
   if (!file || file.size === 0) {
-    throw new Error('Selecione uma imagem para o banner.');
+    throw new Error(`Selecione a imagem ${label} do banner.`);
   }
 
   const extension = ALLOWED_IMAGE_TYPES.get(file.type);
 
   if (!extension) {
-    throw new Error('A imagem deve ser JPG, PNG ou WebP.');
+    throw new Error(`A imagem ${label} deve ser JPG, PNG ou WebP.`);
   }
 
   if (file.size > MAX_IMAGE_SIZE) {
-    throw new Error('A imagem deve ter no máximo 5 MB.');
+    throw new Error(`A imagem ${label} deve ter no maximo 5 MB.`);
   }
 
   return extension;
@@ -48,9 +50,7 @@ function sanitizeFileName(value: string) {
     .slice(0, 80);
 }
 
-async function ensureBucket(supabaseAdmin: Awaited<ReturnType<typeof requireActiveAdmin>>['supabaseAdmin']) {
-  if (!supabaseAdmin) return;
-
+async function ensureBucket(supabaseAdmin: SupabaseAdmin) {
   const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
 
   if (listError) {
@@ -65,6 +65,35 @@ async function ensureBucket(supabaseAdmin: Awaited<ReturnType<typeof requireActi
 
   if (createError) {
     throw new Error(`Erro ao criar bucket de banners: ${createError.message}`);
+  }
+}
+
+async function uploadBannerImage(
+  supabaseAdmin: SupabaseAdmin,
+  file: File,
+  folder: 'desktop' | 'mobile',
+  baseName: string,
+  extension: string,
+) {
+  const path = `${folder}/${baseName}-${crypto.randomUUID()}.${extension}`;
+  const { error: uploadError } = await supabaseAdmin.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+
+  if (uploadError) {
+    throw new Error(`Erro ao enviar imagem ${folder === 'desktop' ? 'desktop' : 'celular'}: ${uploadError.message}`);
+  }
+
+  const { data } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(path);
+  return { path, url: data.publicUrl };
+}
+
+async function clearPreviousPrincipal(supabaseAdmin: SupabaseAdmin) {
+  const { error } = await supabaseAdmin.from('banners').update({ principal: false }).eq('principal', true);
+
+  if (error) {
+    throw new Error(`Erro ao remover banner principal anterior: ${error.message}`);
   }
 }
 
@@ -100,45 +129,42 @@ export async function POST(request: Request) {
   }
 
   const { supabaseAdmin } = authorization;
-  let uploadedPath: string | null = null;
+  const uploadedPaths: string[] = [];
 
   try {
     await ensureBucket(supabaseAdmin);
 
     const formData = await request.formData();
     const titulo = parseOptionalString(formData.get('titulo'));
-    const principal = parseBoolean(formData.get('principal'), true);
+    const principal = parseBoolean(formData.get('principal'), false);
     const ativo = principal ? true : parseBoolean(formData.get('ativo'), true);
-    const imageFile = formData.get('imagem');
-    const image = imageFile instanceof File ? imageFile : null;
-    const extension = validateImage(image);
-    const fileName = `${sanitizeFileName(titulo || 'banner-principal')}-${crypto.randomUUID()}.${extension}`;
+    const desktopFile = formData.get('imagem_desktop');
+    const mobileFile = formData.get('imagem_mobile');
+    const desktopImage = desktopFile instanceof File ? desktopFile : null;
+    const mobileImage = mobileFile instanceof File ? mobileFile : null;
+    const desktopExtension = validateImage(desktopImage, 'desktop');
+    const mobileExtension = validateImage(mobileImage, 'celular');
+    const baseName = sanitizeFileName(titulo || 'banner');
 
-    uploadedPath = `principal/${fileName}`;
+    const desktop = await uploadBannerImage(supabaseAdmin, desktopImage as File, 'desktop', baseName, desktopExtension);
+    uploadedPaths.push(desktop.path);
+    const mobile = await uploadBannerImage(supabaseAdmin, mobileImage as File, 'mobile', baseName, mobileExtension);
+    uploadedPaths.push(mobile.path);
 
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(BUCKET)
-      .upload(uploadedPath, image as File, {
-        contentType: image?.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      return NextResponse.json({ error: `Erro ao enviar imagem do banner: ${uploadError.message}` }, { status: 500 });
+    if (principal) {
+      await clearPreviousPrincipal(supabaseAdmin);
     }
-
-    const { data: publicUrlData } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(uploadedPath);
-
-    const { data: previousPrincipal } = principal
-      ? await supabaseAdmin.from('banners').select('id').eq('ativo', true).eq('principal', true).maybeSingle()
-      : { data: null };
 
     const payload: BannerInsert = {
       titulo,
-      imagem_url: publicUrlData.publicUrl,
-      imagem_path: uploadedPath,
+      imagem_url: desktop.url,
+      imagem_path: desktop.path,
+      imagem_desktop_url: desktop.url,
+      imagem_desktop_path: desktop.path,
+      imagem_mobile_url: mobile.url,
+      imagem_mobile_path: mobile.path,
       ativo,
-      principal: false,
+      principal,
     };
 
     const { data: banner, error: insertError } = await supabaseAdmin
@@ -148,52 +174,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError || !banner) {
-      await supabaseAdmin.storage.from(BUCKET).remove([uploadedPath]);
-      return NextResponse.json(
-        { error: `Erro ao salvar banner no banco: ${insertError?.message ?? 'banner não retornado.'}` },
-        { status: 500 },
-      );
-    }
-
-    if (principal) {
-      const { error: clearPrincipalError } = await supabaseAdmin
-        .from('banners')
-        .update({ principal: false })
-        .eq('principal', true);
-
-      if (clearPrincipalError) {
-        await supabaseAdmin.storage.from(BUCKET).remove([uploadedPath]);
-        await supabaseAdmin.from('banners').delete().eq('id', banner.id);
-        return NextResponse.json(
-          { error: `Erro ao substituir banner principal anterior: ${clearPrincipalError.message}` },
-          { status: 500 },
-        );
-      }
-
-      const { data: principalBanner, error: principalError } = await supabaseAdmin
-        .from('banners')
-        .update({ principal: true, ativo: true })
-        .eq('id', banner.id)
-        .select('*')
-        .single();
-
-      if (principalError || !principalBanner) {
-        if (previousPrincipal?.id) {
-          await supabaseAdmin.from('banners').update({ principal: true, ativo: true }).eq('id', previousPrincipal.id);
-        }
-
-        await supabaseAdmin.storage.from(BUCKET).remove([uploadedPath]);
-        await supabaseAdmin.from('banners').delete().eq('id', banner.id);
-        return NextResponse.json(
-          { error: `Erro ao ativar novo banner principal: ${principalError?.message ?? 'banner não retornado.'}` },
-          { status: 500 },
-        );
-      }
-
-      revalidatePath('/');
-      revalidatePath('/admin/banners');
-
-      return NextResponse.json({ banner: principalBanner }, { status: 201 });
+      throw new Error(`Erro ao salvar banner no banco: ${insertError?.message ?? 'banner nao retornado.'}`);
     }
 
     revalidatePath('/');
@@ -201,8 +182,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ banner }, { status: 201 });
   } catch (error) {
-    if (uploadedPath) {
-      await supabaseAdmin.storage.from(BUCKET).remove([uploadedPath]);
+    if (uploadedPaths.length) {
+      await supabaseAdmin.storage.from(BUCKET).remove(uploadedPaths);
     }
 
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro ao salvar banner.' }, { status: 500 });

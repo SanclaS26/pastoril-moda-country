@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/useAuth';
 
@@ -35,26 +36,42 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-amber-900/20 to-slate-900 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="rounded-2xl bg-white border border-amber-900/20 shadow-2xl overflow-hidden">
-          <div className="h-2 bg-gradient-to-r from-amber-600 to-amber-700"></div>
-          
-          <div className="px-6 sm:px-8 py-12 text-center">
-            <div className="inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 shadow-lg mb-6">
-              <span className="text-2xl font-bold text-white">P</span>
-            </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#F9F6F1] px-5 py-8 text-[#241C17]">
+      <Image
+        src="/brand/login/login-bg.png"
+        alt=""
+        fill
+        priority
+        sizes="100vw"
+        className="object-cover"
+      />
+      <div className="absolute inset-0 bg-[#F9F6F1]/42" />
 
-            <h1 className="mt-4 text-3xl font-bold text-slate-900">Pastoril</h1>
-            <p className="text-sm font-semibold text-amber-700 mt-1">Moda Country</p>
-            
-            <p className="mt-6 text-sm uppercase tracking-wider text-slate-600">Acesso administrativo</p>
+      <main className="relative z-10 flex min-h-[calc(100vh-4rem)] items-center justify-center">
+        <section className="w-full max-w-[460px] rounded-[28px] border border-[#E7E0D8] bg-[#FFFDFC]/96 px-6 py-8 shadow-[0_18px_48px_rgba(74,45,26,0.12)] sm:px-9 sm:py-10">
+          <div className="mx-auto mb-7 h-[78px] w-[112px] sm:h-[88px] sm:w-[128px]">
+            <div className="relative h-full w-full">
+              <Image
+                src="/brand/pastoril-logo-header.png"
+                alt="Pastoril Moda Country"
+                fill
+                priority
+                sizes="(min-width: 640px) 128px, 112px"
+                className="object-contain"
+              />
+            </div>
           </div>
 
-          <div className="px-6 sm:px-8 pb-8">
-            <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="mb-8 text-center">
+            <h1 className="text-3xl font-bold text-[#4A2D1A] sm:text-[2rem]">Acesso administrativo</h1>
+            <p className="mt-3 text-sm leading-6 text-[#6E625A]">
+              Entre com seu e-mail e senha para acessar o painel da Pastoril.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-slate-900 mb-2">
+                <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#4A2D1A]">
                   E-mail
                 </label>
                 <input
@@ -63,13 +80,13 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="seu@email.com"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200 transition"
+                  className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3.5 text-[#241C17] placeholder-[#9A8D83] outline-none transition focus:border-[#C8722C] focus:bg-white focus:ring-4 focus:ring-[#C8722C]/10"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-semibold text-slate-900 mb-2">
+                <label htmlFor="password" className="mb-2 block text-sm font-semibold text-[#4A2D1A]">
                   Senha
                 </label>
                 <input
@@ -78,13 +95,13 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 placeholder-slate-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-200 transition"
+                  className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3.5 text-[#241C17] placeholder-[#9A8D83] outline-none transition focus:border-[#C8722C] focus:bg-white focus:ring-4 focus:ring-[#C8722C]/10"
                   required
                 />
               </div>
 
               {(error || redirectedError) && (
-                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 font-medium">
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                   {error || redirectedError}
                 </div>
               )}
@@ -92,19 +109,17 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-3 text-base font-semibold text-white shadow-lg hover:shadow-xl hover:from-amber-700 hover:to-amber-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.22)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isLoading ? 'Carregando...' : 'Entrar'}
               </button>
             </form>
 
-          </div>
-        </div>
-
-        <p className="text-center text-xs text-stone-300 mt-6">
-          © 2026 Pastoril Moda Country - Acesso Administrativo
-        </p>
-      </div>
+          <p className="mt-8 text-center text-xs text-[#6E625A]">
+            © 2026 Pastoril Moda Country — Acesso restrito
+          </p>
+        </section>
+      </main>
     </div>
   );
 }

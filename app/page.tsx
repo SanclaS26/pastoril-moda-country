@@ -48,11 +48,9 @@ type IconName =
   | 'spark'
   | 'chevron'
   | 'whatsapp'
-  | 'shield'
-  | 'box'
-  | 'award'
   | 'clipboard'
-  | 'user';
+  | 'user'
+  | 'instagram';
 
 type PngIconName =
   | 'chapeu'
@@ -254,35 +252,6 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
     );
   }
 
-  if (name === 'shield') {
-    return (
-      <svg {...common}>
-        <path d="M12 3.8 5.8 6.2v5.1c0 3.9 2.6 6.6 6.2 8.4 3.6-1.8 6.2-4.5 6.2-8.4V6.2L12 3.8Z" />
-        <path d="m9.5 12 1.7 1.7 3.6-4" />
-      </svg>
-    );
-  }
-
-  if (name === 'box') {
-    return (
-      <svg {...common}>
-        <path d="m4.4 7.7 7.6-3.8 7.6 3.8-7.6 3.8-7.6-3.8Z" />
-        <path d="M4.4 7.7v8.6l7.6 3.8 7.6-3.8V7.7" />
-        <path d="M12 11.5v8.6" />
-      </svg>
-    );
-  }
-
-  if (name === 'award') {
-    return (
-      <svg {...common}>
-        <circle cx="12" cy="9.2" r="4.7" />
-        <path d="m8.9 13-1 5.7 4.1-2 4.1 2-1-5.7" />
-        <path d="m10.2 9 1.2 1.2 2.5-2.6" />
-      </svg>
-    );
-  }
-
   if (name === 'clipboard') {
     return (
       <svg {...common}>
@@ -297,6 +266,16 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
       <svg {...common}>
         <circle cx="12" cy="8.2" r="3.5" />
         <path d="M5.4 20.2a6.6 6.6 0 0 1 13.2 0" />
+      </svg>
+    );
+  }
+
+  if (name === 'instagram') {
+    return (
+      <svg {...common}>
+        <rect x="5" y="5" width="14" height="14" rx="4" />
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M16.2 7.8h.1" />
       </svg>
     );
   }
@@ -421,13 +400,6 @@ function ProductCard({
     </article>
   );
 }
-
-const benefitItems: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'whatsapp', title: 'Pedido pelo WhatsApp', text: 'Rápido e fácil' },
-  { icon: 'shield', title: 'Compra segura', text: 'Seus dados protegidos' },
-  { icon: 'box', title: 'Envio para todo o Brasil', text: 'Com segurança e agilidade' },
-  { icon: 'award', title: 'Qualidade garantida', text: 'Produtos selecionados' },
-];
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -556,8 +528,8 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-[var(--pastoril-bg)] pb-20 text-[var(--pastoril-text)] lg:pb-0">
-      <header className="sticky top-0 z-40 bg-[rgba(249,246,241,0.96)] backdrop-blur">
+    <div className="min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
+      <header className="bg-[rgba(249,246,241,0.96)] backdrop-blur">
         <div className="mx-auto grid h-[78px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-5 sm:h-[96px] sm:px-8 lg:px-8">
           <div className="flex items-center justify-start">
             <a
@@ -763,56 +735,47 @@ export default function Home() {
             </div>
           </aside>
         </div>
-
-        <section className="mx-auto max-w-7xl px-5 pb-5 sm:px-8 lg:px-8">
-          <div className="grid grid-cols-2 overflow-hidden rounded-2xl bg-[#F3ECE4] shadow-[0_8px_18px_rgba(74,52,40,0.05)] sm:grid-cols-4">
-            {benefitItems.map((item) => (
-              <div key={item.title} className="flex gap-3 border-[rgba(74,52,40,0.1)] p-4 text-[var(--pastoril-brown)] even:border-l sm:border-l sm:first:border-l-0">
-                <Icon name={item.icon} className="mt-0.5 h-7 w-7 shrink-0 text-[var(--pastoril-brown)]" />
-                <div>
-                  <h3 className="text-sm font-bold leading-tight text-[var(--pastoril-text)]">{item.title}</h3>
-                  <p className="mt-1 text-xs leading-snug text-[var(--pastoril-muted)]">{item.text}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
       </main>
 
       <footer className="border-t border-[var(--pastoril-border)] bg-white py-8 text-center text-sm text-[var(--pastoril-muted)]">
         <p>&copy; 2026 Pastoril Moda Country. Todos os direitos reservados.</p>
       </footer>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--pastoril-border)] bg-white px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2.5 md:hidden">
-        <div className="mx-auto grid max-w-[430px] grid-cols-5 items-end">
-          <a href="#" className="flex min-h-[54px] flex-col items-center justify-center gap-1 text-[0.69rem] font-medium leading-none text-[var(--pastoril-caramel)]">
-            <PngIcon name="inicio" alt="" className="h-[25px] w-[25px]" sizes="25px" />
+      <nav
+        data-bottom-mobile-nav
+        className="fixed bottom-0 left-0 right-0 z-[9999] h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-white px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-8px_20px_rgba(74,45,26,0.06)] md:hidden"
+        aria-label="Navegação principal"
+      >
+        <div className="mx-auto grid h-full max-w-[430px] grid-cols-5 items-start">
+          <a href="#" className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#C8722C]">
+            <PngIcon name="inicio" alt="" className="h-[24px] w-[24px]" sizes="24px" />
             <span>Início</span>
           </a>
-          <a href="#categorias" className="flex min-h-[54px] flex-col items-center justify-center gap-1 text-[0.69rem] font-medium leading-none text-[var(--pastoril-brown)]">
-            <Icon name="grid" className="h-[25px] w-[25px]" />
+          <a href="#categorias" className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]">
+            <Icon name="grid" className="h-[24px] w-[24px]" />
             <span>Categorias</span>
           </a>
-          <a href="#produtos" className="flex min-h-[54px] flex-col items-center justify-center gap-1 text-[0.69rem] font-medium leading-none text-[var(--pastoril-brown)]">
-            <PngIcon name="busca" alt="" className="h-[25px] w-[25px]" sizes="25px" />
+          <a href="#produtos" className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]">
+            <Icon name="search" className="h-[24px] w-[24px]" />
             <span>Buscar</span>
           </a>
-          <button
-            onClick={() => setIsCartOpen(true)}
-            className="relative flex min-h-[54px] flex-col items-center justify-center gap-1 text-[0.69rem] font-medium leading-none text-[var(--pastoril-brown)]"
-            type="button"
+          <a
+            href="https://wa.me/5568999244811"
+            className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]"
+            target="_blank"
+            rel="noreferrer"
           >
-            <PngIcon name="carrinho" alt="" className="h-[25px] w-[25px]" sizes="25px" />
-            <span>Pedidos</span>
-            {totalItems > 0 && (
-              <span className="absolute right-[18px] top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--pastoril-caramel)] px-1 text-[0.55rem] font-bold leading-none text-white">
-                {totalItems}
-              </span>
-            )}
-          </button>
-          <a href="https://wa.me/5568999244811" className="flex min-h-[54px] flex-col items-center justify-center gap-1 text-[0.69rem] font-medium leading-none text-[var(--pastoril-brown)]">
-            <Icon name="user" className="h-[25px] w-[25px]" />
-            <span>Conta</span>
+            <Icon name="whatsapp" className="h-[24px] w-[24px]" />
+            <span>WhatsApp</span>
+          </a>
+          <a
+            href="https://www.instagram.com/pastorilcountry/"
+            className="flex min-h-[56px] flex-col items-center justify-center gap-1 text-[0.68rem] font-medium leading-none text-[#4A2D1A]"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <Icon name="instagram" className="h-[24px] w-[24px]" />
+            <span>Instagram</span>
           </a>
         </div>
       </nav>

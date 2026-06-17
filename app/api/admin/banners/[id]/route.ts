@@ -101,6 +101,38 @@ function uniquePaths(paths: Array<string | null | undefined>) {
   return Array.from(new Set(paths.filter((path): path is string => Boolean(path))));
 }
 
+async function getBannerOwnedStoragePaths(
+  supabaseAdmin: SupabaseAdmin,
+  bannerId: string,
+  paths: string[],
+) {
+  if (paths.length === 0) {
+    return [];
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('banners')
+    .select('id, imagem_path, imagem_desktop_path, imagem_mobile_path')
+    .neq('id', bannerId);
+
+  if (error) {
+    logBannerApiError('delete', bannerId, error);
+    throw new Error(`Erro ao verificar imagens vinculadas a outros banners: ${error.message}`);
+  }
+
+  const pathsUsedByOtherBanners = new Set(
+    (data ?? []).flatMap((banner) =>
+      uniquePaths([
+        banner.imagem_path,
+        banner.imagem_desktop_path,
+        banner.imagem_mobile_path,
+      ]),
+    ),
+  );
+
+  return paths.filter((path) => !pathsUsedByOtherBanners.has(path));
+}
+
 async function uploadBannerImage(
   supabaseAdmin: SupabaseAdmin,
   file: File,
@@ -375,11 +407,12 @@ export async function DELETE(request: Request, context: RouteContext) {
     const bannerId = parseBannerId(id);
     const { supabaseAdmin } = authorization;
     const existing = await getExistingBanner(supabaseAdmin, bannerId, 'delete');
-    const pathsToDelete = uniquePaths([
+    const candidatePathsToDelete = uniquePaths([
       existing.imagem_path,
       existing.imagem_desktop_path,
       existing.imagem_mobile_path,
     ]);
+    const pathsToDelete = await getBannerOwnedStoragePaths(supabaseAdmin, bannerId, candidatePathsToDelete);
 
     const { error: deleteError } = await supabaseAdmin.from('banners').delete().eq('id', bannerId);
 

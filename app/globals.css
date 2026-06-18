@@ -10,6 +10,7 @@
   --pastoril-muted: #6E625A;
   --pastoril-border: #E7E0D8;
   --pastoril-soft: #F7F0E7;
+  --mobile-bottom-nav-height: 72px;
   --background: var(--pastoril-bg);
   --surface: var(--pastoril-card);
   --muted: var(--pastoril-muted);

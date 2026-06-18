@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TAMANHO_UNICO } from '@/config/grades-tamanho';
+import { homeBannerFrameClass } from '@/lib/banner-layout';
 import {
   type CartItem,
   type Product,
@@ -510,20 +511,20 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
   if (loading) {
     return (
       <div
-        className="aspect-[2.18/1] w-full rounded-3xl bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] lg:aspect-[3.15/1]"
+        className="h-full min-h-[inherit] w-full rounded-[inherit] bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto"
         aria-label="Carregando banners"
       />
     );
   }
 
   if (validBanners.length === 0) {
-    return <div className="aspect-[2.18/1] w-full rounded-3xl bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] lg:aspect-[3.15/1]" aria-label="Banner Pastoril Moda Country" />;
+    return <div className="h-full min-h-[inherit] w-full rounded-[inherit] bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto" aria-label="Banner Pastoril Moda Country" />;
   }
 
   return (
     <div
       data-banner-carousel
-      className="relative w-full overflow-hidden"
+      className="relative h-full min-h-[inherit] w-full overflow-hidden rounded-[inherit]"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerCancel={() => {
@@ -533,7 +534,7 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
       {activeBanner && activeImageUrl && (
         <div
           key={`banner-container-${activeBanner.id}-${currentIndex}`}
-          className="relative aspect-[2.18/1] w-full overflow-hidden rounded-3xl bg-[#F9F6F1] lg:aspect-[3.15/1]"
+          className="relative h-full min-h-[inherit] w-full overflow-hidden rounded-[inherit] bg-[#F9F6F1] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto"
         >
           {previousImageUrl && previousImageUrl !== activeImageUrl && (
             <img
@@ -732,45 +733,47 @@ export default function Home() {
 
   return (
     <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
-      <header className="bg-[rgba(249,246,241,0.96)] backdrop-blur">
-        <div className="mx-auto grid h-[78px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-5 sm:h-[96px] sm:px-8 lg:px-8">
+      <header className="relative isolate overflow-hidden border-b border-[#9C5C29] bg-[#C8722C] bg-[url('/brand/header/header-bg-mobile.png')] bg-cover bg-[position:center_42%] bg-no-repeat before:absolute before:inset-0 before:z-0 before:bg-[rgba(74,45,26,0.12)] md:bg-[url('/brand/header/header-bg-desktop.png')] md:bg-center">
+        <div className="relative z-10 mx-auto grid h-[55px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 sm:h-[68px] sm:px-6 lg:px-8">
           <div className="flex items-center justify-start">
             <a
               href="#categorias"
-              className="flex h-9 w-9 items-center justify-center text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] sm:h-10 sm:w-10"
+              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
               aria-label="Abrir categorias"
             >
-              <PngIcon name="menu" alt="" className="h-7 w-7 sm:h-8 sm:w-8" sizes="(min-width: 640px) 32px, 28px" />
+              <Icon name="menu" className="h-6 w-6 sm:h-7 sm:w-7" />
             </a>
           </div>
 
-          <a href="#" className="relative block h-[70px] w-[100px] sm:h-[93px] sm:w-[135px]" aria-label="Pastoril Moda Country">
+          <a href="#" className="relative z-20 flex h-[49px] items-center justify-center sm:h-[65px]" aria-label="Pastoril Moda Country">
             <Image
               src="/brand/pastoril-logo-header.png"
               alt="Pastoril Moda Country"
-              fill
-              sizes="(min-width: 640px) 135px, 100px"
+              width={120}
+              height={80}
+              sizes="(min-width: 640px) 95px, 70px"
               priority
-              className="object-contain"
+              unoptimized
+              className="h-[49px] w-auto object-contain sm:h-[65px]"
             />
           </a>
 
           <div className="flex items-center justify-end gap-2 sm:gap-3">
             <a
               href="#produtos"
-              className="flex h-9 w-9 items-center justify-center text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] sm:h-10 sm:w-10"
+              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
               aria-label="Buscar produtos"
             >
-              <PngIcon name="busca" alt="" className="h-7 w-7 sm:h-8 sm:w-8" sizes="(min-width: 640px) 32px, 28px" />
+              <Icon name="search" className="h-6 w-6 sm:h-7 sm:w-7" />
             </a>
             <button
               onClick={() => setIsCartOpen(!isCartOpen)}
-              className="relative flex h-9 w-9 items-center justify-center text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] sm:h-10 sm:w-10"
+              className="relative flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
               aria-label="Abrir carrinho"
             >
-              <PngIcon name="carrinho" alt="" className="h-7 w-7 sm:h-8 sm:w-8" sizes="(min-width: 640px) 32px, 28px" />
+              <Icon name="cart" className="h-6 w-6 sm:h-7 sm:w-7" />
               {totalItems > 0 && (
-                <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--pastoril-caramel)] px-1 text-[0.65rem] font-bold text-white">
+                <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#4A2D1A] px-1 text-[0.65rem] font-bold text-[#FFF8F0]">
                   {totalItems}
                 </span>
               )}
@@ -780,9 +783,9 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="px-5 pt-1 sm:px-8 lg:px-8">
-          <div className="mx-auto max-w-7xl">
-            <div className="relative aspect-[2.18/1] overflow-hidden rounded-[18px] bg-[var(--pastoril-soft)] shadow-[0_10px_22px_rgba(74,45,26,0.07)] sm:aspect-[2.55/1] sm:rounded-[24px] lg:aspect-[3.15/1]">
+        <section className="px-1 pt-0 sm:px-2 md:px-8 md:pt-1 lg:px-0">
+          <div className="w-full">
+            <div className={homeBannerFrameClass}>
               <BannerCarousel banners={banners} loading={loadingBanners} />
             </div>
           </div>
@@ -849,7 +852,7 @@ export default function Home() {
             onClick={() => isCartOpen && setIsCartOpen(false)}
           >
             <div
-              className="fixed bottom-0 left-0 right-0 max-h-[82vh] overflow-auto rounded-t-3xl border border-[var(--pastoril-border)] bg-white p-5 shadow-[0_-18px_40px_rgba(47,47,47,0.16)] lg:sticky lg:top-32 lg:max-h-[calc(100vh-9rem)] lg:rounded-2xl lg:p-6 lg:shadow-[0_12px_28px_rgba(74,52,40,0.08)]"
+              className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+env(safe-area-inset-bottom))] left-0 right-0 flex max-h-[calc(100dvh-var(--mobile-bottom-nav-height)-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-t-3xl border border-[var(--pastoril-border)] bg-white p-5 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-[0_-18px_40px_rgba(47,47,47,0.16)] lg:sticky lg:top-32 lg:max-h-[calc(100vh-9rem)] lg:overflow-auto lg:rounded-2xl lg:p-6 lg:shadow-[0_12px_28px_rgba(74,52,40,0.08)]"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-5 flex items-center justify-between">
@@ -872,7 +875,7 @@ export default function Home() {
                 </div>
               )}
 
-              <div className="mb-6 max-h-72 space-y-3 overflow-y-auto">
+              <div className="mb-6 min-h-0 flex-1 space-y-3 overflow-y-auto pb-6 lg:max-h-72 lg:flex-none lg:pb-0">
                 {cartItems.length === 0 ? (
                   <div className="type-body rounded-xl bg-[var(--pastoril-bg)] px-4 py-6 text-center text-[var(--pastoril-muted)]">
                     Carrinho vazio
@@ -929,7 +932,7 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="type-helper border-t border-[var(--pastoril-border)] bg-white py-8 text-center text-[var(--pastoril-muted)]">
+      <footer className="border-t border-[#E7E0D8] bg-[#F9F6F1] px-4 py-2 text-center text-[11px] font-normal leading-tight text-[#8A7A6E]">
         <p>&copy; 2026 Pastoril Moda Country. Todos os direitos reservados.</p>
       </footer>
 

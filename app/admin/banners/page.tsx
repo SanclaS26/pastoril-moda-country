@@ -2,6 +2,14 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import {
+  adminBannerDesktopListPreviewClass,
+  adminBannerDesktopPreviewClass,
+  adminBannerMobileListPreviewClass,
+  adminBannerMobilePreviewClass,
+  bannerDesktopGuidance,
+  bannerMobileGuidance,
+} from '@/lib/banner-layout';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
 import AdminShell from '../components/AdminShell';
@@ -313,10 +321,13 @@ export default function AdminBannersPage() {
                 onChange={(event) => setDesktopImage(event.target.files?.[0] ?? null)}
                 className={primaryInputClass}
               />
+              <span className="mt-2 block text-xs leading-relaxed text-[#6E625A]">
+                {bannerDesktopGuidance}
+              </span>
             </label>
 
             <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Previa desktop</p>
-            <div className="relative mt-1 aspect-[3.15/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
+            <div className={adminBannerDesktopPreviewClass}>
               {desktopPreview ? (
                 <Image
                   src={desktopPreview}
@@ -341,10 +352,13 @@ export default function AdminBannersPage() {
                 onChange={(event) => setMobileImage(event.target.files?.[0] ?? null)}
                 className={primaryInputClass}
               />
+              <span className="mt-2 block text-xs leading-relaxed text-[#6E625A]">
+                {bannerMobileGuidance}
+              </span>
             </label>
 
             <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Previa celular</p>
-            <div className="relative mt-1 aspect-[2.18/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
+            <div className={adminBannerMobilePreviewClass}>
               {mobilePreview ? (
                 <Image
                   src={mobilePreview}
@@ -416,7 +430,7 @@ export default function AdminBannersPage() {
                       <div className="grid grid-cols-[1fr_88px] gap-3">
                         <div>
                           <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Desktop</p>
-                          <div className="relative aspect-[3.15/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
+                          <div className={adminBannerDesktopListPreviewClass}>
                             <Image
                               src={desktopUrl}
                               alt={banner.titulo || 'Banner desktop'}
@@ -428,7 +442,7 @@ export default function AdminBannersPage() {
                         </div>
                         <div>
                           <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Celular</p>
-                          <div className="relative aspect-[2.18/1] w-full overflow-hidden rounded-xl border border-[#E7E0D8] bg-[#F7F0E7]">
+                          <div className={adminBannerMobileListPreviewClass}>
                             <Image
                               src={mobileUrl}
                               alt={banner.titulo || 'Banner celular'}
@@ -498,3 +512,4 @@ export default function AdminBannersPage() {
     </AdminShell>
   );
 }
+

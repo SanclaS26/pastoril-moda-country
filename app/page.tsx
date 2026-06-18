@@ -97,6 +97,9 @@ const subcategoryAliases: Record<string, string[]> = {
   acessorios: ['acessorio', 'acessorios'],
 };
 
+const productCategoryHeaderClass = 'mb-3 flex items-center justify-between gap-3';
+const productCategoryTitleClass = 'type-subtitle text-[var(--pastoril-brown)]';
+
 function normalizeFilterValue(value: string | null | undefined) {
   return (value ?? '')
     .normalize('NFD')
@@ -831,7 +834,7 @@ export default function Home() {
               backgroundPosition: 'center bottom',
             }}
           >
-            <div className="absolute inset-0 bg-[#4A2D1A]/30" />
+            <div className="absolute inset-0 bg-[#F9F6F1]/50" />
             <div className="relative z-10 flex h-full flex-col">
               <div className="relative flex items-center justify-center border-b border-[#F3E4D4]/18 px-14 pb-5 pt-6">
                 <Image
@@ -846,7 +849,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(false)}
-                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                   aria-label="Fechar menu"
                 >
                   x
@@ -857,7 +860,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={goHomeFromMenu}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
                   Início
                 </button>
@@ -872,8 +875,8 @@ export default function Home() {
                         key={category.id}
                         type="button"
                         onClick={() => selectMainCategoryFromMenu(category.id)}
-                        className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8] ${
-                          isActive ? 'text-[#F6D2A8]' : 'text-[#FFF8F0]'
+                        className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C] ${
+                          isActive ? 'text-[#C8722C]' : 'text-[#4A2D1A]'
                         }`}
                       >
                         {category.label}
@@ -890,8 +893,8 @@ export default function Home() {
                     setIsMenuOpen(false);
                     scrollToProducts();
                   }}
-                  className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8] ${
-                    activeSubcategory === 'promocoes' ? 'text-[#F6D2A8]' : 'text-[#FFF8F0]'
+                  className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C] ${
+                    activeSubcategory === 'promocoes' ? 'text-[#C8722C]' : 'text-[#4A2D1A]'
                   }`}
                 >
                   Promoções
@@ -903,7 +906,7 @@ export default function Home() {
                     setIsMenuOpen(false);
                     scrollToProducts();
                   }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
                   Buscar produtos
                 </button>
@@ -914,7 +917,7 @@ export default function Home() {
                     setIsMenuOpen(false);
                     setIsCartOpen(true);
                   }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
                   Carrinho
                 </button>
@@ -922,7 +925,7 @@ export default function Home() {
                 <Link
                   href="/login"
                   onClick={() => setIsMenuOpen(false)}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
                   Login
                 </Link>
@@ -930,7 +933,7 @@ export default function Home() {
                 <Link
                   href="/quem-somos"
                   onClick={() => setIsMenuOpen(false)}
-                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
                   Quem somos
                 </Link>
@@ -1025,8 +1028,8 @@ export default function Home() {
         <div className="mx-auto max-w-7xl border-t border-[var(--pastoril-border)] px-5 py-5 sm:px-8 sm:py-8 lg:px-8">
           <section id="produtos" ref={productsSectionRef}>
             {activeSubcategory !== 'todos' && (
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <h2 className="type-section-title">{productsTitle}</h2>
+              <div className={productCategoryHeaderClass}>
+                <h2 className={productCategoryTitleClass}>{productsTitle}</h2>
                 <button
                   type="button"
                   onClick={() => {
@@ -1057,8 +1060,8 @@ export default function Home() {
               <div className="space-y-7">
                 {productCarouselGroups.map((group, groupIndex) => (
                   <section key={group.slug} aria-label={group.label}>
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <h3 className="type-subtitle text-[var(--pastoril-brown)]">{group.label}</h3>
+                    <div className={productCategoryHeaderClass}>
+                      <h3 className={productCategoryTitleClass}>{group.label}</h3>
                       <div className="hidden gap-2 md:flex">
                         <button
                           type="button"

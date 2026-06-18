@@ -11,7 +11,6 @@ import {
   type Product,
   formatCurrency,
   getProductPrice,
-  productUsesVisibleSize,
 } from '@/lib/catalog';
 
 type MainBanner = {
@@ -41,7 +40,13 @@ type IconName =
   | 'whatsapp'
   | 'clipboard'
   | 'user'
-  | 'instagram';
+  | 'instagram'
+  | 'male'
+  | 'female'
+  | 'child'
+  | 'people'
+  | 'pants'
+  | 'accessory';
 
 type PngIconName =
   | 'chapeu'
@@ -55,14 +60,53 @@ type PngIconName =
   | 'carrinho'
   | 'inicio';
 
-const categories: { label: string; icon: PngIconName }[] = [
-  { label: 'Chapéus', icon: 'chapeu' },
-  { label: 'Botas', icon: 'bota' },
-  { label: 'Camisas', icon: 'camisa' },
-  { label: 'Calças', icon: 'calca' },
-  { label: 'Cintos', icon: 'cinto' },
-  { label: 'Promoções', icon: 'promocao' },
+type MainCategoryId = 'masculino' | 'feminino' | 'infantil' | 'todos';
+
+const mainCategories: { id: MainCategoryId; label: string; icon: string; activeIcon: string }[] = [
+  {
+    id: 'masculino',
+    label: 'Masculino',
+    icon: '/brand/icons/categories/masculino.png',
+    activeIcon: '/brand/icons/categories/masculino-active.png',
+  },
+  {
+    id: 'feminino',
+    label: 'Feminino',
+    icon: '/brand/icons/categories/feminino.png',
+    activeIcon: '/brand/icons/categories/feminino-active.png',
+  },
+  {
+    id: 'infantil',
+    label: 'Infantil',
+    icon: '/brand/icons/categories/infantil.png',
+    activeIcon: '/brand/icons/categories/infantil-active.png',
+  },
+  {
+    id: 'todos',
+    label: 'Todos',
+    icon: '/brand/icons/categories/todos.png',
+    activeIcon: '/brand/icons/categories/todos-active.png',
+  },
 ];
+
+const subcategories: { slug: string; label: string; groups: MainCategoryId[] }[] = [
+  { slug: 'chapeus', label: 'Chapéus', groups: ['masculino', 'feminino', 'infantil'] },
+  { slug: 'botas', label: 'Botas', groups: ['masculino', 'feminino', 'infantil'] },
+  { slug: 'camisas', label: 'Camisas', groups: ['masculino', 'feminino', 'infantil'] },
+  { slug: 'calcas', label: 'Calças', groups: ['masculino', 'feminino', 'infantil'] },
+  { slug: 'cintos', label: 'Cintos', groups: ['masculino'] },
+  { slug: 'acessorios', label: 'Acessórios', groups: ['feminino'] },
+  { slug: 'promocoes', label: 'Promoções', groups: ['masculino', 'feminino', 'infantil'] },
+];
+
+const subcategoryAliases: Record<string, string[]> = {
+  chapeus: ['chapeu', 'chapeus'],
+  botas: ['bota', 'botas'],
+  camisas: ['camisa', 'camisas'],
+  calcas: ['calca', 'calcas'],
+  cintos: ['cinto', 'cintos'],
+  acessorios: ['acessorio', 'acessorios'],
+};
 
 const pngIconSrc: Record<PngIconName, string> = {
   chapeu: '/brand/icons/chapeu.png',
@@ -99,6 +143,32 @@ function PngIcon({
       />
     </span>
   );
+}
+
+function normalizeFilterValue(value: string | null | undefined) {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function productMatchesMainCategory(product: Product, activeCategory: MainCategoryId) {
+  if (activeCategory === 'todos') return true;
+
+  const publicValue = normalizeFilterValue(product.publico);
+  return publicValue === activeCategory;
+}
+
+function productMatchesSubcategory(product: Product, activeSubcategory: string) {
+  if (!activeSubcategory) return true;
+  if (activeSubcategory === 'promocoes') return product.em_promocao;
+
+  const aliases = subcategoryAliases[activeSubcategory] ?? [activeSubcategory];
+  const categoryValue = normalizeFilterValue(product.categoria);
+  const departmentValue = normalizeFilterValue(product.departamento);
+
+  return aliases.some((alias) => categoryValue === alias || departmentValue === alias);
 }
 
 function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {
@@ -209,6 +279,26 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
     );
   }
 
+  if (name === 'pants') {
+    return (
+      <svg {...common}>
+        <path d="M8.2 4.6h7.6l1.1 15h-4.1L12 9.7l-.8 9.9H7.1l1.1-15Z" />
+        <path d="M8.5 7.6h7M12 4.8v4.9" />
+      </svg>
+    );
+  }
+
+  if (name === 'accessory') {
+    return (
+      <svg {...common}>
+        <path d="M5.1 12.3c1.9-1.5 3.8-1.5 5.7 0 1.9 1.5 3.8 1.5 5.7 0" />
+        <path d="M5.1 15.2c1.9-1.5 3.8-1.5 5.7 0 1.9 1.5 3.8 1.5 5.7 0" />
+        <circle cx="18" cy="10.2" r="2" />
+        <path d="M6.2 9.3h4.7" />
+      </svg>
+    );
+  }
+
   if (name === 'chevron') {
     return (
       <svg {...common}>
@@ -245,6 +335,72 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
     );
   }
 
+  if (name === 'male') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9.2" />
+        <path d="M7.2 9.6c1.7-1.1 1.9-3.2 4.8-3.2s3.1 2.1 4.8 3.2" />
+        <path d="M5.8 10.8c3 1 9.4 1 12.4 0" />
+        <path d="M8.8 10.7c1.1.5 5.3.5 6.4 0" />
+        <path d="M9.5 12.2c.3 2 1.2 3.1 2.5 3.1s2.2-1.1 2.5-3.1" />
+        <path d="M10.5 13.2h.1M13.4 13.2h.1" />
+        <path d="M9 19.2v-1.4c.8-1 1.8-1.5 3-1.5s2.2.5 3 1.5v1.4" />
+        <path d="M10.2 17.1 12 18.5l1.8-1.4" />
+      </svg>
+    );
+  }
+
+  if (name === 'female') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9.2" />
+        <path d="M7.2 9.7c1.5-1.2 2.2-3.3 4.9-3.3 2.4 0 3 1.8 4.6 3" />
+        <path d="M6.2 10.8c2.7 1 8.1 1 11.6 0" />
+        <path d="M10.2 11.2c-.5.8-.7 1.6-.5 2.5.3 1.2 1.2 2 2.3 2s2-.8 2.3-2" />
+        <path d="M14.5 10.8c1.2.8 1.7 2.1 1.4 3.8" />
+        <path d="M8.8 10.9c-.8 1.2-.8 2.8.1 4.5" />
+        <path d="M9.2 16.3c.7-.6 1.6-.9 2.8-.9s2.1.3 2.8.9" />
+        <path d="M10 18.9c.4-1.2 1-1.8 2-1.8s1.6.6 2 1.8" />
+        <path d="M8.4 13.7c-.9.4-1.5 1.2-1.8 2.4M16 13.8c.7.4 1.2 1 1.4 1.9" />
+      </svg>
+    );
+  }
+
+  if (name === 'child') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9.2" />
+        <path d="M7.8 9.4c1.3-1 1.8-2.7 4.2-2.7s2.9 1.7 4.2 2.7" />
+        <path d="M6.4 10.5c2.7.9 8.5.9 11.2 0" />
+        <path d="M8.9 10.5c1 .4 5.2.4 6.2 0" />
+        <path d="M9.7 12.1c.2 1.8 1.1 2.9 2.3 2.9s2.1-1.1 2.3-2.9" />
+        <path d="M10.6 13h.1M13.3 13h.1" />
+        <path d="M10.3 16.1c.5.4 1.1.6 1.7.6s1.2-.2 1.7-.6" />
+        <path d="M8.5 19.1v-1.3c.9-.9 2-1.4 3.5-1.4s2.6.5 3.5 1.4v1.3" />
+      </svg>
+    );
+  }
+
+  if (name === 'people') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="9.2" />
+        <path d="M4.8 8.7c1-.8 1.3-2.1 3-2.1s2 1.3 3 2.1" />
+        <path d="M4.1 9.7c1.7.6 5.7.6 7.4 0" />
+        <path d="M6.5 10.8c.1 1.2.6 1.9 1.3 1.9s1.2-.7 1.3-1.9" />
+        <path d="M13.2 8.7c1-.8 1.3-2.1 3-2.1s2 1.3 3 2.1" />
+        <path d="M12.5 9.7c1.7.6 5.7.6 7.4 0" />
+        <path d="M14.9 10.8c.1 1.2.6 1.9 1.3 1.9s1.2-.7 1.3-1.9" />
+        <path d="M8.9 13.2c.8-.6 1.1-1.6 3.1-1.6s2.3 1 3.1 1.6" />
+        <path d="M7.9 14.1c1.9.6 6.3.6 8.2 0" />
+        <path d="M10.5 15c.1 1.2.7 1.9 1.5 1.9s1.4-.7 1.5-1.9" />
+        <path d="M5.4 19.2v-2.4c.5-.8 1.3-1.2 2.4-1.2.9 0 1.6.3 2 .8" />
+        <path d="M18.6 19.2v-2.4c-.5-.8-1.3-1.2-2.4-1.2-.9 0-1.6.3-2 .8" />
+        <path d="M9 19.2v-1.1c.7-.8 1.7-1.2 3-1.2s2.3.4 3 1.2v1.1" />
+      </svg>
+    );
+  }
+
   if (name === 'instagram') {
     return (
       <svg {...common}>
@@ -263,86 +419,48 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
   );
 }
 
-function ProductSizeSelector({
-  product,
-  selectedSize,
-  onSelect,
-}: {
-  product: Product;
-  selectedSize: string;
-  onSelect: (value: string) => void;
-}) {
-  if (!productUsesVisibleSize(product)) {
-    return null;
-  }
-
-  return (
-    <label className="mt-2 block">
-      <span className="type-helper mb-1 block font-semibold uppercase text-[var(--pastoril-muted)]">
-        Tamanho
-      </span>
-      <select
-        value={selectedSize}
-        onChange={(event) => onSelect(event.target.value)}
-        className="type-helper h-8 w-full rounded-lg border border-[var(--pastoril-border)] bg-white px-2 text-[var(--pastoril-text)] outline-none transition focus:border-[var(--pastoril-caramel)] focus:ring-2 focus:ring-[rgba(184,121,63,0.18)] sm:h-9"
-      >
-        <option value="">Selecione</option>
-        {product.estoque.map((stock) => (
-          <option key={stock.id} value={stock.tamanho}>
-            {stock.tamanho} ({stock.quantidade} disp.)
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function ProductCard({
   product,
-  selectedSize,
-  onSelectSize,
-  onAddToCart,
   priority = false,
 }: {
   product: Product;
-  selectedSize: string;
-  onSelectSize: (value: string) => void;
-  onAddToCart: (product: Product) => void;
   priority?: boolean;
 }) {
   const currentPrice = getProductPrice(product);
   const hasPromotion = product.em_promocao && product.preco_promocional !== null;
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-[0_8px_18px_rgba(74,52,40,0.07)] sm:rounded-2xl">
+    <Link
+      href={`/produto/${product.id}`}
+      aria-label={`Ver detalhes de ${product.nome}`}
+      className="group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-[0_8px_18px_rgba(74,52,40,0.07)] transition md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_24px_rgba(74,52,40,0.11)] sm:rounded-2xl"
+    >
       <div className="relative aspect-[1.2/1] overflow-hidden bg-[var(--pastoril-soft)]">
         {hasPromotion && (
           <span className="type-helper absolute left-2 top-2 z-10 rounded-lg bg-[var(--pastoril-promo)] px-2 py-1 font-bold uppercase text-white shadow-sm sm:left-3 sm:top-3">
             Promo
           </span>
         )}
-        <Link href={`/produto/${product.id}`} aria-label={`Ver detalhes de ${product.nome}`} className="absolute inset-0">
-          {product.imagem_principal ? (
-            <Image
-              src={product.imagem_principal}
-              alt={product.nome}
-              fill
-              priority={priority}
-              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-              className="object-cover transition duration-500 group-hover:scale-[1.03]"
-            />
-          ) : (
-            <div className="type-helper flex h-full items-center justify-center px-3 text-center text-[var(--pastoril-muted)]">
-              Sem foto
-            </div>
-          )}
-        </Link>
+        {product.imagem_principal ? (
+          <Image
+            src={product.imagem_principal}
+            alt={product.nome}
+            fill
+            priority={priority}
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition duration-500 md:group-hover:scale-[1.03]"
+          />
+        ) : (
+          <div className="type-helper flex h-full items-center justify-center px-3 text-center text-[var(--pastoril-muted)]">
+            Sem foto
+          </div>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col p-2.5 sm:p-4">
-        <Link href={`/produto/${product.id}`} className="type-product-name min-h-[2.25rem] transition hover:text-[var(--pastoril-caramel)] sm:min-h-[2.5rem]">
+        <h3 className="type-product-name min-h-[2.25rem] transition md:group-hover:text-[var(--pastoril-caramel)] sm:min-h-[2.5rem]">
           {product.nome}
-        </Link>
+        </h3>
 
         <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <p className="type-price">
@@ -356,25 +474,14 @@ function ProductCard({
         </div>
 
         <p className="type-helper mt-0.5 font-medium text-[var(--pastoril-muted)]">
-          Cód. {product.codigo_produto}
+          C&oacute;d. {product.codigo_produto}
         </p>
 
-        <div className="mt-auto flex items-end gap-2 pt-2">
-          <div className="min-w-0 flex-1">
-            <ProductSizeSelector product={product} selectedSize={selectedSize} onSelect={onSelectSize} />
-          </div>
-          <button
-            onClick={() => onAddToCart(product)}
-            disabled={!product.estoque.length}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--pastoril-caramel)] text-white shadow-[0_8px_18px_rgba(184,121,63,0.24)] transition hover:bg-[var(--pastoril-brown)] disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={product.estoque.length ? `Adicionar ${product.nome} ao carrinho` : `${product.nome} sem estoque`}
-            title={product.estoque.length ? 'Adicionar ao carrinho' : 'Sem estoque'}
-          >
-            <PngIcon name="carrinho" alt="" className="h-5 w-5" sizes="20px" />
-          </button>
-        </div>
+        <span className="type-button mt-auto flex min-h-12 items-end pt-2 text-[var(--pastoril-caramel)]">
+          Ver detalhes
+        </span>
       </div>
-    </article>
+    </Link>
   );
 }
 
@@ -583,11 +690,10 @@ export default function Home() {
   const [productsError, setProductsError] = useState('');
   const [banners, setBanners] = useState<MainBanner[]>([]);
   const [loadingBanners, setLoadingBanners] = useState(true);
-  const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({});
-  const [cartError, setCartError] = useState('');
+  const [activeCategory, setActiveCategory] = useState<MainCategoryId>('todos');
+  const [activeSubcategory, setActiveSubcategory] = useState('');
   const publicCart = usePublicCart();
   const {
-    addProductToCart,
     badgeAnimating,
     cartItems,
     clearCart,
@@ -652,12 +758,15 @@ export default function Home() {
     fetchBanners();
   }, []);
 
-  const addToCart = (product: Product) => {
-    const usesVisibleSize = productUsesVisibleSize(product);
-    const selectedSize = usesVisibleSize ? selectedSizes[product.id] : '';
-    const result = addProductToCart(product, selectedSize);
-    setCartError(result.error);
-  };
+  const filteredProducts = useMemo(
+    () =>
+      products.filter(
+        (product) =>
+          productMatchesMainCategory(product, activeCategory) &&
+          productMatchesSubcategory(product, activeSubcategory),
+      ),
+    [activeCategory, activeSubcategory, products],
+  );
 
   return (
     <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
@@ -672,17 +781,81 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="categorias" className="py-4 sm:py-6">
-          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-8">
-            <div className="-mx-5 flex gap-4 overflow-x-auto px-5 pb-2 sm:mx-0 sm:justify-center sm:gap-7 sm:overflow-visible sm:px-0 sm:pb-0 lg:gap-9">
-              {categories.map((category) => (
-                <a key={category.label} href="#produtos" className="min-w-[72px] text-center sm:min-w-[76px]">
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-[var(--pastoril-brown)] shadow-[inset_0_0_0_1px_rgba(74,45,26,0.04)]">
-                    <PngIcon name={category.icon} alt="" className="h-9 w-9" sizes="36px" />
-                  </div>
-                  <p className="type-button mt-2 text-[var(--pastoril-text)]">{category.label}</p>
-                </a>
-              ))}
+        <section id="categorias" className="py-3 sm:py-4">
+          <div className="mx-auto max-w-7xl px-3 sm:px-8 lg:px-8">
+            <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
+              <div className="mx-auto flex min-w-max justify-center gap-5 border-b border-[#D8C7B8] pb-2 sm:min-w-0 sm:gap-9 lg:gap-12">
+                {mainCategories.map((category) => {
+                  const isActive = activeCategory === category.id;
+
+                  return (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory(category.id);
+
+                        const selectedSubcategory = subcategories.find(
+                          (subcategory) => subcategory.slug === activeSubcategory,
+                        );
+
+                        if (
+                          category.id !== 'todos' &&
+                          selectedSubcategory &&
+                          !selectedSubcategory.groups.includes(category.id)
+                        ) {
+                          setActiveSubcategory('');
+                        }
+                      }}
+                      className={`group relative flex min-w-[64px] flex-col items-center gap-0 bg-transparent pb-1 text-center transition md:hover:text-[#C8722C] ${
+                        isActive ? 'text-[#C8722C]' : 'text-[#6E625A]'
+                      }`}
+                      aria-pressed={isActive}
+                    >
+                      <span className="relative flex h-[72px] w-[72px] items-center justify-center md:h-[84px] md:w-[84px]">
+                        <Image
+                          src={isActive ? category.activeIcon : category.icon}
+                          alt={category.label}
+                          fill
+                          sizes="64px"
+                          className="object-contain p-1"
+                        />
+                      </span>
+                      <span className={`type-button -mt-2.5 text-[11px] sm:text-xs ${isActive ? 'text-[#4A2D1A]' : 'text-[#6E625A]'}`}>
+                        {category.label}
+                      </span>
+                      <span
+                        className={`absolute bottom-[-9px] left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[#C8722C] transition ${
+                          isActive ? 'opacity-100' : 'opacity-0'
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="-mx-3 mt-2 overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
+              <div className="mx-auto flex min-w-max justify-center gap-5 sm:min-w-0 sm:flex-wrap sm:gap-x-8 sm:gap-y-2 lg:gap-x-10">
+                {subcategories.map((category) => (
+                  <button
+                    key={category.slug}
+                    type="button"
+                    onClick={() => setActiveSubcategory(category.slug)}
+                    className={`type-button relative min-h-8 whitespace-nowrap bg-transparent px-2 py-2 text-[11px] transition-colors sm:text-xs ${
+                      activeSubcategory === category.slug
+                        ? 'font-semibold text-[#4A2D1A]'
+                        : 'text-[#6E625A] md:hover:text-[#4A2D1A]'
+                    }`}
+                    aria-pressed={activeSubcategory === category.slug}
+                  >
+                    {category.label}
+                    {activeSubcategory === category.slug && (
+                      <span className="absolute bottom-0 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-[#C8722C] transition-all duration-200" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -705,22 +878,16 @@ export default function Home() {
               <div className="type-body rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-rose-700">
                 {productsError}
               </div>
-            ) : products.length === 0 ? (
+            ) : filteredProducts.length === 0 ? (
               <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
                 Nenhum produto disponível no momento.
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
-                {products.map((product, index) => (
+                {filteredProducts.map((product, index) => (
                   <ProductCard
                     key={product.id}
                     product={product}
-                    selectedSize={selectedSizes[product.id] ?? ''}
-                    onSelectSize={(value) => {
-                      setSelectedSizes((current) => ({ ...current, [product.id]: value }));
-                      setCartError('');
-                    }}
-                    onAddToCart={addToCart}
                     priority={index < 4}
                   />
                 ))}
@@ -730,13 +897,9 @@ export default function Home() {
 
           <PublicCart
             badgeAnimating={badgeAnimating}
-            cartError={cartError}
             cartItems={cartItems}
-            clearCart={() => {
-              const cleared = clearCart();
-              if (cleared) setCartError('');
-              return cleared;
-            }}
+            clearCart={clearCart}
+            desktopInline
             isCartOpen={isCartOpen}
             removeFromCart={removeFromCart}
             setIsCartOpen={setIsCartOpen}
@@ -793,4 +956,3 @@ export default function Home() {
     </div>
   );
 }
-

@@ -37,7 +37,6 @@ type PublicCartProps = {
   cartError?: string;
   cartItems: CartItem[];
   clearCart: () => boolean;
-  desktopInline?: boolean;
   isCartOpen: boolean;
   removeFromCart: (productId: number, selectedSize: string) => void;
   setIsCartOpen: (isOpen: boolean) => void;
@@ -52,7 +51,6 @@ export function PublicCart({
   cartError = '',
   cartItems,
   clearCart,
-  desktopInline = false,
   isCartOpen,
   removeFromCart,
   setIsCartOpen,
@@ -62,16 +60,11 @@ export function PublicCart({
   whatsappMessage,
 }: PublicCartProps) {
   const asideClassName = isCartOpen
-    ? `fixed inset-0 z-50 bg-[rgba(249,246,241,0.86)] ${desktopInline ? 'lg:static lg:bg-transparent' : ''}`
-    : desktopInline
-      ? 'hidden lg:block'
-      : 'hidden';
+    ? 'fixed inset-0 z-50 bg-[rgba(249,246,241,0.86)]'
+    : 'hidden';
 
-  const panelClassName = `fixed bottom-[calc(var(--mobile-bottom-nav-height)+env(safe-area-inset-bottom))] left-0 right-0 flex max-h-[calc(100dvh-var(--mobile-bottom-nav-height)-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-t-3xl border border-[var(--pastoril-border)] bg-white p-5 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-[0_-18px_40px_rgba(47,47,47,0.16)] ${
-    desktopInline
-      ? 'lg:sticky lg:top-32 lg:max-h-[calc(100vh-9rem)] lg:overflow-auto lg:rounded-2xl lg:p-6 lg:shadow-[0_12px_28px_rgba(74,52,40,0.08)]'
-      : 'lg:bottom-auto lg:left-auto lg:right-6 lg:top-24 lg:w-[380px] lg:max-h-[calc(100vh-7rem)] lg:rounded-2xl lg:p-6 lg:shadow-[0_18px_42px_rgba(74,52,40,0.18)]'
-  }`;
+  const panelClassName =
+    'fixed bottom-[calc(var(--mobile-bottom-nav-height)+env(safe-area-inset-bottom))] left-0 right-0 flex max-h-[calc(100dvh-var(--mobile-bottom-nav-height)-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-t-3xl border border-[var(--pastoril-border)] bg-white p-5 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-[0_-18px_40px_rgba(47,47,47,0.16)] lg:bottom-auto lg:left-auto lg:right-6 lg:top-24 lg:w-[380px] lg:max-h-[calc(100vh-7rem)] lg:rounded-2xl lg:p-6 lg:shadow-[0_18px_42px_rgba(74,52,40,0.18)]';
 
   return (
     <>
@@ -100,9 +93,7 @@ export function PublicCart({
               )}
               <button
                 onClick={() => setIsCartOpen(false)}
-                className={`flex h-10 w-10 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-xl leading-none text-[var(--pastoril-brown)] ${
-                  desktopInline ? 'lg:hidden' : ''
-                }`}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-xl leading-none text-[var(--pastoril-brown)]"
                 aria-label="Fechar carrinho"
               >
                 x
@@ -181,7 +172,7 @@ export function PublicCart({
       <button
         type="button"
         onClick={() => setIsCartOpen(true)}
-        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+16px+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--pastoril-caramel)] text-white shadow-[0_8px_18px_rgba(74,45,26,0.18)] transition hover:bg-[var(--pastoril-brown)] md:bottom-6 md:right-6 md:h-[52px] md:w-[52px]"
+        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+16px+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--pastoril-caramel)] text-white shadow-[0_8px_18px_rgba(74,45,26,0.18)] transition hover:bg-[var(--pastoril-brown)] md:right-6 md:h-[52px] md:w-[52px]"
         aria-label="Abrir carrinho"
       >
         <PublicCartIcon name="cart" className="h-6 w-6" />

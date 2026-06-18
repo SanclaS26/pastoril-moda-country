@@ -48,19 +48,8 @@ type IconName =
   | 'pants'
   | 'accessory';
 
-type PngIconName =
-  | 'chapeu'
-  | 'bota'
-  | 'camisa'
-  | 'calca'
-  | 'cinto'
-  | 'promocao'
-  | 'menu'
-  | 'busca'
-  | 'carrinho'
-  | 'inicio';
-
 type MainCategoryId = 'masculino' | 'feminino' | 'infantil' | 'todos';
+const PRODUCTS_PER_PAGE = 20;
 
 const mainCategories: { id: MainCategoryId; label: string; icon: string; activeIcon: string }[] = [
   {
@@ -107,43 +96,6 @@ const subcategoryAliases: Record<string, string[]> = {
   cintos: ['cinto', 'cintos'],
   acessorios: ['acessorio', 'acessorios'],
 };
-
-const pngIconSrc: Record<PngIconName, string> = {
-  chapeu: '/brand/icons/chapeu.png',
-  bota: '/brand/icons/bota.png',
-  camisa: '/brand/icons/camisa.png',
-  calca: '/brand/icons/calca.png',
-  cinto: '/brand/icons/cinto.png',
-  promocao: '/brand/icons/promocao.png',
-  menu: '/brand/icons/menu.png',
-  busca: '/brand/icons/busca.png',
-  carrinho: '/brand/icons/carrinho.png',
-  inicio: '/brand/icons/inicio.png',
-};
-
-function PngIcon({
-  name,
-  alt,
-  className,
-  sizes,
-}: {
-  name: PngIconName;
-  alt: string;
-  className: string;
-  sizes: string;
-}) {
-  return (
-    <span className={`relative block ${className}`}>
-      <Image
-        src={pngIconSrc[name]}
-        alt={alt}
-        fill
-        sizes={sizes}
-        className="object-contain"
-      />
-    </span>
-  );
-}
 
 function normalizeFilterValue(value: string | null | undefined) {
   return (value ?? '')
@@ -692,6 +644,10 @@ export default function Home() {
   const [loadingBanners, setLoadingBanners] = useState(true);
   const [activeCategory, setActiveCategory] = useState<MainCategoryId>('todos');
   const [activeSubcategory, setActiveSubcategory] = useState('todos');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const productsSectionRef = useRef<HTMLElement | null>(null);
+  const productCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const publicCart = usePublicCart();
   const {
     badgeAnimating,
@@ -758,6 +714,26 @@ export default function Home() {
     fetchBanners();
   }, []);
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isMenuOpen]);
+
   const filteredProducts = useMemo(
     () =>
       products.filter(
@@ -767,10 +743,202 @@ export default function Home() {
       ),
     [activeCategory, activeSubcategory, products],
   );
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
+  const visibleCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (visibleCurrentPage - 1) * PRODUCTS_PER_PAGE;
+    return filteredProducts.slice(startIndex, startIndex + PRODUCTS_PER_PAGE);
+  }, [visibleCurrentPage, filteredProducts]);
+  const productCarouselGroups = useMemo(
+    () =>
+      subcategories
+        .map((subcategory) => ({
+          ...subcategory,
+          products: products.filter(
+            (product) =>
+              productMatchesMainCategory(product, activeCategory) &&
+              productMatchesSubcategory(product, subcategory.slug),
+          ),
+        }))
+        .filter((group) => group.products.length > 0),
+    [activeCategory, products],
+  );
+  const selectedSubcategoryLabel =
+    subcategories.find((subcategory) => subcategory.slug === activeSubcategory)?.label ?? 'Destaques';
+  const productsTitle = activeSubcategory === 'todos' ? 'Destaques' : selectedSubcategoryLabel;
+  const hasVisibleProducts =
+    activeSubcategory === 'todos' ? productCarouselGroups.length > 0 : filteredProducts.length > 0;
+
+  const goToProductsPage = (page: number) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages);
+    setCurrentPage(nextPage);
+    window.requestAnimationFrame(() => {
+      productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const scrollProductCarousel = (slug: string, direction: -1 | 1) => {
+    productCarouselRefs.current[slug]?.scrollBy({ left: direction * 320, behavior: 'smooth' });
+  };
+
+  const scrollToProducts = () => {
+    window.requestAnimationFrame(() => {
+      productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const selectMainCategoryFromMenu = (category: MainCategoryId) => {
+    setActiveCategory(category);
+    setActiveSubcategory('todos');
+    setCurrentPage(1);
+    setIsMenuOpen(false);
+    scrollToProducts();
+  };
+
+  const goHomeFromMenu = () => {
+    setActiveCategory('todos');
+    setActiveSubcategory('todos');
+    setCurrentPage(1);
+    setIsMenuOpen(false);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  };
 
   return (
-    <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
-      <StoreHeader onCartToggle={() => setIsCartOpen(!isCartOpen)} totalItems={totalItems} />
+    <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)]">
+      <StoreHeader
+        onCartToggle={() => setIsCartOpen(!isCartOpen)}
+        onMenuOpen={() => setIsMenuOpen(true)}
+        totalItems={totalItems}
+      />
+
+      {isMenuOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setIsMenuOpen(false)}
+            className="fixed inset-0 z-50 bg-black/30"
+          />
+
+          <aside
+            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[#D9B88F]/25 bg-no-repeat shadow-xl md:max-w-[360px]"
+            aria-label="Menu principal"
+            style={{
+              backgroundImage: "url('/brand/menu/sidebar-menu-bg.png')",
+              backgroundSize: 'cover',
+              backgroundPosition: 'center bottom',
+            }}
+          >
+            <div className="absolute inset-0 bg-[#4A2D1A]/30" />
+            <div className="relative z-10 flex h-full flex-col">
+              <div className="relative flex items-center justify-center border-b border-[#F3E4D4]/18 px-14 pb-5 pt-6">
+                <Image
+                  src="/brand/pastoril-logo-header.png"
+                  alt="Pastoril Moda Country"
+                  width={140}
+                  height={80}
+                  priority
+                  unoptimized
+                  className="h-auto w-[120px] object-contain md:w-[140px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                  aria-label="Fechar menu"
+                >
+                  x
+                </button>
+              </div>
+
+              <nav className="flex-1 overflow-y-auto px-4 py-3" aria-label="Links do menu">
+                <button
+                  type="button"
+                  onClick={goHomeFromMenu}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                >
+                  Início
+                </button>
+
+                {mainCategories
+                  .filter((category) => category.id !== 'todos')
+                  .map((category) => {
+                    const isActive = activeCategory === category.id;
+
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => selectMainCategoryFromMenu(category.id)}
+                        className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8] ${
+                          isActive ? 'text-[#F6D2A8]' : 'text-[#FFF8F0]'
+                        }`}
+                      >
+                        {category.label}
+                      </button>
+                    );
+                  })}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveCategory('todos');
+                    setActiveSubcategory('promocoes');
+                    setCurrentPage(1);
+                    setIsMenuOpen(false);
+                    scrollToProducts();
+                  }}
+                  className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8] ${
+                    activeSubcategory === 'promocoes' ? 'text-[#F6D2A8]' : 'text-[#FFF8F0]'
+                  }`}
+                >
+                  Promoções
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    scrollToProducts();
+                  }}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                >
+                  Buscar produtos
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsCartOpen(true);
+                  }}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                >
+                  Carrinho
+                </button>
+
+                <Link
+                  href="/login"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                >
+                  Login
+                </Link>
+
+                <Link
+                  href="/quem-somos"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[#FFF8F0] transition hover:text-[#F6D2A8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F6D2A8]"
+                >
+                  Quem somos
+                </Link>
+              </nav>
+            </div>
+          </aside>
+        </>
+      )}
 
       <main>
         <section className="px-1 pt-0 sm:px-2 md:px-8 md:pt-1 lg:px-0">
@@ -795,6 +963,7 @@ export default function Home() {
                       onClick={() => {
                         setActiveCategory(category.id);
                         setActiveSubcategory('todos');
+                        setCurrentPage(1);
                       }}
                       className={`group relative flex min-w-[64px] flex-col items-center gap-0 bg-transparent pb-1 text-center transition md:hover:text-[#C8722C] ${
                         isActive ? 'text-[#C8722C]' : 'text-[#6E625A]'
@@ -830,7 +999,10 @@ export default function Home() {
                   <button
                     key={category.slug}
                     type="button"
-                    onClick={() => setActiveSubcategory(category.slug)}
+                    onClick={() => {
+                      setActiveSubcategory(category.slug);
+                      setCurrentPage(1);
+                    }}
                     className={`type-button relative min-h-8 whitespace-nowrap bg-transparent px-2 py-2 text-[11px] transition-colors sm:text-xs ${
                       activeSubcategory === category.slug
                         ? 'font-semibold text-[#4A2D1A]'
@@ -846,18 +1018,28 @@ export default function Home() {
                 ))}
               </div>
             </div>
+
           </div>
         </section>
 
-        <div className="mx-auto max-w-7xl gap-8 border-t border-[var(--pastoril-border)] px-5 py-5 sm:px-8 sm:py-8 lg:grid lg:grid-cols-[1fr_360px] lg:px-8">
-          <section id="produtos">
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <h2 className="type-section-title">Destaques</h2>
-              <a href="#produtos" className="type-button inline-flex items-center gap-1 text-[var(--pastoril-caramel)]">
-                Ver todos
-                <Icon name="chevron" className="h-4 w-4" />
-              </a>
-            </div>
+        <div className="mx-auto max-w-7xl border-t border-[var(--pastoril-border)] px-5 py-5 sm:px-8 sm:py-8 lg:px-8">
+          <section id="produtos" ref={productsSectionRef}>
+            {activeSubcategory !== 'todos' && (
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <h2 className="type-section-title">{productsTitle}</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSubcategory('todos');
+                    setCurrentPage(1);
+                  }}
+                  className="type-button inline-flex items-center gap-1 text-[var(--pastoril-caramel)]"
+                >
+                  Ver todos
+                  <Icon name="chevron" className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
             {loadingProducts ? (
               <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
@@ -867,20 +1049,93 @@ export default function Home() {
               <div className="type-body rounded-2xl border border-rose-200 bg-rose-50 px-6 py-4 text-rose-700">
                 {productsError}
               </div>
-            ) : filteredProducts.length === 0 ? (
+            ) : !hasVisibleProducts ? (
               <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
                 Nenhum produto disponível no momento.
               </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
-                {filteredProducts.map((product, index) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    priority={index < 4}
-                  />
+            ) : activeSubcategory === 'todos' ? (
+              <div className="space-y-7">
+                {productCarouselGroups.map((group, groupIndex) => (
+                  <section key={group.slug} aria-label={group.label}>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h3 className="type-subtitle text-[var(--pastoril-brown)]">{group.label}</h3>
+                      <div className="hidden gap-2 md:flex">
+                        <button
+                          type="button"
+                          onClick={() => scrollProductCarousel(group.slug, -1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E2D2C1] bg-transparent text-[#6E625A] transition hover:border-[#C8722C] hover:text-[#4A2D1A]"
+                          aria-label={`Ver produtos anteriores de ${group.label}`}
+                        >
+                          <Icon name="chevron" className="h-4 w-4 rotate-180" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => scrollProductCarousel(group.slug, 1)}
+                          className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E2D2C1] bg-transparent text-[#6E625A] transition hover:border-[#C8722C] hover:text-[#4A2D1A]"
+                          aria-label={`Ver próximos produtos de ${group.label}`}
+                        >
+                          <Icon name="chevron" className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      ref={(node) => {
+                        productCarouselRefs.current[group.slug] = node;
+                      }}
+                      className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-3 scroll-smooth sm:-mx-8 sm:gap-5 sm:px-8 lg:mx-0 lg:px-0"
+                    >
+                      {group.products.map((product, index) => (
+                        <div
+                          key={product.id}
+                          className="w-[min(72vw,240px)] shrink-0 snap-start sm:w-[240px] lg:w-[260px]"
+                        >
+                          <ProductCard
+                            product={product}
+                            priority={groupIndex === 0 && index < 4}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
+                  {paginatedProducts.map((product, index) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      priority={visibleCurrentPage === 1 && index < 4}
+                    />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="mt-6 flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => goToProductsPage(visibleCurrentPage - 1)}
+                      disabled={visibleCurrentPage === 1}
+                      className="type-button rounded-full border border-[#E2D2C1] bg-transparent px-4 py-2 text-[#6E625A] transition disabled:cursor-not-allowed disabled:opacity-45 md:hover:border-[#C8722C] md:hover:text-[#4A2D1A]"
+                    >
+                      Anterior
+                    </button>
+                    <span className="type-helper text-[#6E625A]">
+                      {visibleCurrentPage} / {totalPages}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => goToProductsPage(visibleCurrentPage + 1)}
+                      disabled={visibleCurrentPage === totalPages}
+                      className="type-button rounded-full border border-[#E2D2C1] bg-transparent px-4 py-2 text-[#6E625A] transition disabled:cursor-not-allowed disabled:opacity-45 md:hover:border-[#C8722C] md:hover:text-[#4A2D1A]"
+                    >
+                      Próxima
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 
@@ -888,7 +1143,6 @@ export default function Home() {
             badgeAnimating={badgeAnimating}
             cartItems={cartItems}
             clearCart={clearCart}
-            desktopInline
             isCartOpen={isCartOpen}
             removeFromCart={removeFromCart}
             setIsCartOpen={setIsCartOpen}
@@ -906,12 +1160,21 @@ export default function Home() {
 
       <nav
         data-bottom-mobile-nav
-        className="fixed bottom-0 left-0 right-0 z-[9999] h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-white px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-8px_20px_rgba(74,45,26,0.06)] md:hidden"
+        className="fixed bottom-0 left-0 right-0 z-[9999] h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-[#F9F6F1]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_rgba(74,45,26,0.08)] backdrop-blur"
         aria-label="Navegação principal"
       >
-        <div className="mx-auto grid h-full max-w-[430px] grid-cols-5 items-start">
+        <div className="mx-auto grid h-full max-w-[430px] grid-cols-6 items-start md:max-w-3xl md:items-center md:gap-5 md:px-4">
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
+            aria-label="Abrir menu"
+          >
+            <Icon name="menu" className="h-[24px] w-[24px]" />
+            <span>Menu</span>
+          </button>
           <a href="#" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#C8722C]">
-            <PngIcon name="inicio" alt="" className="h-[24px] w-[24px]" sizes="24px" />
+            <Icon name="home" className="h-[24px] w-[24px]" />
             <span>Início</span>
           </a>
           <a href="#categorias" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]">

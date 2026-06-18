@@ -186,10 +186,21 @@ html {
   animation: cartBadgePulse 420ms ease-out;
 }
 
+@keyframes slideInMenu {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .banner-image-enter,
   .banner-image-exit,
-  .cart-badge-pulse {
+  .cart-badge-pulse,
+  [class*="slideInMenu"] {
     animation: none;
   }
 }

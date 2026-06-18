@@ -47,21 +47,33 @@ function StoreHeaderIcon({ name, className = 'h-5 w-5' }: { name: StoreHeaderIco
 
 type StoreHeaderProps = {
   onCartToggle: () => void;
+  onMenuOpen?: () => void;
   totalItems: number;
 };
 
-export function StoreHeader({ onCartToggle, totalItems }: StoreHeaderProps) {
+export function StoreHeader({ onCartToggle, onMenuOpen, totalItems }: StoreHeaderProps) {
   return (
     <header className="relative isolate overflow-hidden border-b border-[#9C5C29] bg-[#C8722C] bg-[url('/brand/header/header-bg-mobile.png')] bg-cover bg-[position:center_42%] bg-no-repeat before:absolute before:inset-0 before:z-0 before:bg-[rgba(74,45,26,0.12)] md:bg-[url('/brand/header/header-bg-desktop.png')] md:bg-center">
       <div className="relative z-10 mx-auto grid h-[55px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 sm:h-[68px] sm:px-6 lg:px-8">
         <div className="flex items-center justify-start">
-          <Link
-            href="/#categorias"
-            className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
-            aria-label="Abrir categorias"
-          >
-            <StoreHeaderIcon name="menu" className="h-6 w-6 sm:h-7 sm:w-7" />
-          </Link>
+          {onMenuOpen ? (
+            <button
+              type="button"
+              onClick={onMenuOpen}
+              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFF8F0] sm:h-9 sm:w-9"
+              aria-label="Abrir menu"
+            >
+              <StoreHeaderIcon name="menu" className="h-6 w-6 sm:h-7 sm:w-7" />
+            </button>
+          ) : (
+            <Link
+              href="/#categorias"
+              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
+              aria-label="Abrir categorias"
+            >
+              <StoreHeaderIcon name="menu" className="h-6 w-6 sm:h-7 sm:w-7" />
+            </Link>
+          )}
         </div>
 
         <Link href="/" className="relative z-20 flex h-[49px] items-center justify-center sm:h-[65px]" aria-label="Pastoril Moda Country">

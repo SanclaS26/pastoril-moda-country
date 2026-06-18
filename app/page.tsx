@@ -1088,7 +1088,7 @@ export default function Home() {
                       {group.products.map((product, index) => (
                         <div
                           key={product.id}
-                          className="w-[min(72vw,240px)] shrink-0 snap-start sm:w-[240px] lg:w-[260px]"
+                          className="w-[calc((100vw-52px)/2)] shrink-0 snap-start sm:w-[calc((100vw-104px)/3)] xl:w-[calc((100vw-12rem)/4)] 2xl:w-[305px]"
                         >
                           <ProductCard
                             product={product}
@@ -1160,7 +1160,7 @@ export default function Home() {
 
       <nav
         data-bottom-mobile-nav
-        className="fixed bottom-0 left-0 right-0 z-[9999] h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-[#F9F6F1]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_rgba(74,45,26,0.08)] backdrop-blur"
+        className="fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-[#F9F6F1]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_rgba(74,45,26,0.08)] backdrop-blur"
         aria-label="Navegação principal"
       >
         <div className="mx-auto grid h-full max-w-[430px] grid-cols-6 items-start md:max-w-3xl md:items-center md:gap-5 md:px-4">

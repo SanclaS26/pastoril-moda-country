@@ -3,17 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { TAMANHO_UNICO } from '@/config/grades-tamanho';
+import { PublicCart } from '@/app/components/PublicCart';
+import { StoreHeader } from '@/app/components/StoreHeader';
 import { homeBannerFrameClass } from '@/lib/banner-layout';
+import { usePublicCart } from '@/lib/use-public-cart';
 import {
-  type CartItem,
   type Product,
   formatCurrency,
-  getAvailableUniqueStock,
   getProductPrice,
   productUsesVisibleSize,
-  readStoredCartItems,
-  writeStoredCartItems,
 } from '@/lib/catalog';
 
 type MainBanner = {
@@ -585,26 +583,22 @@ export default function Home() {
   const [productsError, setProductsError] = useState('');
   const [banners, setBanners] = useState<MainBanner[]>([]);
   const [loadingBanners, setLoadingBanners] = useState(true);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [cartHydrated, setCartHydrated] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
   const [selectedSizes, setSelectedSizes] = useState<Record<number, string>>({});
   const [cartError, setCartError] = useState('');
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setCartItems(readStoredCartItems());
-      setCartHydrated(true);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (cartHydrated) {
-      writeStoredCartItems(cartItems);
-    }
-  }, [cartHydrated, cartItems]);
+  const publicCart = usePublicCart();
+  const {
+    addProductToCart,
+    badgeAnimating,
+    cartItems,
+    clearCart,
+    isCartOpen,
+    removeFromCart,
+    setIsCartOpen,
+    totalItems,
+    totalPrice,
+    updateCartQuantity,
+    whatsappMessage,
+  } = publicCart;
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -660,127 +654,14 @@ export default function Home() {
 
   const addToCart = (product: Product) => {
     const usesVisibleSize = productUsesVisibleSize(product);
-    const selectedSize = usesVisibleSize ? selectedSizes[product.id] : TAMANHO_UNICO;
-    const stockItem = usesVisibleSize
-      ? product.estoque.find((item) => item.tamanho === selectedSize)
-      : getAvailableUniqueStock(product);
-
-    if (!stockItem) {
-      setCartError(usesVisibleSize ? 'Selecione um tamanho disponível antes de adicionar ao carrinho.' : 'Produto sem estoque disponível.');
-      return;
-    }
-
-    setCartItems((current) => {
-      const existing = current.find((item) => item.id === product.id && item.tamanhoSelecionado === selectedSize);
-      if (existing) {
-        if (existing.quantity >= stockItem.quantidade) {
-          setCartError('Quantidade máxima disponível para este tamanho atingida.');
-          return current;
-        }
-
-        return current.map((item) =>
-          item.id === product.id && item.tamanhoSelecionado === selectedSize
-            ? { ...item, quantity: item.quantity + 1 }
-            : item,
-        );
-      }
-
-      return [...current, { ...product, tamanhoSelecionado: selectedSize, quantity: 1 }];
-    });
-    setCartError('');
+    const selectedSize = usesVisibleSize ? selectedSizes[product.id] : '';
+    const result = addProductToCart(product, selectedSize);
+    setCartError(result.error);
   };
-
-  const updateQuantity = (productId: number, selectedSize: string, delta: number) => {
-    setCartItems((current) =>
-      current
-        .map((item) => {
-          if (item.id !== productId || item.tamanhoSelecionado !== selectedSize) {
-            return item;
-          }
-
-          const stockItem = productUsesVisibleSize(item)
-            ? item.estoque.find((stock) => stock.tamanho === selectedSize)
-            : getAvailableUniqueStock(item);
-          const maxQuantity = stockItem?.quantidade ?? item.quantity;
-          return { ...item, quantity: Math.min(Math.max(item.quantity + delta, 0), maxQuantity) };
-        })
-        .filter((item) => item.quantity > 0),
-    );
-  };
-
-  const removeFromCart = (productId: number, selectedSize: string) => {
-    setCartItems((current) => current.filter((item) => item.id !== productId || item.tamanhoSelecionado !== selectedSize));
-  };
-
-  const totalItems = useMemo(
-    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
-    [cartItems],
-  );
-
-  const totalPrice = useMemo(
-    () => cartItems.reduce((sum, item) => sum + getProductPrice(item) * item.quantity, 0),
-    [cartItems],
-  );
-
-  const whatsappMessage = encodeURIComponent(
-    `Olá, gostaria de fazer um pedido na Pastoril Moda Country.${cartItems.length ? '\n' : ''}${cartItems
-      .map((item) => {
-        const tamanho = productUsesVisibleSize(item) ? ` tamanho ${item.tamanhoSelecionado}` : '';
-        return `${item.quantity}x ${item.nome} (${item.codigo_produto})${tamanho} - ${formatCurrency(getProductPrice(item))}`;
-      })
-      .join('\n')}${cartItems.length ? `\nTotal: ${formatCurrency(totalPrice)}` : ''}`,
-  );
 
   return (
     <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)] lg:pb-0">
-      <header className="relative isolate overflow-hidden border-b border-[#9C5C29] bg-[#C8722C] bg-[url('/brand/header/header-bg-mobile.png')] bg-cover bg-[position:center_42%] bg-no-repeat before:absolute before:inset-0 before:z-0 before:bg-[rgba(74,45,26,0.12)] md:bg-[url('/brand/header/header-bg-desktop.png')] md:bg-center">
-        <div className="relative z-10 mx-auto grid h-[55px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 sm:h-[68px] sm:px-6 lg:px-8">
-          <div className="flex items-center justify-start">
-            <a
-              href="#categorias"
-              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
-              aria-label="Abrir categorias"
-            >
-              <Icon name="menu" className="h-6 w-6 sm:h-7 sm:w-7" />
-            </a>
-          </div>
-
-          <a href="#" className="relative z-20 flex h-[49px] items-center justify-center sm:h-[65px]" aria-label="Pastoril Moda Country">
-            <Image
-              src="/brand/pastoril-logo-header.png"
-              alt="Pastoril Moda Country"
-              width={120}
-              height={80}
-              sizes="(min-width: 640px) 95px, 70px"
-              priority
-              unoptimized
-              className="h-[49px] w-auto object-contain sm:h-[65px]"
-            />
-          </a>
-
-          <div className="flex items-center justify-end gap-2 sm:gap-3">
-            <a
-              href="#produtos"
-              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
-              aria-label="Buscar produtos"
-            >
-              <Icon name="search" className="h-6 w-6 sm:h-7 sm:w-7" />
-            </a>
-            <button
-              onClick={() => setIsCartOpen(!isCartOpen)}
-              className="relative flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
-              aria-label="Abrir carrinho"
-            >
-              <Icon name="cart" className="h-6 w-6 sm:h-7 sm:w-7" />
-              {totalItems > 0 && (
-                <span className="absolute right-0 top-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#4A2D1A] px-1 text-[0.65rem] font-bold text-[#FFF8F0]">
-                  {totalItems}
-                </span>
-              )}
-            </button>
-          </div>
-        </div>
-      </header>
+      <StoreHeader onCartToggle={() => setIsCartOpen(!isCartOpen)} totalItems={totalItems} />
 
       <main>
         <section className="px-1 pt-0 sm:px-2 md:px-8 md:pt-1 lg:px-0">
@@ -847,88 +728,23 @@ export default function Home() {
             )}
           </section>
 
-          <aside
-            className={`${isCartOpen ? 'fixed inset-0 z-50 bg-[rgba(249,246,241,0.86)] lg:static lg:bg-transparent' : 'hidden lg:block'}`}
-            onClick={() => isCartOpen && setIsCartOpen(false)}
-          >
-            <div
-              className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+env(safe-area-inset-bottom))] left-0 right-0 flex max-h-[calc(100dvh-var(--mobile-bottom-nav-height)-env(safe-area-inset-bottom))] flex-col overflow-hidden rounded-t-3xl border border-[var(--pastoril-border)] bg-white p-5 pb-[calc(24px+env(safe-area-inset-bottom))] shadow-[0_-18px_40px_rgba(47,47,47,0.16)] lg:sticky lg:top-32 lg:max-h-[calc(100vh-9rem)] lg:overflow-auto lg:rounded-2xl lg:p-6 lg:shadow-[0_12px_28px_rgba(74,52,40,0.08)]"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-5 flex items-center justify-between">
-                <div>
-                  <h2 className="type-subtitle">Seu pedido</h2>
-                  <p className="type-helper text-[var(--pastoril-muted)]">{totalItems} itens</p>
-                </div>
-                <button
-                  onClick={() => setIsCartOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-xl leading-none text-[var(--pastoril-brown)] lg:hidden"
-                  aria-label="Fechar carrinho"
-                >
-                  x
-                </button>
-              </div>
-
-              {cartError && (
-                <div className="type-body mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-700">
-                  {cartError}
-                </div>
-              )}
-
-              <div className="mb-6 min-h-0 flex-1 space-y-3 overflow-y-auto pb-6 lg:max-h-72 lg:flex-none lg:pb-0">
-                {cartItems.length === 0 ? (
-                  <div className="type-body rounded-xl bg-[var(--pastoril-bg)] px-4 py-6 text-center text-[var(--pastoril-muted)]">
-                    Carrinho vazio
-                  </div>
-                ) : (
-                  cartItems.map((item) => (
-                    <div key={`${item.id}-${item.tamanhoSelecionado}`} className="rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-bg)] p-3">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="type-product-name truncate text-[var(--pastoril-brown)]">{item.nome}</p>
-                          <p className="type-helper text-[var(--pastoril-muted)]">
-                            {item.codigo_produto}
-                            {productUsesVisibleSize(item) ? ` · Tam. ${item.tamanhoSelecionado}` : ''}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removeFromCart(item.id, item.tamanhoSelecionado)}
-                          className="type-helper shrink-0 font-semibold text-[var(--pastoril-promo)] hover:text-[var(--pastoril-brown)]"
-                        >
-                          Remover
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center overflow-hidden rounded-full border border-[var(--pastoril-border)] bg-white">
-                          <button onClick={() => updateQuantity(item.id, item.tamanhoSelecionado, -1)} className="type-button h-8 w-8 text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">-</button>
-                          <span className="type-helper w-8 text-center font-bold text-[var(--pastoril-text)]">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.id, item.tamanhoSelecionado, 1)} className="type-button h-8 w-8 text-[var(--pastoril-brown)] hover:bg-[var(--pastoril-soft)]">+</button>
-                        </div>
-                        <p className="type-price">
-                          {formatCurrency(getProductPrice(item) * item.quantity)}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="border-t border-[var(--pastoril-border)] pt-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="type-button text-[var(--pastoril-brown)]">Total:</span>
-                  <span className="type-price">{formatCurrency(totalPrice)}</span>
-                </div>
-                <a
-                  href={`https://wa.me/5568999244811?text=${whatsappMessage}`}
-                  className="type-button block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)]"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Enviar pelo WhatsApp
-                </a>
-              </div>
-            </div>
-          </aside>
+          <PublicCart
+            badgeAnimating={badgeAnimating}
+            cartError={cartError}
+            cartItems={cartItems}
+            clearCart={() => {
+              const cleared = clearCart();
+              if (cleared) setCartError('');
+              return cleared;
+            }}
+            isCartOpen={isCartOpen}
+            removeFromCart={removeFromCart}
+            setIsCartOpen={setIsCartOpen}
+            totalItems={totalItems}
+            totalPrice={totalPrice}
+            updateCartQuantity={updateCartQuantity}
+            whatsappMessage={whatsappMessage}
+          />
         </div>
       </main>
 
@@ -977,3 +793,4 @@ export default function Home() {
     </div>
   );
 }
+

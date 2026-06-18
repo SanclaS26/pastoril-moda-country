@@ -161,7 +161,7 @@ function productMatchesMainCategory(product: Product, activeCategory: MainCatego
 }
 
 function productMatchesSubcategory(product: Product, activeSubcategory: string) {
-  if (!activeSubcategory) return true;
+  if (!activeSubcategory || activeSubcategory === 'todos') return true;
   if (activeSubcategory === 'promocoes') return product.em_promocao;
 
   const aliases = subcategoryAliases[activeSubcategory] ?? [activeSubcategory];
@@ -691,7 +691,7 @@ export default function Home() {
   const [banners, setBanners] = useState<MainBanner[]>([]);
   const [loadingBanners, setLoadingBanners] = useState(true);
   const [activeCategory, setActiveCategory] = useState<MainCategoryId>('todos');
-  const [activeSubcategory, setActiveSubcategory] = useState('');
+  const [activeSubcategory, setActiveSubcategory] = useState('todos');
   const publicCart = usePublicCart();
   const {
     badgeAnimating,
@@ -794,18 +794,7 @@ export default function Home() {
                       type="button"
                       onClick={() => {
                         setActiveCategory(category.id);
-
-                        const selectedSubcategory = subcategories.find(
-                          (subcategory) => subcategory.slug === activeSubcategory,
-                        );
-
-                        if (
-                          category.id !== 'todos' &&
-                          selectedSubcategory &&
-                          !selectedSubcategory.groups.includes(category.id)
-                        ) {
-                          setActiveSubcategory('');
-                        }
+                        setActiveSubcategory('todos');
                       }}
                       className={`group relative flex min-w-[64px] flex-col items-center gap-0 bg-transparent pb-1 text-center transition md:hover:text-[#C8722C] ${
                         isActive ? 'text-[#C8722C]' : 'text-[#6E625A]'
@@ -837,7 +826,7 @@ export default function Home() {
 
             <div className="-mx-3 mt-2 overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
               <div className="mx-auto flex min-w-max justify-center gap-5 sm:min-w-0 sm:flex-wrap sm:gap-x-8 sm:gap-y-2 lg:gap-x-10">
-                {subcategories.map((category) => (
+                {[{ slug: 'todos', label: 'Todos' }, ...subcategories].map((category) => (
                   <button
                     key={category.slug}
                     type="button"

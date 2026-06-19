@@ -826,15 +826,14 @@ export default function Home() {
           />
 
           <aside
-            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[#D9B88F]/25 bg-no-repeat shadow-xl md:max-w-[360px]"
+            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[#D9B88F]/25 bg-[#F9F6F1] shadow-xl md:max-w-[360px]"
             aria-label="Menu principal"
-            style={{
-              backgroundImage: "url('/brand/menu/sidebar-menu-bg.png')",
-              backgroundSize: 'cover',
-              backgroundPosition: 'center bottom',
-            }}
           >
-            <div className="absolute inset-0 bg-[#F9F6F1]/50" />
+            <div
+              className="absolute inset-0 bg-cover bg-[position:center_bottom] bg-no-repeat opacity-70"
+              style={{ backgroundImage: "url('/brand/menu/sidebar-menu-bg.png')" }}
+              aria-hidden="true"
+            />
             <div className="relative z-10 flex h-full flex-col">
               <div className="relative flex items-center justify-center border-b border-[#F3E4D4]/18 px-14 pb-5 pt-6">
                 <Image

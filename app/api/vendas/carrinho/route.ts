@@ -77,19 +77,26 @@ export async function POST(request: Request) {
   }
 
   try {
-    await cleanupExpiredOpenCarts(supabaseAdmin);
-
     const body = await request.json();
     const items = parseItems(body?.items);
-    const sessionId = String(body?.sessionId ?? '').trim() || null;
     const codigo = String(body?.codigo ?? '').trim() || generateVendaCode('CAR');
     const cliente = await getClienteFromRequest(request, supabaseAdmin);
 
+    if (!cliente) {
+      return NextResponse.json({ error: 'Cliente autenticado obrigatorio para sincronizar o carrinho.' }, { status: 401 });
+    }
+
+    if (!cliente.nome?.trim() || !cliente.cpf?.trim() || !cliente.celular?.trim()) {
+      return NextResponse.json({ error: 'Perfil do cliente incompleto para sincronizar o carrinho.' }, { status: 422 });
+    }
+
+    await cleanupExpiredOpenCarts(supabaseAdmin);
+
     if (!items.length) {
       const { data: deleted, error } = await supabaseAdmin.rpc('excluir_carrinho_em_aberto', {
-        p_cliente_auth_user_id: cliente?.auth_user_id ?? null,
+        p_cliente_auth_user_id: cliente.auth_user_id,
         p_codigo: codigo,
-        p_session_id: sessionId,
+        p_session_id: null,
       });
 
       if (error) {
@@ -99,12 +106,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ deleted: Boolean(deleted), ok: true });
     }
 
-    const vendaPayload = createVendaPayload({ cliente, codigo, items, sessionId, tipo: 'carrinho' });
+    const vendaPayload = createVendaPayload({ cliente, codigo, items, sessionId: null, tipo: 'carrinho' });
 
     const { data: existing } = await supabaseAdmin
       .from('vendas')
       .select('id, status, tipo')
       .eq('codigo', codigo)
+      .eq('cliente_auth_user_id', cliente.auth_user_id)
+      .eq('tipo', 'carrinho')
       .maybeSingle();
 
     if (existing?.status && existing.status !== 'em_aberto') {
@@ -163,22 +172,25 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    await cleanupExpiredOpenCarts(supabaseAdmin);
-
     const body = await request.json().catch(() => ({}));
     const params = new URL(request.url).searchParams;
     const codigo = String(body?.codigo ?? params.get('codigo') ?? '').trim();
-    const sessionId = String(body?.sessionId ?? params.get('sessionId') ?? '').trim() || null;
     const cliente = await getClienteFromRequest(request, supabaseAdmin);
+
+    if (!cliente) {
+      return NextResponse.json({ error: 'Cliente autenticado obrigatorio para encerrar o carrinho.' }, { status: 401 });
+    }
+
+    await cleanupExpiredOpenCarts(supabaseAdmin);
 
     if (!codigo) {
       return NextResponse.json({ error: 'Codigo do carrinho nao informado.' }, { status: 400 });
     }
 
     const { data: deleted, error } = await supabaseAdmin.rpc('excluir_carrinho_em_aberto', {
-      p_cliente_auth_user_id: cliente?.auth_user_id ?? null,
+      p_cliente_auth_user_id: cliente.auth_user_id,
       p_codigo: codigo,
-      p_session_id: sessionId,
+      p_session_id: null,
     });
 
     if (error) {

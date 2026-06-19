@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteRow } from '@/lib/supabase-admin';
+import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteRow, type VendaRow } from '@/lib/supabase-admin';
 import {
   WHATSAPP_STORE_PHONE,
   createVendaItemPayload,
@@ -63,11 +63,78 @@ function parseItems(value: unknown): PublicVendaItemInput[] {
     );
 }
 
-function buildWhatsAppMessage(codigo: string, items: PublicVendaItemInput[], total: number) {
-  const lines = items.map((item) => `${item.quantidade}x ${item.nome} (${item.codigo_produto}) tamanho ${item.tamanho} - R$ ${item.valor_unitario.toFixed(2)}`);
+function formatCurrency(value: number) {
+  return value.toFixed(2).replace('.', ',');
+}
+
+function formatCpfForMessage(value: string | null) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+
+  if (digits.length !== 11) return null;
+
+  return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+}
+
+function formatPhoneForMessage(value: string | null) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  const localDigits = digits.startsWith('55') ? digits.slice(2) : digits;
+
+  if (localDigits.length === 10) {
+    return localDigits.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+  }
+
+  if (localDigits.length === 11) {
+    return localDigits.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+  }
+
+  return null;
+}
+
+function getOrderCustomer(venda: VendaRow) {
+  const nome = venda.cliente_nome?.trim() ?? '';
+  const cpf = formatCpfForMessage(venda.cliente_cpf);
+  const celular = formatPhoneForMessage(venda.cliente_celular);
+
+  if (!venda.cliente_auth_user_id || !nome || !cpf || !celular) return null;
+
+  return {
+    celular,
+    cpf,
+    nome,
+  };
+}
+
+function buildWhatsAppMessage(
+  codigo: string,
+  cliente: NonNullable<ReturnType<typeof getOrderCustomer>>,
+  items: PublicVendaItemInput[],
+  total: number,
+  observacoes: string,
+) {
+  const lines = items.map((item) => [
+    `Produto: ${item.nome}`,
+    `Codigo: ${item.codigo_produto}`,
+    `Tamanho: ${item.tamanho}`,
+    `Quantidade: ${item.quantidade}`,
+    `Valor unitario: R$ ${formatCurrency(item.valor_unitario)}`,
+    `Subtotal: R$ ${formatCurrency(item.valor_unitario * item.quantidade)}`,
+  ].join('\n'));
 
   return encodeURIComponent(
-    `Olá, gostaria de fazer um pedido na Pastoril Moda Country.\nPedido: ${codigo}\n${lines.join('\n')}\nTotal: R$ ${total.toFixed(2)}`,
+    [
+      'Olá! Gostaria de enviar este pedido.',
+      '',
+      `Pedido: ${codigo}`,
+      `Cliente: ${cliente.nome}`,
+      `CPF: ${cliente.cpf}`,
+      `Celular: ${cliente.celular}`,
+      '',
+      'Itens:',
+      lines.join('\n\n'),
+      '',
+      `Total: R$ ${formatCurrency(total)}`,
+      `Observacoes: ${observacoes || 'Nenhuma'}`,
+    ].join('\n'),
   );
 }
 
@@ -87,15 +154,47 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const items = parseItems(body?.items);
-    const sessionId = String(body?.sessionId ?? '').trim() || null;
-    const codigo = generateVendaCode('PED');
+    const requestedCode = String(body?.codigo ?? '').trim();
+    const codigo = /^PED-[A-Z0-9-]+$/.test(requestedCode) ? requestedCode : generateVendaCode('PED');
+    const observacoes = String(body?.observacoes ?? '').trim().slice(0, 1000);
 
     if (!items.length) {
       return NextResponse.json({ error: 'Carrinho vazio.' }, { status: 400 });
     }
 
     const cliente = await getClienteFromRequest(request, supabaseAdmin);
-    const vendaPayload = createVendaPayload({ cliente, codigo, items, sessionId, tipo: 'pedido_whatsapp' });
+
+    if (!cliente) {
+      return NextResponse.json({ error: 'Cliente nao autenticado.' }, { status: 401 });
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('vendas')
+      .select('*')
+      .eq('codigo', codigo)
+      .eq('tipo', 'pedido_whatsapp')
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.cliente_auth_user_id !== cliente.auth_user_id) {
+        return NextResponse.json({ error: 'Codigo de pedido invalido.' }, { status: 409 });
+      }
+
+      const orderCustomer = getOrderCustomer(existing);
+
+      if (!orderCustomer) {
+        return NextResponse.json({ error: 'Pedido sem nome ou CPF completo vinculado ao cliente.' }, { status: 422 });
+      }
+
+      const whatsappUrl = `https://wa.me/${WHATSAPP_STORE_PHONE}?text=${buildWhatsAppMessage(existing.codigo, orderCustomer, items, existing.total_original, observacoes)}`;
+      return NextResponse.json({ codigo: existing.codigo, id: existing.id, ok: true, whatsappUrl });
+    }
+
+    if (!cliente.nome.trim() || !formatCpfForMessage(cliente.cpf) || !formatPhoneForMessage(cliente.celular)) {
+      return NextResponse.json({ error: 'Cliente sem nome, CPF ou celular completo para registrar o pedido.' }, { status: 422 });
+    }
+
+    const vendaPayload = createVendaPayload({ cliente, codigo, items, sessionId: null, tipo: 'pedido_whatsapp' });
     const { data: venda, error: vendaError } = await supabaseAdmin
       .from('vendas')
       .insert([vendaPayload])
@@ -115,7 +214,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Erro ao registrar itens: ${itensError.message}` }, { status: 500 });
     }
 
-    const whatsappUrl = `https://wa.me/${WHATSAPP_STORE_PHONE}?text=${buildWhatsAppMessage(venda.codigo, items, venda.total_original)}`;
+    const orderCustomer = getOrderCustomer(venda);
+
+    if (!orderCustomer) {
+      return NextResponse.json({ error: 'Pedido registrado sem nome ou CPF completo vinculado ao cliente.' }, { status: 500 });
+    }
+
+    const whatsappUrl = `https://wa.me/${WHATSAPP_STORE_PHONE}?text=${buildWhatsAppMessage(venda.codigo, orderCustomer, items, venda.total_original, observacoes)}`;
 
     return NextResponse.json({ codigo: venda.codigo, id: venda.id, ok: true, whatsappUrl });
   } catch {

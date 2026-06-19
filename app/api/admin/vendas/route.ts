@@ -26,6 +26,7 @@ export async function GET(request: Request) {
   let query = authorization.supabaseAdmin
     .from('vendas')
     .select('*')
+    .not('cliente_auth_user_id', 'is', null)
     .order('created_at', { ascending: false });
 
   if (deleted === 'only') {

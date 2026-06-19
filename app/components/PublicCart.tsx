@@ -36,28 +36,38 @@ type PublicCartProps = {
   badgeAnimating: boolean;
   cartError?: string;
   cartItems: CartItem[];
+  checkoutObservations: string;
   clearCart: () => boolean;
   finalizeOnWhatsApp: () => Promise<void>;
   isCartOpen: boolean;
+  isSubmitting: boolean;
+  openWhatsAppFallback: () => void;
   removeFromCart: (productId: number, selectedSize: string) => void;
   setIsCartOpen: (isOpen: boolean) => void;
+  setCheckoutObservations: (value: string) => void;
   totalItems: number;
   totalPrice: number;
   updateCartQuantity: (productId: number, selectedSize: string, delta: number) => void;
+  whatsappFallbackUrl: string;
 };
 
 export function PublicCart({
   badgeAnimating,
   cartError = '',
   cartItems,
+  checkoutObservations,
   clearCart,
   finalizeOnWhatsApp,
   isCartOpen,
+  isSubmitting,
+  openWhatsAppFallback,
   removeFromCart,
   setIsCartOpen,
+  setCheckoutObservations,
   totalItems,
   totalPrice,
   updateCartQuantity,
+  whatsappFallbackUrl,
 }: PublicCartProps) {
   const asideClassName = isCartOpen
     ? 'fixed inset-0 z-50 bg-[rgba(249,246,241,0.86)]'
@@ -146,6 +156,16 @@ export function PublicCart({
           </div>
 
           <div className="border-t border-[var(--pastoril-border)] pt-4">
+            <label className="mb-4 block">
+              <span className="type-helper mb-2 block font-semibold text-[var(--pastoril-brown)]">Observacoes</span>
+              <textarea
+                value={checkoutObservations}
+                onChange={(event) => setCheckoutObservations(event.target.value)}
+                maxLength={1000}
+                placeholder="Opcional"
+                className="type-body min-h-16 w-full resize-y rounded-lg border border-[var(--pastoril-border)] bg-white px-3 py-2 outline-none focus:border-[var(--pastoril-caramel)]"
+              />
+            </label>
             <div className="mb-4 flex items-center justify-between">
               <span className="type-button text-[var(--pastoril-brown)]">Total:</span>
               <span className="type-price">{formatCurrency(totalPrice)}</span>
@@ -160,10 +180,23 @@ export function PublicCart({
             <button
               type="button"
               onClick={finalizeOnWhatsApp}
-              className="type-button block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)]"
+              disabled={isSubmitting || cartItems.length === 0 || Boolean(whatsappFallbackUrl)}
+              className="type-button block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Enviar pedido pelo WhatsApp
+              {isSubmitting ? 'Registrando pedido...' : 'Enviar pedido pelo WhatsApp'}
             </button>
+            {whatsappFallbackUrl && (
+              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-center">
+                <p className="type-helper mb-2 text-amber-900">O navegador bloqueou a nova aba.</p>
+                <button
+                  type="button"
+                  onClick={openWhatsAppFallback}
+                  className="type-button w-full rounded-lg bg-[#25D366] px-4 py-3 text-white"
+                >
+                  Abrir WhatsApp
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </aside>

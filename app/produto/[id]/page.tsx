@@ -102,13 +102,18 @@ export default function ProductDetailPage() {
     addProductToCart,
     badgeAnimating,
     cartItems,
+    checkoutObservations,
     clearCart,
     isCartOpen,
+    isSubmitting,
+    openWhatsAppFallback,
     removeFromCart,
     setIsCartOpen,
+    setCheckoutObservations,
     totalItems,
     totalPrice,
     updateCartQuantity,
+    whatsappFallbackUrl,
     finalizeOnWhatsApp,
   } = usePublicCart();
 
@@ -492,6 +497,7 @@ export default function ProductDetailPage() {
         badgeAnimating={badgeAnimating}
         cartError={cartError}
         cartItems={cartItems}
+        checkoutObservations={checkoutObservations}
         clearCart={() => {
           const cleared = clearCart();
           if (cleared) {
@@ -501,11 +507,15 @@ export default function ProductDetailPage() {
           return cleared;
         }}
         isCartOpen={isCartOpen}
+        isSubmitting={isSubmitting}
+        openWhatsAppFallback={openWhatsAppFallback}
         removeFromCart={removeFromCart}
         setIsCartOpen={setIsCartOpen}
+        setCheckoutObservations={setCheckoutObservations}
         totalItems={totalItems}
         totalPrice={totalPrice}
         updateCartQuantity={updateCartQuantity}
+        whatsappFallbackUrl={whatsappFallbackUrl}
         finalizeOnWhatsApp={finalizeOnWhatsApp}
       />
     </div>

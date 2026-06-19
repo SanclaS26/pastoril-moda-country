@@ -41,23 +41,23 @@ export function createVendaPayload({
   sessionId,
   tipo,
 }: {
-  cliente: ClienteRow | null;
+  cliente: ClienteRow;
   codigo: string;
   items: PublicVendaItemInput[];
   sessionId: string | null;
   tipo: 'carrinho' | 'pedido_whatsapp';
 }): VendaInsert {
   return {
-    cliente_auth_user_id: cliente?.auth_user_id ?? null,
-    cliente_celular: cliente?.celular ?? null,
-    cliente_cpf: cliente?.cpf ?? null,
-    cliente_nome: cliente?.nome ?? null,
+    cliente_auth_user_id: cliente.auth_user_id,
+    cliente_celular: cliente.celular,
+    cliente_cpf: cliente.cpf,
+    cliente_nome: cliente.nome,
     codigo,
     estoque_baixado: false,
     observacoes_admin: null,
     session_id: sessionId,
     status: 'em_aberto',
-    telefone_whatsapp: cliente?.celular ?? null,
+    telefone_whatsapp: cliente.celular,
     tipo,
     total_final: null,
     total_original: calculateVendaTotal(items),

@@ -658,13 +658,18 @@ export default function Home() {
   const {
     badgeAnimating,
     cartItems,
+    checkoutObservations,
     clearCart,
     isCartOpen,
+    isSubmitting,
+    openWhatsAppFallback,
     removeFromCart,
     setIsCartOpen,
+    setCheckoutObservations,
     totalItems,
     totalPrice,
     updateCartQuantity,
+    whatsappFallbackUrl,
     finalizeOnWhatsApp,
   } = publicCart;
 
@@ -1158,13 +1163,18 @@ export default function Home() {
           <PublicCart
             badgeAnimating={badgeAnimating}
             cartItems={cartItems}
+            checkoutObservations={checkoutObservations}
             clearCart={clearCart}
             isCartOpen={isCartOpen}
+            isSubmitting={isSubmitting}
+            openWhatsAppFallback={openWhatsAppFallback}
             removeFromCart={removeFromCart}
             setIsCartOpen={setIsCartOpen}
+            setCheckoutObservations={setCheckoutObservations}
             totalItems={totalItems}
             totalPrice={totalPrice}
             updateCartQuantity={updateCartQuantity}
+            whatsappFallbackUrl={whatsappFallbackUrl}
             finalizeOnWhatsApp={finalizeOnWhatsApp}
           />
         </div>

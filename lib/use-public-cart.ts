@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { TAMANHO_UNICO } from '@/config/grades-tamanho';
 import { clienteSupabase } from '@/lib/supabase-cliente';
 import {
+  CART_STORAGE_KEY,
   type CartItem,
   type Product,
   getAvailableUniqueStock,
@@ -34,10 +36,17 @@ function getStoredId(key: string) {
   return window.localStorage.getItem(key) ?? '';
 }
 
-function resetStoredCartIdentity() {
+function resetRemoteCartIdentity() {
   if (typeof window === 'undefined') return;
 
   window.localStorage.removeItem(CART_CODE_STORAGE_KEY);
+  window.localStorage.removeItem(CART_SESSION_STORAGE_KEY);
+}
+
+function resetStoredCartIdentity() {
+  if (typeof window === 'undefined') return;
+
+  resetRemoteCartIdentity();
   window.localStorage.removeItem(CART_UPDATED_STORAGE_KEY);
 }
 
@@ -47,35 +56,40 @@ async function getClienteAuthToken() {
   return data.session?.access_token;
 }
 
-async function deleteRemoteOpenCart() {
-  const codigo = getStoredId(CART_CODE_STORAGE_KEY);
+async function deleteRemoteOpenCart(
+  codigo: string,
+  accessToken: string,
+) {
+  if (!codigo) return { ok: true };
 
-  if (!codigo) return;
-
-  const token = await getClienteAuthToken();
-
-  await fetch('/api/vendas/carrinho', {
+  const response = await fetch('/api/vendas/carrinho', {
     body: JSON.stringify({
       codigo,
-      sessionId: getStoredId(CART_SESSION_STORAGE_KEY),
     }),
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
+    keepalive: true,
     method: 'DELETE',
-  }).catch(() => undefined);
+  });
+
+  if (!response.ok) {
+    const result = await response.json().catch(() => null);
+    throw new Error(result?.error || 'Nao foi possivel encerrar o carrinho aberto.');
+  }
+
+  return response.json().catch(() => ({ ok: true }));
 }
 
-async function saveRemoteOpenCart(cartItems: CartItem[], token?: string) {
+async function saveRemoteOpenCart(cartItems: CartItem[], token: string) {
   return fetch('/api/vendas/carrinho', {
     body: JSON.stringify({
       codigo: getOrCreateStoredId(CART_CODE_STORAGE_KEY, 'CAR'),
       items: cartItems.map(cartItemToVendaInput),
-      sessionId: getOrCreateStoredId(CART_SESSION_STORAGE_KEY, 'SES'),
     }),
     headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
     method: 'POST',
@@ -99,7 +113,7 @@ function cartItemToVendaInput(item: CartItem) {
 }
 
 export function usePublicCart() {
-  const { requireClienteForCheckout } = useClienteAuth();
+  const { isClienteLoggedIn, requireClienteForCheckout } = useClienteAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartHydrated, setCartHydrated] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -107,7 +121,11 @@ export function usePublicCart() {
   const cartHydrationSeenRef = useRef(false);
   const hasHadCartItemsRef = useRef(false);
   const checkoutInFlightRef = useRef(false);
+  const pendingOrderCodeRef = useRef('');
   const [badgeAnimating, setBadgeAnimating] = useState(false);
+  const [checkoutObservations, setCheckoutObservations] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [whatsappFallbackUrl, setWhatsAppFallbackUrl] = useState('');
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -116,7 +134,7 @@ export function usePublicCart() {
       const isExpired = storedItems.length > 0 && storedUpdatedAt > 0 && Date.now() - storedUpdatedAt > CART_EXPIRATION_MS;
 
       if (isExpired) {
-        writeStoredCartItems([]);
+        window.localStorage.removeItem(CART_STORAGE_KEY);
         resetStoredCartIdentity();
         setCartItems([]);
       } else {
@@ -133,10 +151,11 @@ export function usePublicCart() {
   useEffect(() => {
     if (!cartHydrated) return;
 
-    writeStoredCartItems(cartItems);
-
     if (cartItems.length > 0) {
+      writeStoredCartItems(cartItems);
       window.localStorage.setItem(CART_UPDATED_STORAGE_KEY, String(Date.now()));
+    } else {
+      window.localStorage.removeItem(CART_STORAGE_KEY);
     }
   }, [cartHydrated, cartItems]);
 
@@ -186,11 +205,18 @@ export function usePublicCart() {
 
   useEffect(() => {
     if (!cartHydrated) return;
+    let cancelled = false;
 
     const timeout = window.setTimeout(async () => {
       if (!cartItems.length) {
         if (hasHadCartItemsRef.current) {
-          await deleteRemoteOpenCart();
+          if (isClienteLoggedIn) {
+            const token = await getClienteAuthToken();
+            if (!cancelled && token) {
+              await deleteRemoteOpenCart(getStoredId(CART_CODE_STORAGE_KEY), token).catch(() => undefined);
+            }
+          }
+
           resetStoredCartIdentity();
           hasHadCartItemsRef.current = false;
         }
@@ -199,13 +225,24 @@ export function usePublicCart() {
       }
 
       hasHadCartItemsRef.current = true;
+
+      if (!isClienteLoggedIn) {
+        resetRemoteCartIdentity();
+        return;
+      }
+
       const token = await getClienteAuthToken();
+
+      if (cancelled || !token || readStoredCartItems().length === 0) return;
 
       await saveRemoteOpenCart(cartItems, token).catch(() => undefined);
     }, 600);
 
-    return () => window.clearTimeout(timeout);
-  }, [cartHydrated, cartItems]);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [cartHydrated, cartItems, isClienteLoggedIn]);
 
   const addProductToCart = (product: Product, selectedSize: string, quantity = 1) => {
     const usesVisibleSize = productUsesVisibleSize(product);
@@ -275,12 +312,41 @@ export function usePublicCart() {
     return true;
   };
 
+  const clearCartAfterOrder = async ({
+    accessToken,
+    cartCode,
+  }: {
+    accessToken: string;
+    cartCode: string;
+  }) => {
+    await deleteRemoteOpenCart(cartCode, accessToken);
+
+    window.localStorage.removeItem(CART_STORAGE_KEY);
+    resetStoredCartIdentity();
+    pendingOrderCodeRef.current = '';
+    hasHadCartItemsRef.current = false;
+    previousTotalRef.current = 0;
+    flushSync(() => {
+      setBadgeAnimating(false);
+      setCheckoutObservations('');
+      setWhatsAppFallbackUrl('');
+      setCartItems([]);
+      setIsCartOpen(false);
+    });
+
+  };
+
   const finalizeOnWhatsApp = async () => {
     if (!cartItems.length) return;
     if (checkoutInFlightRef.current) return;
 
     checkoutInFlightRef.current = true;
+    setIsSubmitting(true);
+    setWhatsAppFallbackUrl('');
     const checkoutItems = cartItems;
+    const checkoutTotal = totalPrice;
+    const checkoutObservationsSnapshot = checkoutObservations;
+    let orderSaved = false;
 
     try {
       const session = await requireClienteForCheckout();
@@ -291,17 +357,16 @@ export function usePublicCart() {
         return;
       }
 
-      const cartResponse = await saveRemoteOpenCart(checkoutItems, session.access_token);
-      if (!cartResponse.ok) {
-        const cartResult = await cartResponse.json().catch(() => null);
-        window.alert(cartResult?.error || 'Nao foi possivel vincular o carrinho ao cliente.');
-        return;
+      if (!pendingOrderCodeRef.current) {
+        pendingOrderCodeRef.current = `PED-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
       }
 
       const response = await fetch('/api/vendas/whatsapp', {
         body: JSON.stringify({
+          codigo: pendingOrderCodeRef.current,
           items: checkoutItems.map(cartItemToVendaInput),
-          sessionId: getOrCreateStoredId(CART_SESSION_STORAGE_KEY, 'SES'),
+          observacoes: checkoutObservationsSnapshot,
+          total: checkoutTotal,
         }),
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -316,24 +381,59 @@ export function usePublicCart() {
         return;
       }
 
-      setIsCartOpen(false);
-      window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');
+      orderSaved = true;
+      const cartCode = getStoredId(CART_CODE_STORAGE_KEY);
+
+      await clearCartAfterOrder({
+        accessToken: session.access_token,
+        cartCode,
+      });
+
+      const whatsappWindow = window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');
+
+      if (!whatsappWindow) {
+        setWhatsAppFallbackUrl(result.whatsappUrl);
+        setIsCartOpen(true);
+      }
+    } catch (error) {
+      window.alert(
+        orderSaved
+          ? error instanceof Error
+            ? `O pedido foi registrado, mas a limpeza do carrinho falhou: ${error.message}`
+            : 'O pedido foi registrado, mas nao foi possivel limpar o carrinho.'
+          : 'Nao foi possivel registrar o pedido. Verifique sua conexao e tente novamente.',
+      );
     } finally {
       checkoutInFlightRef.current = false;
+      setIsSubmitting(false);
     }
+  };
+
+  const openWhatsAppFallback = () => {
+    if (!whatsappFallbackUrl) return;
+
+    const url = whatsappFallbackUrl;
+
+    setWhatsAppFallbackUrl('');
+    window.location.assign(url);
   };
 
   return {
     addProductToCart,
     badgeAnimating,
     cartItems,
+    checkoutObservations,
     clearCart,
     finalizeOnWhatsApp,
     isCartOpen,
+    isSubmitting,
+    openWhatsAppFallback,
     removeFromCart,
+    setCheckoutObservations,
     setIsCartOpen,
     totalItems,
     totalPrice,
     updateCartQuantity,
+    whatsappFallbackUrl,
   };
 }

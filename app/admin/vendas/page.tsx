@@ -31,7 +31,7 @@ function statusLabel(status: VendaStatus) {
 }
 
 function clienteLabel(venda: VendaWithItems) {
-  return venda.cliente_nome || 'Anonimo';
+  return venda.cliente_nome || '-';
 }
 
 async function getSessionToken() {

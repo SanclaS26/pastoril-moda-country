@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
 
-export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'banners';
+export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'clientes' | 'banners';
 
 type AdminShellProps = {
   title: string;
@@ -21,7 +21,8 @@ type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' 
 const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName }[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin', icon: 'home' },
   { key: 'produtos', label: 'Produtos', href: '/admin/produtos', icon: 'box' },
-  { key: 'usuarios', label: 'Usuarios', href: '/admin#usuarios', icon: 'users' },
+  { key: 'usuarios', label: 'Usuarios', href: '/admin/usuarios', icon: 'users' },
+  { key: 'clientes', label: 'Clientes', href: '/admin/clientes', icon: 'users' },
   { key: 'banners', label: 'Banners', href: '/admin/banners', icon: 'image' },
 ];
 

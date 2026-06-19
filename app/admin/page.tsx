@@ -23,19 +23,139 @@ interface AdminUser {
   ativo: boolean;
 }
 
-type AdminSection = 'dashboard' | 'usuarios';
-
-function formatCurrency(value: number | null | undefined) {
-  if (value === null || value === undefined) return '-';
-  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+interface VisitDailyPoint {
+  date: string;
+  visits: number;
 }
+
+interface VisitStats {
+  metrics: {
+    visitsToday: number;
+    visitsLast7Days: number;
+    visitsLast30Days: number;
+    visitsTotal: number;
+    uniqueVisitorsToday: number;
+    uniqueVisitorsLast30Days: number;
+  };
+  daily: VisitDailyPoint[];
+}
+
+type AdminSection = 'dashboard' | 'usuarios';
 
 function StatCard({ label, value, helper }: { label: string; value: string | number; helper: string }) {
   return (
-    <div className="rounded-2xl border border-[#E7E0D8] bg-white p-5 shadow-[0_10px_24px_rgba(74,45,26,0.045)]">
+    <div className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)]">
       <p className="text-sm font-bold text-[#4A2D1A]">{label}</p>
-      <p className="mt-5 text-3xl font-black tracking-tight text-[#241C17]">{value}</p>
-      <p className="mt-4 text-xs font-medium text-[#6E625A]">{helper}</p>
+      <p className="mt-2 text-2xl font-black tracking-tight text-[#241C17]">{value}</p>
+      <p className="mt-2 text-xs font-medium leading-relaxed text-[#6E625A]">{helper}</p>
+    </div>
+  );
+}
+
+function ExtraVisitMetric({ label, value, helper }: { label: string; value: string | number; helper: string }) {
+  return (
+    <div className="border-b border-[#E7E0D8] py-4 first:pt-0 last:border-0 last:pb-0">
+      <p className="text-sm font-bold text-[#4A2D1A]">{label}</p>
+      <p className="mt-1 text-2xl font-black tracking-tight text-[#241C17]">{value}</p>
+      <p className="mt-1 text-xs font-medium leading-relaxed text-[#6E625A]">{helper}</p>
+    </div>
+  );
+}
+
+function formatDateLabel(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function VisitsChart({ data, error, loading }: { data: VisitDailyPoint[]; error: string; loading: boolean }) {
+  const maxVisits = Math.max(...data.map((item) => item.visits), 1);
+  const hasVisits = data.some((item) => item.visits > 0);
+  const chartWidth = 720;
+  const chartHeight = 260;
+  const padding = { bottom: 36, left: 42, right: 16, top: 18 };
+  const innerWidth = chartWidth - padding.left - padding.right;
+  const innerHeight = chartHeight - padding.top - padding.bottom;
+
+  if (loading) {
+    return <div className="py-12 text-center text-sm text-[#6E625A]">Carregando visitas...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        {error}
+      </div>
+    );
+  }
+
+  if (!data.length || !hasVisits) {
+    return (
+      <div className="rounded-2xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-8 text-center text-sm text-[#6E625A]">
+        Ainda nao ha visitas registradas para exibir no grafico.
+      </div>
+    );
+  }
+
+  const points = data.map((item, index) => {
+    const x = padding.left + (data.length === 1 ? innerWidth / 2 : (index / (data.length - 1)) * innerWidth);
+    const y = padding.top + innerHeight - (item.visits / maxVisits) * innerHeight;
+
+    return { ...item, x, y };
+  });
+
+  const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  const areaPath = `${linePath} L ${points[points.length - 1].x} ${padding.top + innerHeight} L ${points[0].x} ${
+    padding.top + innerHeight
+  } Z`;
+  const gridLines = Array.from({ length: 5 }, (_, index) => {
+    const value = Math.round((maxVisits / 4) * (4 - index));
+    const y = padding.top + (innerHeight / 4) * index;
+
+    return { value, y };
+  });
+
+  return (
+    <div className="overflow-x-auto pb-1">
+      <svg
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        className="h-auto w-full min-w-[620px] rounded-2xl border border-[#E7E0D8] bg-[#F9F6F1]"
+        role="img"
+        aria-label="Grafico de visitas dos ultimos 30 dias"
+      >
+        {gridLines.map((line) => (
+          <g key={`${line.y}-${line.value}`}>
+            <line
+              x1={padding.left}
+              x2={chartWidth - padding.right}
+              y1={line.y}
+              y2={line.y}
+              stroke="#E7E0D8"
+              strokeDasharray="5 5"
+            />
+            <text x={14} y={line.y + 4} fill="#6E625A" fontSize="11" fontWeight="600">
+              {line.value}
+            </text>
+          </g>
+        ))}
+        <path d={areaPath} fill="#C8722C" opacity="0.12" />
+        <path d={linePath} fill="none" stroke="#9A6A43" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+        {points.map((point, index) => {
+          const showLabel = index === 0 || index === points.length - 1 || index % 5 === 0;
+
+          return (
+            <g key={point.date}>
+              <circle cx={point.x} cy={point.y} r="3.5" fill="#F9F6F1" stroke="#9A6A43" strokeWidth="2" />
+              {showLabel && (
+                <text x={point.x} y={chartHeight - 12} fill="#4A2D1A" fontSize="11" fontWeight="600" textAnchor="middle">
+                  {formatDateLabel(point.date)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -60,6 +180,9 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [usersError, setUsersError] = useState('');
+  const [visitStats, setVisitStats] = useState<VisitStats | null>(null);
+  const [loadingVisits, setLoadingVisits] = useState(true);
+  const [visitsError, setVisitsError] = useState('');
   const [showUserForm, setShowUserForm] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -141,6 +264,35 @@ export default function AdminPage() {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    const fetchVisits = async () => {
+      try {
+        setLoadingVisits(true);
+        const token = await getSessionToken();
+        const response = await fetch('/api/admin/visits', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error || 'Falha ao carregar estatisticas de visitas.');
+        }
+
+        setVisitStats(data as VisitStats);
+        setVisitsError('');
+      } catch (error) {
+        setVisitStats(null);
+        setVisitsError(error instanceof Error ? error.message : 'Erro desconhecido.');
+      } finally {
+        setLoadingVisits(false);
+      }
+    };
+
+    fetchVisits();
+  }, []);
+
   const activeProducts = useMemo(
     () => products.filter((product) => product.ativo !== false).length,
     [products],
@@ -151,7 +303,47 @@ export default function AdminPage() {
     [products],
   );
 
-  const recentProducts = useMemo(() => products.slice(0, 6), [products]);
+  const visitMetricCards = useMemo(
+    () => [
+      {
+        helper: 'Pageviews registrados desde 00h',
+        label: 'Hoje',
+        value: visitStats?.metrics.visitsToday ?? 0,
+      },
+      {
+        helper: 'Soma dos ultimos 7 dias',
+        label: '7 dias',
+        value: visitStats?.metrics.visitsLast7Days ?? 0,
+      },
+      {
+        helper: 'Soma dos ultimos 30 dias',
+        label: '30 dias',
+        value: visitStats?.metrics.visitsLast30Days ?? 0,
+      },
+    ],
+    [visitStats],
+  );
+
+  const extraVisitMetrics = useMemo(
+    () => [
+      {
+        helper: 'Historico total registrado',
+        label: 'Total de visitas',
+        value: visitStats?.metrics.visitsTotal ?? 0,
+      },
+      {
+        helper: 'Visitantes anonimos unicos hoje',
+        label: 'Unicos hoje',
+        value: visitStats?.metrics.uniqueVisitorsToday ?? 0,
+      },
+      {
+        helper: 'Visitantes anonimos unicos em 30 dias',
+        label: 'Unicos em 30 dias',
+        value: visitStats?.metrics.uniqueVisitorsLast30Days ?? 0,
+      },
+    ],
+    [visitStats],
+  );
 
   const handleCreateUser = async () => {
     if (!newUserName || !newUserEmail || !newUserPassword || !newUserConfirm) {
@@ -209,29 +401,32 @@ export default function AdminPage() {
       active={shellActive}
     >
       {activeSection === 'dashboard' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              label="Produtos cadastrados"
-              value={loadingProducts ? '...' : products.length}
-              helper="Total retornado pela consulta de produtos"
-            />
-            <StatCard
-              label="Produtos ativos"
-              value={loadingProducts ? '...' : activeProducts}
-              helper="Itens disponiveis para operacao"
-            />
-            <StatCard
-              label="Promocoes"
-              value={loadingProducts ? '...' : promotionalProducts}
-              helper="Produtos marcados em promocao"
-            />
-            <StatCard
-              label="Administradores ativos"
-              value={loadingUsers ? '...' : users.filter((user) => user.ativo).length}
-              helper="Usuarios com acesso liberado"
-            />
-          </div>
+        <div className="space-y-7">
+          <section className="space-y-4">
+            <h2 className="text-lg font-bold text-[#241C17]">Resumo geral da loja</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatCard
+                label="Produtos cadastrados"
+                value={loadingProducts ? '...' : products.length}
+                helper="Total retornado pela consulta de produtos"
+              />
+              <StatCard
+                label="Produtos ativos"
+                value={loadingProducts ? '...' : activeProducts}
+                helper="Itens disponiveis para operacao"
+              />
+              <StatCard
+                label="Promocoes"
+                value={loadingProducts ? '...' : promotionalProducts}
+                helper="Produtos marcados em promocao"
+              />
+              <StatCard
+                label="Administradores ativos"
+                value={loadingUsers ? '...' : users.filter((user) => user.ativo).length}
+                helper="Usuarios com acesso liberado"
+              />
+            </div>
+          </section>
 
           {(productsError || usersError) && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -239,80 +434,45 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="grid gap-6 xl:grid-cols-[1.3fr_0.9fr]">
-            <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 shadow-[0_10px_24px_rgba(74,45,26,0.045)]">
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <h2 className="text-lg font-bold text-[#241C17]">Resumo de produtos</h2>
-                <a href="/admin/produtos" className="text-sm font-bold text-[#C8722C]">Ver todos</a>
-              </div>
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-[#241C17]">Visitas</h2>
+              <p className="mt-1 text-sm text-[#6E625A]">Acessos anonimos registrados na vitrine publica.</p>
+            </div>
 
-              {loadingProducts ? (
-                <div className="py-12 text-center text-sm text-[#6E625A]">Carregando produtos...</div>
-              ) : recentProducts.length === 0 ? (
-                <div className="py-12 text-center text-sm text-[#6E625A]">Nenhum produto cadastrado.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[620px]">
-                    <thead>
-                      <tr className="border-b border-[#E7E0D8] text-left text-xs font-bold uppercase text-[#6E625A]">
-                        <th className="py-3 pr-4">Codigo</th>
-                        <th className="py-3 pr-4">Produto</th>
-                        <th className="py-3 pr-4">Status</th>
-                        <th className="py-3 text-right">Preco</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentProducts.map((product) => (
-                        <tr key={product.id} className="border-b border-[#F1EAE2] last:border-0">
-                          <td className="py-4 pr-4 text-sm font-bold text-[#4A2D1A]">{product.codigo_produto}</td>
-                          <td className="py-4 pr-4 text-sm font-semibold text-[#241C17]">{product.nome}</td>
-                          <td className="py-4 pr-4">
-                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
-                              product.ativo === false ? 'bg-[#F7F0E7] text-[#6E625A]' : 'bg-emerald-50 text-emerald-700'
-                            }`}>
-                              {product.ativo === false ? 'Inativo' : 'Ativo'}
-                            </span>
-                          </td>
-                          <td className="py-4 text-right text-sm font-bold text-[#241C17]">
-                            {formatCurrency(product.em_promocao ? product.preco_promocional : product.preco)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {visitMetricCards.map((card) => (
+                <StatCard
+                  key={card.label}
+                  label={card.label}
+                  value={loadingVisits ? '...' : card.value}
+                  helper={card.helper}
+                />
+              ))}
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+              <section className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] sm:p-5">
+                <div className="mb-4">
+                  <h3 className="text-base font-bold text-[#241C17]">Visitas nos ultimos 30 dias</h3>
+                  <p className="mt-1 text-xs font-medium text-[#6E625A]">Agrupadas pelo horario de Rio Branco.</p>
                 </div>
-              )}
-            </section>
+                <VisitsChart data={visitStats?.daily ?? []} error={visitsError} loading={loadingVisits} />
+              </section>
 
-            <section className="rounded-2xl border border-[#E7E0D8] bg-white p-5 shadow-[0_10px_24px_rgba(74,45,26,0.045)]">
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <h2 className="text-lg font-bold text-[#241C17]">Administradores</h2>
-                <a href="/admin#usuarios" className="text-sm font-bold text-[#C8722C]">Gerenciar</a>
-              </div>
-
-              {loadingUsers ? (
-                <div className="py-12 text-center text-sm text-[#6E625A]">Carregando usuarios...</div>
-              ) : users.length === 0 ? (
-                <div className="py-12 text-center text-sm text-[#6E625A]">Nenhum administrador cadastrado.</div>
-              ) : (
-                <div className="space-y-3">
-                  {users.slice(0, 5).map((user) => (
-                    <div key={user.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-[#241C17]">{user.nome}</p>
-                        <p className="truncate text-xs text-[#6E625A]">{user.email}</p>
-                      </div>
-                      <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${
-                        user.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-[#F7F0E7] text-[#6E625A]'
-                      }`}>
-                        {user.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
+              <section className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] sm:p-5">
+                <h3 className="mb-4 text-base font-bold text-[#241C17]">Metricas adicionais</h3>
+                {extraVisitMetrics.map((metric) => (
+                  <ExtraVisitMetric
+                    key={metric.label}
+                    label={metric.label}
+                    value={loadingVisits ? '...' : metric.value}
+                    helper={metric.helper}
+                  />
+                ))}
+              </section>
+            </div>
+          </section>
         </div>
       )}
 

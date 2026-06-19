@@ -117,6 +117,44 @@ export type CategoriaRow = {
   updated_at?: string;
 };
 
+export type SiteVisitRow = {
+  id: string;
+  visitor_id: string;
+  session_id: string;
+  pathname: string;
+  created_at: string;
+};
+
+export type SiteVisitInsert = {
+  visitor_id: string;
+  session_id: string;
+  pathname: string;
+  created_at?: string;
+};
+
+export type ClienteRow = {
+  id: number | string;
+  auth_user_id: string;
+  nome: string;
+  cpf: string;
+  celular: string;
+  email: string | null;
+  endereco_completo: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type ClienteInsert = {
+  auth_user_id: string;
+  nome: string;
+  cpf: string;
+  celular: string;
+  email?: string | null;
+  endereco_completo?: string | null;
+};
+
+export type ClienteUpdate = Partial<Omit<ClienteInsert, 'auth_user_id' | 'cpf' | 'celular'>>;
+
 type Database = {
   public: {
     Tables: {
@@ -154,6 +192,18 @@ type Database = {
         Row: CategoriaRow;
         Insert: Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>>;
+        Relationships: [];
+      };
+      site_visits: {
+        Row: SiteVisitRow;
+        Insert: SiteVisitInsert;
+        Update: never;
+        Relationships: [];
+      };
+      clientes: {
+        Row: ClienteRow;
+        Insert: ClienteInsert;
+        Update: ClienteUpdate;
         Relationships: [];
       };
     };

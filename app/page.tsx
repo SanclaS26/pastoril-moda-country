@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
 import { homeBannerFrameClass } from '@/lib/banner-layout';
@@ -651,6 +652,7 @@ export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const productsSectionRef = useRef<HTMLElement | null>(null);
   const productCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const { openClienteAuth } = useClienteAuth();
   const publicCart = usePublicCart();
   const {
     badgeAnimating,
@@ -921,13 +923,16 @@ export default function Home() {
                   Carrinho
                 </button>
 
-                <Link
-                  href="/login"
-                  onClick={() => setIsMenuOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    openClienteAuth();
+                  }}
                   className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
                   Login
-                </Link>
+                </button>
 
                 <Link
                   href="/quem-somos"

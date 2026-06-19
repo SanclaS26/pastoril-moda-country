@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Lora } from "next/font/google";
+import { ClienteAuthProvider } from "./components/ClienteAuthProvider";
+import { VisitTracker } from "./components/VisitTracker";
 import "./globals.css";
 
 const inter = Inter({
@@ -30,7 +32,12 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${lora.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ClienteAuthProvider>
+          <VisitTracker />
+          {children}
+        </ClienteAuthProvider>
+      </body>
     </html>
   );
 }

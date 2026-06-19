@@ -2,8 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 
-type StoreHeaderIconName = 'menu' | 'search' | 'cart';
+type StoreHeaderIconName = 'menu' | 'search' | 'cart' | 'user';
 
 function StoreHeaderIcon({ name, className = 'h-5 w-5' }: { name: StoreHeaderIconName; className?: string }) {
   const common = {
@@ -35,6 +36,15 @@ function StoreHeaderIcon({ name, className = 'h-5 w-5' }: { name: StoreHeaderIco
     );
   }
 
+  if (name === 'user') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="8" r="3.4" />
+        <path d="M5.4 19.2a6.6 6.6 0 0 1 13.2 0" />
+      </svg>
+    );
+  }
+
   return (
     <svg {...common}>
       <path d="M3.5 4.8h2.1l2 10.2h9.8l2.1-7.2H7.1" />
@@ -52,6 +62,8 @@ type StoreHeaderProps = {
 };
 
 export function StoreHeader({ onCartToggle, onMenuOpen, totalItems }: StoreHeaderProps) {
+  const { isClienteLoggedIn, openClienteAuth } = useClienteAuth();
+
   return (
     <header className="relative isolate overflow-hidden border-b border-[#9C5C29] bg-[#C8722C] bg-[url('/brand/header/header-bg-mobile.png')] bg-cover bg-[position:center_42%] bg-no-repeat before:absolute before:inset-0 before:z-0 before:bg-[rgba(74,45,26,0.12)] md:bg-[url('/brand/header/header-bg-desktop.png')] md:bg-center">
       <div className="relative z-10 mx-auto grid h-[55px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 sm:h-[68px] sm:px-6 lg:px-8">
@@ -97,6 +109,16 @@ export function StoreHeader({ onCartToggle, onMenuOpen, totalItems }: StoreHeade
           >
             <StoreHeaderIcon name="search" className="h-6 w-6 sm:h-7 sm:w-7" />
           </Link>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={openClienteAuth}
+              className="flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
+              aria-label={isClienteLoggedIn ? 'Abrir opcoes da conta do cliente' : 'Entrar como cliente'}
+            >
+              <StoreHeaderIcon name="user" className="h-6 w-6 sm:h-7 sm:w-7" />
+            </button>
+          </div>
           <button
             onClick={onCartToggle}
             className="relative flex h-8 w-8 items-center justify-center bg-transparent text-[#FFF8F0] transition hover:text-white sm:h-9 sm:w-9"
@@ -111,6 +133,7 @@ export function StoreHeader({ onCartToggle, onMenuOpen, totalItems }: StoreHeade
           </button>
         </div>
       </div>
+
     </header>
   );
 }

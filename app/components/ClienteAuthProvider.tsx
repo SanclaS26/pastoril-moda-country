@@ -10,7 +10,7 @@ import { clienteSupabase } from '@/lib/supabase-cliente';
 type ClienteAuthContextValue = {
   isClienteLoggedIn: boolean;
   openClienteAuth: () => void;
-  requireClienteForCheckout: () => Promise<boolean>;
+  requireClienteForCheckout: () => Promise<Session | null>;
 };
 
 type ClientePerfil = {
@@ -83,17 +83,17 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
   const [cadastroConfirmarSenha, setCadastroConfirmarSenha] = useState('');
   const [cadastroError, setCadastroError] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
-  const checkoutResolveRef = useRef<((isAuthenticated: boolean) => void) | null>(null);
+  const checkoutResolveRef = useRef<((session: Session | null) => void) | null>(null);
 
-  const resolveCheckout = useCallback((isAuthenticated: boolean) => {
+  const resolveCheckout = useCallback((session: Session | null) => {
     if (!checkoutResolveRef.current) return;
 
-    checkoutResolveRef.current(isAuthenticated);
+    checkoutResolveRef.current(session);
     checkoutResolveRef.current = null;
   }, []);
 
   const closeClienteModal = useCallback(() => {
-    resolveCheckout(false);
+    resolveCheckout(null);
     setModalMode(null);
   }, [resolveCheckout]);
 
@@ -202,12 +202,12 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
   }, [clienteSession, loadClientePerfil]);
 
   const requireClienteForCheckout = useCallback(async () => {
-    if (clienteSession) return true;
+    if (clienteSession) return clienteSession;
 
     const { data } = await clienteSupabase.auth.getSession();
     if (data.session) {
       setClienteSession(data.session);
-      return true;
+      return data.session;
     }
 
     setLoginError('');
@@ -218,7 +218,7 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
     setGlobalSuccess('');
     setModalMode('checkoutPrompt');
 
-    return new Promise<boolean>((resolve) => {
+    return new Promise<Session | null>((resolve) => {
       checkoutResolveRef.current = resolve;
     });
   }, [clienteSession]);
@@ -259,11 +259,13 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
 
     setIsLoggingIn(false);
 
+    const { data } = await clienteSupabase.auth.getSession();
+    setClienteSession(data.session);
     setCelular('');
     setSenha('');
     setGlobalSuccess('Login realizado com sucesso.');
     setModalMode(null);
-    resolveCheckout(true);
+    resolveCheckout(data.session);
   };
 
   const handleLogout = async () => {
@@ -314,9 +316,11 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
           setCadastroEndereco('');
           setCadastroSenha('');
           setCadastroConfirmarSenha('');
+          const { data: sessionData } = await clienteSupabase.auth.getSession();
+          setClienteSession(sessionData.session);
           setGlobalSuccess('Cadastro realizado com sucesso.');
           setModalMode(null);
-          resolveCheckout(true);
+          resolveCheckout(sessionData.session);
           return;
         } catch {
           // Mantem o fluxo de cadastro concluido e pede login manual com mensagem abaixo.

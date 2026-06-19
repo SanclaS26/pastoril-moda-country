@@ -20,12 +20,19 @@ export async function GET(request: Request) {
   const search = params.get('search')?.trim().toLowerCase() ?? '';
   const start = params.get('start');
   const end = params.get('end');
+  const deleted = params.get('deleted');
   const searchDigits = search.replace(/\D/g, '');
 
   let query = authorization.supabaseAdmin
     .from('vendas')
     .select('*')
     .order('created_at', { ascending: false });
+
+  if (deleted === 'only') {
+    query = query.not('deleted_at', 'is', null);
+  } else {
+    query = query.is('deleted_at', null);
+  }
 
   if (status) {
     query = query.eq('status', status);

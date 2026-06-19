@@ -1179,7 +1179,7 @@ export default function Home() {
         className="fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-[#F9F6F1]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_rgba(74,45,26,0.08)] backdrop-blur"
         aria-label="Navegação principal"
       >
-        <div className="mx-auto grid h-full max-w-[470px] grid-cols-7 items-start md:max-w-3xl md:items-center md:gap-5 md:px-4">
+        <div className="mx-auto grid h-full max-w-[430px] grid-cols-6 items-start md:max-w-2xl md:items-center md:gap-5 md:px-4">
           <button
             type="button"
             onClick={() => setIsMenuOpen(true)}
@@ -1196,10 +1196,6 @@ export default function Home() {
           <a href="#categorias" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]">
             <Icon name="grid" className="h-[24px] w-[24px]" />
             <span>Categorias</span>
-          </a>
-          <a href="#produtos" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]">
-            <Icon name="search" className="h-[24px] w-[24px]" />
-            <span>Buscar</span>
           </a>
           <ClienteAuthButton
             className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"

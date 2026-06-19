@@ -130,10 +130,34 @@ export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await request.json();
+    const action = typeof body?.action === 'string' ? body.action : '';
     const nextStatus = normalizeVendaStatus(body?.status ?? null);
     const observacoesAdmin = typeof body?.observacoes_admin === 'string' ? body.observacoes_admin : undefined;
     const itemUpdates = Array.isArray(body?.itens) ? (body.itens as ItemUpdateInput[]) : [];
     const { venda } = await loadVenda(authorization.supabaseAdmin, id);
+
+    if (action === 'restore') {
+      const { data: restoredVenda, error: restoreError } = await authorization.supabaseAdmin
+        .from('vendas')
+        .update({
+          deleted_at: null,
+          deleted_by: null,
+        })
+        .eq('id', id)
+        .select('*')
+        .single();
+
+      if (restoreError || !restoredVenda) {
+        return NextResponse.json({ error: `Erro ao restaurar venda: ${restoreError?.message ?? 'venda nao retornada.'}` }, { status: 500 });
+      }
+
+      const { data: restoredItems } = await authorization.supabaseAdmin
+        .from('venda_itens')
+        .select('*')
+        .eq('venda_id', id);
+
+      return NextResponse.json({ venda: { ...restoredVenda, itens: restoredItems ?? [] } });
+    }
 
     for (const update of itemUpdates) {
       const quantidade = Number(update.quantidade_final);
@@ -203,6 +227,49 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erro inesperado ao atualizar venda.' },
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const authorization = await requireActiveAdmin(request);
+
+  if (authorization.response) {
+    return authorization.response;
+  }
+
+  try {
+    const { id } = await context.params;
+    const { venda } = await loadVenda(authorization.supabaseAdmin, id);
+
+    if (venda.deleted_at) {
+      return NextResponse.json({ venda: { ...venda, itens: [] }, ok: true });
+    }
+
+    const { data: deletedVenda, error } = await authorization.supabaseAdmin
+      .from('vendas')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: authorization.user.id,
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error || !deletedVenda) {
+      return NextResponse.json({ error: `Erro ao excluir venda: ${error?.message ?? 'venda nao retornada.'}` }, { status: 500 });
+    }
+
+    const { data: itens } = await authorization.supabaseAdmin
+      .from('venda_itens')
+      .select('*')
+      .eq('venda_id', id);
+
+    return NextResponse.json({ venda: { ...deletedVenda, itens: itens ?? [] }, ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Erro inesperado ao excluir venda.' },
       { status: 500 },
     );
   }

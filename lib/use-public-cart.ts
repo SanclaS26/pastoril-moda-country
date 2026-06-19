@@ -280,19 +280,18 @@ export function usePublicCart() {
     if (checkoutInFlightRef.current) return;
 
     checkoutInFlightRef.current = true;
+    const checkoutItems = cartItems;
 
     try {
-      const isAuthenticated = await requireClienteForCheckout();
-      if (!isAuthenticated) return;
+      const session = await requireClienteForCheckout();
+      if (!session) return;
 
-      const token = await getClienteAuthToken();
-
-      if (!token) {
+      if (!session.access_token) {
         window.alert('Nao foi possivel confirmar o login do cliente. Tente entrar novamente.');
         return;
       }
 
-      const cartResponse = await saveRemoteOpenCart(cartItems, token);
+      const cartResponse = await saveRemoteOpenCart(checkoutItems, session.access_token);
       if (!cartResponse.ok) {
         const cartResult = await cartResponse.json().catch(() => null);
         window.alert(cartResult?.error || 'Nao foi possivel vincular o carrinho ao cliente.');
@@ -301,11 +300,11 @@ export function usePublicCart() {
 
       const response = await fetch('/api/vendas/whatsapp', {
         body: JSON.stringify({
-          items: cartItems.map(cartItemToVendaInput),
+          items: checkoutItems.map(cartItemToVendaInput),
           sessionId: getOrCreateStoredId(CART_SESSION_STORAGE_KEY, 'SES'),
         }),
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         method: 'POST',
@@ -317,6 +316,7 @@ export function usePublicCart() {
         return;
       }
 
+      setIsCartOpen(false);
       window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');
     } finally {
       checkoutInFlightRef.current = false;

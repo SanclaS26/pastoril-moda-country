@@ -11,6 +11,7 @@ import type { VendaWithItems } from '@/lib/vendas';
 
 type StatusFilter = VendaStatus | 'todos';
 type TipoFilter = 'todos' | 'carrinho' | 'pedido_whatsapp';
+type DeletedFilter = 'ativas' | 'excluidas';
 
 function formatDateTime(value: string | null | undefined) {
   if (!value) return '-';
@@ -52,6 +53,7 @@ export default function AdminVendasPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('todos');
   const [tipo, setTipo] = useState<TipoFilter>('todos');
+  const [deletedFilter, setDeletedFilter] = useState<DeletedFilter>('ativas');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [selectedVenda, setSelectedVenda] = useState<VendaWithItems | null>(null);
@@ -68,6 +70,7 @@ export default function AdminVendasPage() {
         if (search) params.set('search', search);
         if (status !== 'todos') params.set('status', status);
         if (tipo !== 'todos') params.set('tipo', tipo);
+        if (deletedFilter === 'excluidas') params.set('deleted', 'only');
         if (start) params.set('start', start);
         if (end) params.set('end', end);
         const response = await fetch(`/api/admin/vendas?${params.toString()}`, {
@@ -94,7 +97,7 @@ export default function AdminVendasPage() {
     const timeout = window.setTimeout(fetchVendas, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [end, search, start, status, tipo]);
+  }, [deletedFilter, end, search, start, status, tipo]);
 
   const indicators = useMemo(
     () => ({
@@ -163,6 +166,76 @@ export default function AdminVendasPage() {
     }
   };
 
+  const softDeleteVenda = async (venda: VendaWithItems) => {
+    const confirmed = window.confirm(
+      `Excluir venda ${venda.codigo}?\nCliente: ${clienteLabel(venda)}\nStatus: ${statusLabel(venda.status)}\n\nA venda sera ocultada da lista principal, mas itens, pedidos, movimentos de estoque e historico serao preservados.`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      const token = await getSessionToken();
+      const response = await fetch(`/api/admin/vendas/${venda.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        method: 'DELETE',
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao excluir venda.');
+      }
+
+      setVendas((current) => current.filter((currentVenda) => currentVenda.id !== venda.id));
+      if (selectedVenda?.id === venda.id) {
+        setSelectedVenda(null);
+      }
+      window.alert('Venda excluida com sucesso.');
+    } catch (deleteError) {
+      window.alert(deleteError instanceof Error ? deleteError.message : 'Erro ao excluir venda.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const restoreVenda = async (venda: VendaWithItems) => {
+    const confirmed = window.confirm(
+      `Restaurar venda ${venda.codigo}?\nCliente: ${clienteLabel(venda)}\nStatus: ${statusLabel(venda.status)}`,
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      const token = await getSessionToken();
+      const response = await fetch(`/api/admin/vendas/${venda.id}`, {
+        body: JSON.stringify({ action: 'restore' }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        method: 'PATCH',
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao restaurar venda.');
+      }
+
+      setVendas((current) => current.filter((currentVenda) => currentVenda.id !== venda.id));
+      if (selectedVenda?.id === venda.id) {
+        setSelectedVenda(null);
+      }
+      window.alert('Venda restaurada com sucesso.');
+    } catch (restoreError) {
+      window.alert(restoreError instanceof Error ? restoreError.message : 'Erro ao restaurar venda.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <AdminShell title="Vendas" subtitle="Carrinhos em aberto e pedidos enviados pelo WhatsApp." active="vendas">
       <div className="space-y-5">
@@ -173,7 +246,7 @@ export default function AdminVendasPage() {
           <Indicator label="Canceladas" value={loading ? '...' : indicators.canceladas} />
         </div>
 
-        <section className="grid gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] md:grid-cols-5">
+        <section className="grid gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] md:grid-cols-6">
           <input value={search} onChange={(event) => setSearch(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" placeholder="Codigo, nome, CPF ou celular" />
           <select value={tipo} onChange={(event) => setTipo(event.target.value as TipoFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
             <option value="todos">Todos os tipos</option>
@@ -185,6 +258,10 @@ export default function AdminVendasPage() {
             <option value="em_aberto">Em aberto</option>
             <option value="concluida">Concluida</option>
             <option value="cancelada">Cancelada</option>
+          </select>
+          <select value={deletedFilter} onChange={(event) => setDeletedFilter(event.target.value as DeletedFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
+            <option value="ativas">Ativas</option>
+            <option value="excluidas">Excluidas</option>
           </select>
           <input type="date" value={start} onChange={(event) => setStart(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" />
           <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" />
@@ -222,9 +299,20 @@ export default function AdminVendasPage() {
                         <Td>{formatCurrency(venda.total_final ?? venda.total_original)}</Td>
                         <Td>{statusLabel(venda.status)}</Td>
                         <Td>
-                          <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A] hover:bg-[#F7F0E7]">
-                            Detalhes
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A] hover:bg-[#F7F0E7]">
+                              Detalhes
+                            </button>
+                            {deletedFilter === 'excluidas' ? (
+                              <button disabled={saving} onClick={() => restoreVenda(venda)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+                                Restaurar
+                              </button>
+                            ) : (
+                              <button disabled={saving} onClick={() => softDeleteVenda(venda)} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                                Excluir
+                              </button>
+                            )}
+                          </div>
                         </Td>
                       </tr>
                     ))}
@@ -240,7 +328,18 @@ export default function AdminVendasPage() {
                         <h2 className="text-sm font-bold text-[#241C17]">{venda.codigo}</h2>
                         <p className="text-xs text-[#6E625A]">{clienteLabel(venda)} - {statusLabel(venda.status)}</p>
                       </div>
-                      <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]">Ver</button>
+                      <div className="flex flex-col gap-2">
+                        <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]">Ver</button>
+                        {deletedFilter === 'excluidas' ? (
+                          <button disabled={saving} onClick={() => restoreVenda(venda)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50">
+                            Restaurar
+                          </button>
+                        ) : (
+                          <button disabled={saving} onClick={() => softDeleteVenda(venda)} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 disabled:opacity-50">
+                            Excluir
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="mt-3 text-xs text-[#6E625A]">{venda.itens.map((item) => `${item.quantidade_final}x ${item.nome} (${item.tamanho})`).join(' | ')}</p>
                     <p className="mt-3 text-sm font-bold text-[#4A2D1A]">{formatCurrency(venda.total_final ?? venda.total_original)}</p>
@@ -288,6 +387,11 @@ export default function AdminVendasPage() {
             </label>
 
             <div className="mt-5 flex flex-col gap-3 border-t border-[#E7E0D8] pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+              {selectedVenda.deleted_at ? (
+                <button disabled={saving} onClick={() => restoreVenda(selectedVenda)} className="rounded-lg border border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">Restaurar venda</button>
+              ) : (
+                <button disabled={saving} onClick={() => softDeleteVenda(selectedVenda)} className="rounded-lg border border-rose-300 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Excluir venda</button>
+              )}
               <button disabled={saving} onClick={() => updateVenda()} className="rounded-lg border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] disabled:opacity-50">Salvar ajustes</button>
               <button disabled={saving} onClick={() => updateVenda('em_aberto')} className="rounded-lg border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] disabled:opacity-50">Reabrir</button>
               <button disabled={saving} onClick={() => updateVenda('cancelada')} className="rounded-lg border border-rose-300 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Cancelar</button>

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
+import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { TAMANHO_UNICO } from '@/config/grades-tamanho';
 import { usePublicCart } from '@/lib/use-public-cart';
 import {
@@ -95,6 +96,8 @@ export default function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [cartError, setCartError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { openClienteAuth } = useClienteAuth();
   const {
     addProductToCart,
     badgeAnimating,
@@ -146,6 +149,20 @@ export default function ProductDetailPage() {
     return () => window.removeEventListener('pastoril:open-cart', openCart);
   }, [setIsCartOpen]);
 
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isMenuOpen]);
+
   const selectedStock = useMemo(() => {
     if (!product) return null;
     return productUsesVisibleSize(product)
@@ -172,7 +189,126 @@ export default function ProductDetailPage() {
 
   return (
     <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-10 text-[var(--pastoril-text)]">
-      <StoreHeader onCartToggle={() => setIsCartOpen(!isCartOpen)} totalItems={totalItems} />
+      <StoreHeader
+        onCartToggle={() => setIsCartOpen(!isCartOpen)}
+        onMenuOpen={() => setIsMenuOpen(true)}
+        totalItems={totalItems}
+      />
+
+      {isMenuOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setIsMenuOpen(false)}
+            className="fixed inset-0 z-50 bg-black/30"
+          />
+
+          <aside
+            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[#D9B88F]/25 bg-[#F9F6F1] shadow-xl md:max-w-[360px]"
+            aria-label="Menu principal"
+          >
+            <div
+              className="absolute inset-0 bg-cover bg-[position:center_bottom] bg-no-repeat opacity-70"
+              style={{ backgroundImage: "url('/brand/menu/sidebar-menu-bg.png')" }}
+              aria-hidden="true"
+            />
+            <div className="relative z-10 flex h-full flex-col">
+              <div className="relative flex items-center justify-center border-b border-[#F3E4D4]/18 px-14 pb-5 pt-6">
+                <Image
+                  src="/brand/pastoril-logo-header.png"
+                  alt="Pastoril Moda Country"
+                  width={140}
+                  height={80}
+                  priority
+                  unoptimized
+                  className="h-auto w-[120px] object-contain md:w-[140px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  aria-label="Fechar menu"
+                >
+                  x
+                </button>
+              </div>
+
+              <nav className="flex-1 overflow-y-auto px-4 py-3" aria-label="Links do menu">
+                <Link
+                  href="/"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Inicio
+                </Link>
+                <Link
+                  href="/#categorias"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Masculino
+                </Link>
+                <Link
+                  href="/#categorias"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Feminino
+                </Link>
+                <Link
+                  href="/#categorias"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Infantil
+                </Link>
+                <Link
+                  href="/#produtos"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Promocoes
+                </Link>
+                <Link
+                  href="/#produtos"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Buscar produtos
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsCartOpen(true);
+                  }}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Carrinho
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    openClienteAuth();
+                  }}
+                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Minha conta
+                </button>
+                <Link
+                  href="/quem-somos"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                >
+                  Quem somos
+                </Link>
+              </nav>
+            </div>
+          </aside>
+        </>
+      )}
 
       <div className="mx-auto flex max-w-7xl px-5 pt-4 sm:px-8">
         <button

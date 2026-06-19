@@ -174,11 +174,16 @@ export type VendaRow = {
   observacoes_admin: string | null;
   whatsapp_enviado_em: string | null;
   estoque_baixado: boolean;
+  deleted_at: string | null;
+  deleted_by: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type VendaInsert = Omit<VendaRow, 'id' | 'created_at' | 'updated_at'>;
+export type VendaInsert = Omit<VendaRow, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'deleted_by'> & {
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+};
 export type VendaUpdate = Partial<Omit<VendaInsert, 'codigo'>>;
 
 export type VendaItemRow = {

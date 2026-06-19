@@ -106,7 +106,7 @@ export default function ProductDetailPage() {
     totalItems,
     totalPrice,
     updateCartQuantity,
-    whatsappMessage,
+    finalizeOnWhatsApp,
   } = usePublicCart();
 
   useEffect(() => {
@@ -137,6 +137,14 @@ export default function ProductDetailPage() {
       fetchProduct();
     }
   }, [productId]);
+
+  useEffect(() => {
+    const openCart = () => setIsCartOpen(true);
+
+    window.addEventListener('pastoril:open-cart', openCart);
+
+    return () => window.removeEventListener('pastoril:open-cart', openCart);
+  }, [setIsCartOpen]);
 
   const selectedStock = useMemo(() => {
     if (!product) return null;
@@ -362,7 +370,7 @@ export default function ProductDetailPage() {
         totalItems={totalItems}
         totalPrice={totalPrice}
         updateCartQuantity={updateCartQuantity}
-        whatsappMessage={whatsappMessage}
+        finalizeOnWhatsApp={finalizeOnWhatsApp}
       />
     </div>
   );

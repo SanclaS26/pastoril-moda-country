@@ -153,7 +153,61 @@ export type ClienteInsert = {
   endereco_completo?: string | null;
 };
 
-export type ClienteUpdate = Partial<Omit<ClienteInsert, 'auth_user_id' | 'cpf' | 'celular'>>;
+export type ClienteUpdate = Partial<Omit<ClienteInsert, 'auth_user_id'>>;
+
+export type VendaStatus = 'em_aberto' | 'concluida' | 'cancelada';
+export type VendaTipo = 'carrinho' | 'pedido_whatsapp';
+
+export type VendaRow = {
+  id: string;
+  codigo: string;
+  tipo: VendaTipo;
+  status: VendaStatus;
+  cliente_auth_user_id: string | null;
+  cliente_nome: string | null;
+  cliente_cpf: string | null;
+  cliente_celular: string | null;
+  session_id: string | null;
+  telefone_whatsapp: string | null;
+  total_original: number;
+  total_final: number | null;
+  observacoes_admin: string | null;
+  whatsapp_enviado_em: string | null;
+  estoque_baixado: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VendaInsert = Omit<VendaRow, 'id' | 'created_at' | 'updated_at'>;
+export type VendaUpdate = Partial<Omit<VendaInsert, 'codigo'>>;
+
+export type VendaItemRow = {
+  id: string;
+  venda_id: string;
+  produto_id: number;
+  estoque_produto_id: number | null;
+  codigo_produto: string;
+  nome: string;
+  tamanho: string;
+  quantidade_original: number;
+  quantidade_final: number;
+  valor_unitario_original: number;
+  valor_unitario_final: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VendaItemInsert = Omit<VendaItemRow, 'id' | 'created_at' | 'updated_at'>;
+export type VendaItemUpdate = Partial<Omit<VendaItemInsert, 'venda_id' | 'produto_id'>>;
+
+export type VendaEstoqueMovimentoInsert = {
+  venda_id: string;
+  produto_id: number;
+  estoque_produto_id?: number | null;
+  tamanho: string;
+  quantidade: number;
+  tipo: 'baixa' | 'restauracao';
+};
 
 type Database = {
   public: {
@@ -206,9 +260,51 @@ type Database = {
         Update: ClienteUpdate;
         Relationships: [];
       };
+      vendas: {
+        Row: VendaRow;
+        Insert: VendaInsert;
+        Update: VendaUpdate;
+        Relationships: [];
+      };
+      venda_itens: {
+        Row: VendaItemRow;
+        Insert: VendaItemInsert;
+        Update: VendaItemUpdate;
+        Relationships: [];
+      };
+      venda_estoque_movimentos: {
+        Row: {
+          id: string;
+          venda_id: string;
+          produto_id: number;
+          estoque_produto_id: number | null;
+          tamanho: string;
+          quantidade: number;
+          tipo: 'baixa' | 'restauracao';
+          created_at: string;
+        };
+        Insert: VendaEstoqueMovimentoInsert;
+        Update: never;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      excluir_carrinho_em_aberto: {
+        Args: {
+          p_codigo: string;
+          p_session_id?: string | null;
+          p_cliente_auth_user_id?: string | null;
+        };
+        Returns: boolean;
+      };
+      excluir_carrinhos_expirados: {
+        Args: {
+          p_expira_antes?: string;
+        };
+        Returns: number;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

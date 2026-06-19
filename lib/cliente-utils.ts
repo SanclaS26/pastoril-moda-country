@@ -11,6 +11,14 @@ export function formatCpf(value: string) {
     .replace(/\.(\d{3})(\d)/, '.$1-$2');
 }
 
+export function maskCpf(value: string | null | undefined) {
+  const digits = onlyDigits(value ?? '');
+
+  if (digits.length !== 11) return '***.***.***-**';
+
+  return `***.***.***-${digits.slice(-2)}`;
+}
+
 export function formatPhone(value: string) {
   const digits = onlyDigits(value).slice(0, 13);
   const localDigits = digits.startsWith('55') ? digits.slice(2) : digits;
@@ -57,9 +65,17 @@ export function normalizeClientePhone(value: string) {
   const internationalDigits = `55${withoutCountryCode}`;
 
   return {
-    authPhone: `+${internationalDigits}`,
     dbPhone: internationalDigits,
+    technicalEmail: getClienteTechnicalEmail(internationalDigits),
   };
+}
+
+export function getClienteTechnicalEmail(value: string) {
+  const digits = onlyDigits(value);
+  const withoutCountryCode = digits.startsWith('55') ? digits.slice(2) : digits;
+  const internationalDigits = `55${withoutCountryCode}`;
+
+  return `${internationalDigits}@clientes.pastoril.local`;
 }
 
 export function normalizeOptionalEmail(value: string | null | undefined) {

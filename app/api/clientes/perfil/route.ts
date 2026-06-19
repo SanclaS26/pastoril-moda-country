@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { normalizeOptionalEmail } from '@/lib/cliente-utils';
+import {
+  getClienteTechnicalEmail,
+  isValidCpf,
+  normalizeClientePhone,
+  normalizeOptionalEmail,
+  onlyDigits,
+} from '@/lib/cliente-utils';
 import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteUpdate } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
@@ -80,6 +86,8 @@ export async function PATCH(request: Request) {
   try {
     const body = await request.json();
     const nome = String(body?.nome ?? '').trim();
+    const cpf = onlyDigits(String(body?.cpf ?? ''));
+    const celular = normalizeClientePhone(String(body?.celular ?? ''));
     const emailInput = String(body?.email ?? '').trim();
     const email = normalizeOptionalEmail(emailInput);
     const enderecoCompleto = String(body?.enderecoCompleto ?? '').trim() || null;
@@ -88,11 +96,90 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Informe seu nome.' }, { status: 400 });
     }
 
+    if (!cpf || !isValidCpf(cpf)) {
+      return NextResponse.json({ error: 'CPF invalido.' }, { status: 400 });
+    }
+
+    if (!celular) {
+      return NextResponse.json({ error: 'Informe um celular valido com DDD.' }, { status: 400 });
+    }
+
     if (emailInput && !email) {
       return NextResponse.json({ error: 'E-mail invalido.' }, { status: 400 });
     }
 
+    const [{ data: currentCliente, error: currentError }, { data: existingCpf }, { data: existingPhone }, { data: existingEmail }] =
+      await Promise.all([
+        authorization.supabaseAdmin
+          .from('clientes')
+          .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo')
+          .eq('auth_user_id', authorization.user.id)
+          .maybeSingle(),
+        authorization.supabaseAdmin
+          .from('clientes')
+          .select('id')
+          .eq('cpf', cpf)
+          .neq('auth_user_id', authorization.user.id)
+          .maybeSingle(),
+        authorization.supabaseAdmin
+          .from('clientes')
+          .select('id')
+          .eq('celular', celular.dbPhone)
+          .neq('auth_user_id', authorization.user.id)
+          .maybeSingle(),
+        email
+          ? authorization.supabaseAdmin
+              .from('clientes')
+              .select('id')
+              .eq('email', email)
+              .neq('auth_user_id', authorization.user.id)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+
+    if (currentError || !currentCliente) {
+      return NextResponse.json({ error: 'Perfil de cliente nao encontrado.' }, { status: 404 });
+    }
+
+    if (existingCpf) {
+      return NextResponse.json({ error: 'Ja existe um cadastro com este CPF.' }, { status: 409 });
+    }
+
+    if (existingPhone) {
+      return NextResponse.json({ error: 'Ja existe um cadastro com este celular.' }, { status: 409 });
+    }
+
+    if (existingEmail) {
+      return NextResponse.json({ error: 'Ja existe um cadastro com este e-mail.' }, { status: 409 });
+    }
+
+    const phoneChanged = celular.dbPhone !== currentCliente.celular;
+
+    if (phoneChanged) {
+      const { error: authUpdateError } = await authorization.supabaseAdmin.auth.admin.updateUserById(
+        authorization.user.id,
+        {
+          email: celular.technicalEmail,
+          email_confirm: true,
+          user_metadata: {
+            ...(authorization.user.user_metadata ?? {}),
+            celular: celular.dbPhone,
+            nome,
+          },
+        },
+      );
+
+      if (authUpdateError) {
+        return NextResponse.json(
+          { error: `Nao foi possivel atualizar o acesso do cliente: ${authUpdateError.message}` },
+          { status: 500 },
+        );
+      }
+    }
+
     const updatePayload: ClienteUpdate = {
+      celular: celular.dbPhone,
+      cpf,
       email,
       endereco_completo: enderecoCompleto,
       nome,
@@ -106,20 +193,30 @@ export async function PATCH(request: Request) {
       .single();
 
     if (error || !cliente) {
+      if (phoneChanged) {
+        await authorization.supabaseAdmin.auth.admin.updateUserById(authorization.user.id, {
+          email: getClienteTechnicalEmail(currentCliente.celular),
+          email_confirm: true,
+          user_metadata: {
+            ...(authorization.user.user_metadata ?? {}),
+            celular: currentCliente.celular,
+            nome: currentCliente.nome,
+          },
+        });
+      }
+
       return NextResponse.json(
         { error: `Erro ao atualizar perfil: ${error?.message ?? 'cliente nao retornado.'}` },
         { status: 500 },
       );
     }
 
-    if (email && email !== authorization.user.email) {
-      await authorization.supabaseAdmin.auth.admin.updateUserById(authorization.user.id, {
-        email,
-        email_confirm: true,
-      });
-    }
-
-    return NextResponse.json({ cliente });
+    return NextResponse.json({
+      cliente,
+      message: phoneChanged
+        ? 'Perfil atualizado. Seu celular de acesso tambem foi atualizado.'
+        : 'Perfil atualizado com sucesso.',
+    });
   } catch {
     return NextResponse.json({ error: 'Erro inesperado ao atualizar perfil.' }, { status: 500 });
   }

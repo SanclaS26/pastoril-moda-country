@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { TAMANHO_UNICO } from '@/config/grades-tamanho';
+import { clienteSupabase } from '@/lib/supabase-cliente';
 import {
   type CartItem,
   type Product,
-  formatCurrency,
   getAvailableUniqueStock,
   getProductPrice,
   productUsesVisibleSize,
@@ -11,17 +12,118 @@ import {
   writeStoredCartItems,
 } from '@/lib/catalog';
 
+const CART_CODE_STORAGE_KEY = 'pastoril-cart-code';
+const CART_SESSION_STORAGE_KEY = 'pastoril-cart-session';
+const CART_UPDATED_STORAGE_KEY = 'pastoril-cart-updated-at';
+const CART_EXPIRATION_MS = 3 * 24 * 60 * 60 * 1000;
+
+function getOrCreateStoredId(key: string, prefix: string) {
+  if (typeof window === 'undefined') return '';
+
+  const existing = window.localStorage.getItem(key);
+  if (existing) return existing;
+
+  const next = `${prefix}-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+  window.localStorage.setItem(key, next);
+  return next;
+}
+
+function getStoredId(key: string) {
+  if (typeof window === 'undefined') return '';
+
+  return window.localStorage.getItem(key) ?? '';
+}
+
+function resetStoredCartIdentity() {
+  if (typeof window === 'undefined') return;
+
+  window.localStorage.removeItem(CART_CODE_STORAGE_KEY);
+  window.localStorage.removeItem(CART_UPDATED_STORAGE_KEY);
+}
+
+async function getClienteAuthToken() {
+  const { data } = await clienteSupabase.auth.getSession();
+
+  return data.session?.access_token;
+}
+
+async function deleteRemoteOpenCart() {
+  const codigo = getStoredId(CART_CODE_STORAGE_KEY);
+
+  if (!codigo) return;
+
+  const token = await getClienteAuthToken();
+
+  await fetch('/api/vendas/carrinho', {
+    body: JSON.stringify({
+      codigo,
+      sessionId: getStoredId(CART_SESSION_STORAGE_KEY),
+    }),
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Content-Type': 'application/json',
+    },
+    method: 'DELETE',
+  }).catch(() => undefined);
+}
+
+async function saveRemoteOpenCart(cartItems: CartItem[], token?: string) {
+  return fetch('/api/vendas/carrinho', {
+    body: JSON.stringify({
+      codigo: getOrCreateStoredId(CART_CODE_STORAGE_KEY, 'CAR'),
+      items: cartItems.map(cartItemToVendaInput),
+      sessionId: getOrCreateStoredId(CART_SESSION_STORAGE_KEY, 'SES'),
+    }),
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      'Content-Type': 'application/json',
+    },
+    method: 'POST',
+  });
+}
+
+function cartItemToVendaInput(item: CartItem) {
+  const stockItem = productUsesVisibleSize(item)
+    ? item.estoque.find((stock) => stock.tamanho === item.tamanhoSelecionado)
+    : getAvailableUniqueStock(item);
+
+  return {
+    codigo_produto: item.codigo_produto,
+    estoque_produto_id: stockItem?.id ?? null,
+    nome: item.nome,
+    produto_id: item.id,
+    quantidade: item.quantity,
+    tamanho: item.tamanhoSelecionado,
+    valor_unitario: getProductPrice(item),
+  };
+}
+
 export function usePublicCart() {
+  const { requireClienteForCheckout } = useClienteAuth();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartHydrated, setCartHydrated] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const previousTotalRef = useRef(0);
   const cartHydrationSeenRef = useRef(false);
+  const hasHadCartItemsRef = useRef(false);
+  const checkoutInFlightRef = useRef(false);
   const [badgeAnimating, setBadgeAnimating] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      setCartItems(readStoredCartItems());
+      const storedItems = readStoredCartItems();
+      const storedUpdatedAt = Number(window.localStorage.getItem(CART_UPDATED_STORAGE_KEY) ?? '0');
+      const isExpired = storedItems.length > 0 && storedUpdatedAt > 0 && Date.now() - storedUpdatedAt > CART_EXPIRATION_MS;
+
+      if (isExpired) {
+        writeStoredCartItems([]);
+        resetStoredCartIdentity();
+        setCartItems([]);
+      } else {
+        hasHadCartItemsRef.current = storedItems.length > 0;
+        setCartItems(storedItems);
+      }
+
       setCartHydrated(true);
     }, 0);
 
@@ -29,8 +131,12 @@ export function usePublicCart() {
   }, []);
 
   useEffect(() => {
-    if (cartHydrated) {
-      writeStoredCartItems(cartItems);
+    if (!cartHydrated) return;
+
+    writeStoredCartItems(cartItems);
+
+    if (cartItems.length > 0) {
+      window.localStorage.setItem(CART_UPDATED_STORAGE_KEY, String(Date.now()));
     }
   }, [cartHydrated, cartItems]);
 
@@ -78,14 +184,28 @@ export function usePublicCart() {
     [cartItems],
   );
 
-  const whatsappMessage = encodeURIComponent(
-    `Olá, gostaria de fazer um pedido na Pastoril Moda Country.${cartItems.length ? '\n' : ''}${cartItems
-      .map((item) => {
-        const tamanho = productUsesVisibleSize(item) ? ` tamanho ${item.tamanhoSelecionado}` : '';
-        return `${item.quantity}x ${item.nome} (${item.codigo_produto})${tamanho} - ${formatCurrency(getProductPrice(item))}`;
-      })
-      .join('\n')}${cartItems.length ? `\nTotal: ${formatCurrency(totalPrice)}` : ''}`,
-  );
+  useEffect(() => {
+    if (!cartHydrated) return;
+
+    const timeout = window.setTimeout(async () => {
+      if (!cartItems.length) {
+        if (hasHadCartItemsRef.current) {
+          await deleteRemoteOpenCart();
+          resetStoredCartIdentity();
+          hasHadCartItemsRef.current = false;
+        }
+
+        return;
+      }
+
+      hasHadCartItemsRef.current = true;
+      const token = await getClienteAuthToken();
+
+      await saveRemoteOpenCart(cartItems, token).catch(() => undefined);
+    }, 600);
+
+    return () => window.clearTimeout(timeout);
+  }, [cartHydrated, cartItems]);
 
   const addProductToCart = (product: Product, selectedSize: string, quantity = 1) => {
     const usesVisibleSize = productUsesVisibleSize(product);
@@ -97,7 +217,7 @@ export function usePublicCart() {
     if (!stockItem || stockItem.quantidade <= 0) {
       return {
         ok: false,
-        error: usesVisibleSize ? 'Selecione um tamanho disponível antes de adicionar ao carrinho.' : 'Produto sem estoque disponível.',
+        error: usesVisibleSize ? 'Selecione um tamanho disponivel antes de adicionar ao carrinho.' : 'Produto sem estoque disponivel.',
       };
     }
 
@@ -105,7 +225,7 @@ export function usePublicCart() {
     const existing = cartItems.find((item) => item.id === product.id && item.tamanhoSelecionado === size);
 
     if (existing && existing.quantity >= stockItem.quantidade) {
-      return { ok: false, error: 'Quantidade máxima disponível para este tamanho atingida.' };
+      return { ok: false, error: 'Quantidade maxima disponivel para este tamanho atingida.' };
     }
 
     setCartItems((current) => {
@@ -155,17 +275,65 @@ export function usePublicCart() {
     return true;
   };
 
+  const finalizeOnWhatsApp = async () => {
+    if (!cartItems.length) return;
+    if (checkoutInFlightRef.current) return;
+
+    checkoutInFlightRef.current = true;
+
+    try {
+      const isAuthenticated = await requireClienteForCheckout();
+      if (!isAuthenticated) return;
+
+      const token = await getClienteAuthToken();
+
+      if (!token) {
+        window.alert('Nao foi possivel confirmar o login do cliente. Tente entrar novamente.');
+        return;
+      }
+
+      const cartResponse = await saveRemoteOpenCart(cartItems, token);
+      if (!cartResponse.ok) {
+        const cartResult = await cartResponse.json().catch(() => null);
+        window.alert(cartResult?.error || 'Nao foi possivel vincular o carrinho ao cliente.');
+        return;
+      }
+
+      const response = await fetch('/api/vendas/whatsapp', {
+        body: JSON.stringify({
+          items: cartItems.map(cartItemToVendaInput),
+          sessionId: getOrCreateStoredId(CART_SESSION_STORAGE_KEY, 'SES'),
+        }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result?.whatsappUrl) {
+        window.alert(result?.error || 'Nao foi possivel registrar o pedido antes do WhatsApp.');
+        return;
+      }
+
+      window.open(result.whatsappUrl, '_blank', 'noopener,noreferrer');
+    } finally {
+      checkoutInFlightRef.current = false;
+    }
+  };
+
   return {
     addProductToCart,
     badgeAnimating,
     cartItems,
     clearCart,
+    finalizeOnWhatsApp,
     isCartOpen,
     removeFromCart,
     setIsCartOpen,
     totalItems,
     totalPrice,
     updateCartQuantity,
-    whatsappMessage,
   };
 }

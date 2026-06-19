@@ -37,13 +37,13 @@ type PublicCartProps = {
   cartError?: string;
   cartItems: CartItem[];
   clearCart: () => boolean;
+  finalizeOnWhatsApp: () => Promise<void>;
   isCartOpen: boolean;
   removeFromCart: (productId: number, selectedSize: string) => void;
   setIsCartOpen: (isOpen: boolean) => void;
   totalItems: number;
   totalPrice: number;
   updateCartQuantity: (productId: number, selectedSize: string, delta: number) => void;
-  whatsappMessage: string;
 };
 
 export function PublicCart({
@@ -51,13 +51,13 @@ export function PublicCart({
   cartError = '',
   cartItems,
   clearCart,
+  finalizeOnWhatsApp,
   isCartOpen,
   removeFromCart,
   setIsCartOpen,
   totalItems,
   totalPrice,
   updateCartQuantity,
-  whatsappMessage,
 }: PublicCartProps) {
   const asideClassName = isCartOpen
     ? 'fixed inset-0 z-50 bg-[rgba(249,246,241,0.86)]'
@@ -157,14 +157,13 @@ export function PublicCart({
             >
               Continuar comprando
             </button>
-            <a
-              href={`https://wa.me/5568999244811?text=${whatsappMessage}`}
+            <button
+              type="button"
+              onClick={finalizeOnWhatsApp}
               className="type-button block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)]"
-              target="_blank"
-              rel="noreferrer"
             >
-              Finalizar compra no WhatsApp
-            </a>
+              Enviar pedido pelo WhatsApp
+            </button>
           </div>
         </div>
       </aside>

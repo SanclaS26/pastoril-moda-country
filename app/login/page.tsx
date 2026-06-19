@@ -4,8 +4,8 @@ import { FormEvent, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { signInClienteWithPhone } from '@/lib/cliente-login';
 import { formatPhone, normalizeClientePhone } from '@/lib/cliente-utils';
-import { clienteSupabase } from '@/lib/supabase-cliente';
 
 export default function ClienteLoginPage() {
   const router = useRouter();
@@ -27,17 +27,15 @@ export default function ClienteLoginPage() {
 
     setIsLoading(true);
 
-    const { error: loginError } = await clienteSupabase.auth.signInWithPassword({
-      password: senha,
-      phone: normalizedPhone.authPhone,
-    });
-
-    setIsLoading(false);
-
-    if (loginError) {
-      setError('Celular ou senha invalidos.');
+    try {
+      await signInClienteWithPhone(celular, senha);
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : 'Nao foi possivel autenticar o cliente.');
+      setIsLoading(false);
       return;
     }
+
+    setIsLoading(false);
 
     router.push('/minha-conta');
   };

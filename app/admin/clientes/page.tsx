@@ -50,7 +50,10 @@ export default function AdminClientesPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const fetchClientes = async () => {
@@ -85,6 +88,37 @@ export default function AdminClientesPage() {
 
   const totalClientes = useMemo(() => clientes.length, [clientes]);
 
+  const handleDeleteCliente = async () => {
+    if (!clienteToDelete) return;
+
+    try {
+      setDeleting(true);
+      setError('');
+      setSuccess('');
+      const token = await getSessionToken();
+      const response = await fetch(`/api/admin/clientes?id=${encodeURIComponent(String(clienteToDelete.id))}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        method: 'DELETE',
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Nao foi possivel excluir o cliente.');
+      }
+
+      setClientes((current) => current.filter((cliente) => cliente.id !== clienteToDelete.id));
+      setSelectedCliente((current) => (current?.id === clienteToDelete.id ? null : current));
+      setClienteToDelete(null);
+      setSuccess(data?.message || 'Cliente excluido com sucesso.');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Erro ao excluir cliente.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <AdminShell
       title="Clientes"
@@ -112,6 +146,12 @@ export default function AdminClientesPage() {
         {error && (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
             {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {success}
           </div>
         )}
 
@@ -149,6 +189,7 @@ export default function AdminClientesPage() {
                         </td>
                         <td className="px-5 py-4 text-sm text-[#6E625A]">{formatDate(cliente.created_at)}</td>
                         <td className="px-5 py-4 text-right">
+                          <div className="flex justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => setSelectedCliente(cliente)}
@@ -156,6 +197,14 @@ export default function AdminClientesPage() {
                           >
                             Ver dados
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setClienteToDelete(cliente)}
+                            className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
+                          >
+                            Excluir
+                          </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -171,13 +220,22 @@ export default function AdminClientesPage() {
                         <h2 className="truncate text-sm font-bold text-[#241C17]">{cliente.nome}</h2>
                         <p className="mt-1 text-xs text-[#6E625A]">{maskCpf(cliente.cpf)}</p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedCliente(cliente)}
-                        className="shrink-0 rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]"
-                      >
-                        Ver
-                      </button>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedCliente(cliente)}
+                          className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setClienteToDelete(cliente)}
+                          className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700"
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
                     <dl className="mt-4 grid gap-2 text-xs text-[#6E625A]">
                       <div>
@@ -241,6 +299,57 @@ export default function AdminClientesPage() {
                 <dd className="mt-1 whitespace-pre-wrap text-[#241C17]">{selectedCliente.endereco_completo || '-'}</dd>
               </div>
             </dl>
+          </section>
+        </div>
+      )}
+
+      {clienteToDelete && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#241C17]/60 px-4 py-6">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Cancelar exclusao"
+            onClick={() => !deleting && setClienteToDelete(null)}
+          />
+
+          <section
+            className="relative z-10 w-full max-w-md rounded-2xl border border-[#E7E0D8] bg-white p-5 text-[#241C17] shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-cliente-title"
+          >
+            <div className="mb-4">
+              <h2 id="delete-cliente-title" className="text-xl font-bold text-[#4A2D1A]">
+                Excluir cliente?
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-[#6E625A]">
+                Esta acao removera o cadastro e tambem o acesso de login do cliente. O historico de vendas sera preservado.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] p-4 text-sm">
+              <p className="font-bold text-[#241C17]">{clienteToDelete.nome}</p>
+              <p className="mt-1 text-[#6E625A]">{formatPhone(clienteToDelete.celular)}</p>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setClienteToDelete(null)}
+                disabled={deleting}
+                className="rounded-xl border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteCliente}
+                disabled={deleting}
+                className="rounded-xl bg-rose-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deleting ? 'Excluindo...' : 'Excluir'}
+              </button>
+            </div>
           </section>
         </div>
       )}

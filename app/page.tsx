@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { ClienteAuthButton } from '@/app/components/ClienteAuthButton';
 import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
@@ -664,7 +665,7 @@ export default function Home() {
     totalItems,
     totalPrice,
     updateCartQuantity,
-    whatsappMessage,
+    finalizeOnWhatsApp,
   } = publicCart;
 
   useEffect(() => {
@@ -738,6 +739,14 @@ export default function Home() {
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [isMenuOpen]);
+
+  useEffect(() => {
+    const openCart = () => setIsCartOpen(true);
+
+    window.addEventListener('pastoril:open-cart', openCart);
+
+    return () => window.removeEventListener('pastoril:open-cart', openCart);
+  }, [setIsCartOpen]);
 
   const filteredProducts = useMemo(
     () =>
@@ -931,7 +940,7 @@ export default function Home() {
                   }}
                   className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
                 >
-                  Login
+                  Minha conta
                 </button>
 
                 <Link
@@ -1156,7 +1165,7 @@ export default function Home() {
             totalItems={totalItems}
             totalPrice={totalPrice}
             updateCartQuantity={updateCartQuantity}
-            whatsappMessage={whatsappMessage}
+            finalizeOnWhatsApp={finalizeOnWhatsApp}
           />
         </div>
       </main>
@@ -1170,7 +1179,7 @@ export default function Home() {
         className="fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-[#F9F6F1]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_rgba(74,45,26,0.08)] backdrop-blur"
         aria-label="Navegação principal"
       >
-        <div className="mx-auto grid h-full max-w-[430px] grid-cols-6 items-start md:max-w-3xl md:items-center md:gap-5 md:px-4">
+        <div className="mx-auto grid h-full max-w-[470px] grid-cols-7 items-start md:max-w-3xl md:items-center md:gap-5 md:px-4">
           <button
             type="button"
             onClick={() => setIsMenuOpen(true)}
@@ -1192,6 +1201,12 @@ export default function Home() {
             <Icon name="search" className="h-[24px] w-[24px]" />
             <span>Buscar</span>
           </a>
+          <ClienteAuthButton
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
+            iconClassName="h-[24px] w-[24px]"
+            labelClassName="block"
+            showLabel
+          />
           <a
             href="https://wa.me/5568999244811"
             className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"

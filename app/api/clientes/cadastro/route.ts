@@ -15,6 +15,12 @@ function getErrorMessage(error: unknown) {
     : '';
 }
 
+function getErrorCode(error: unknown) {
+  return error && typeof error === 'object' && 'code' in error && typeof error.code === 'string'
+    ? error.code
+    : null;
+}
+
 function isAlreadyRegisteredError(error: unknown) {
   const message = getErrorMessage(error).toLowerCase();
 
@@ -24,6 +30,12 @@ function isAlreadyRegisteredError(error: unknown) {
     message.includes('already registered') ||
     message.includes('unique')
   );
+}
+
+function isPasswordError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return message.includes('password') || message.includes('senha') || message.includes('weak');
 }
 
 export async function POST(request: Request) {
@@ -70,13 +82,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'A confirmacao da senha nao confere.' }, { status: 400 });
     }
 
-    const [{ data: existingCpf, error: cpfError }, { data: existingPhone, error: phoneError }] = await Promise.all([
+    const [{ data: existingCpf, error: cpfError }, { data: existingPhone, error: phoneError }, { data: authUsers, error: authUsersError }] = await Promise.all([
       supabaseAdmin.from('clientes').select('id').eq('cpf', cpf).maybeSingle(),
       supabaseAdmin.from('clientes').select('id').eq('celular', celular.dbPhone).maybeSingle(),
+      supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     ]);
 
     if (cpfError || phoneError) {
       return NextResponse.json({ error: 'Erro ao verificar CPF ou celular cadastrado.' }, { status: 500 });
+    }
+
+    if (authUsersError) {
+      console.info('[cliente-cadastro-auth-users-error]', {
+        code: getErrorCode(authUsersError),
+        message: getErrorMessage(authUsersError),
+      });
+
+      return NextResponse.json({ error: 'Falha ao verificar usuarios existentes no Supabase Auth.' }, { status: 500 });
     }
 
     if (existingCpf) {
@@ -87,13 +109,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ja existe um cadastro com este celular.' }, { status: 409 });
     }
 
+    const existingAuthUser = authUsers.users.find((user) => user.email?.toLowerCase() === celular.technicalEmail);
+
+    if (existingAuthUser) {
+      return NextResponse.json({ error: 'Ja existe um acesso de login com este celular.' }, { status: 409 });
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email ?? undefined,
-      email_confirm: Boolean(email),
+      email: celular.technicalEmail,
+      email_confirm: true,
       password: senha,
-      phone: celular.authPhone,
-      phone_confirm: true,
       user_metadata: {
+        celular: celular.dbPhone,
         nome,
         tipo: 'cliente',
       },
@@ -103,9 +130,32 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ja existe um acesso cadastrado para este celular ou e-mail.' }, { status: 409 });
     }
 
+    if (isPasswordError(authError)) {
+      return NextResponse.json({ error: 'Senha invalida. Use uma senha com pelo menos 8 caracteres.' }, { status: 400 });
+    }
+
     if (authError || !authData?.user) {
+      console.info('[cliente-cadastro-create-auth-error]', {
+        code: getErrorCode(authError),
+        message: getErrorMessage(authError),
+      });
+
       return NextResponse.json(
-        { error: authError?.message || 'Erro ao criar acesso do cliente.' },
+        { error: `Falha ao criar usuario no Supabase Auth: ${authError?.message || 'usuario nao retornado.'}` },
+        { status: 500 },
+      );
+    }
+
+    const authUser = authData.user;
+
+    if (authUser.email?.toLowerCase() !== celular.technicalEmail || !authUser.email_confirmed_at) {
+      await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+
+      return NextResponse.json(
+        {
+          error:
+            'Falha ao confirmar usuario no Supabase Auth. O e-mail tecnico do cliente nao foi criado ou confirmado corretamente.',
+        },
         { status: 500 },
       );
     }
@@ -116,7 +166,7 @@ export async function POST(request: Request) {
       email,
       endereco_completo: enderecoCompleto,
       nome,
-      auth_user_id: authData.user.id,
+      auth_user_id: authUser.id,
     };
 
     const { data: cliente, error: insertError } = await supabaseAdmin
@@ -126,19 +176,56 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError || !cliente) {
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      await supabaseAdmin.auth.admin.deleteUser(authUser.id);
 
       if (isAlreadyRegisteredError(insertError)) {
         return NextResponse.json({ error: 'CPF ou celular ja cadastrado.' }, { status: 409 });
       }
 
       return NextResponse.json(
-        { error: `Erro ao salvar cadastro do cliente: ${insertError?.message ?? 'cliente nao retornado.'}` },
+        { error: `Falha ao criar perfil em clientes: ${insertError?.message ?? 'cliente nao retornado.'}` },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ cliente }, { status: 201 });
+    const [{ data: confirmedAuthUser, error: confirmAuthError }, { data: confirmedCliente, error: confirmClienteError }] = await Promise.all([
+      supabaseAdmin.auth.admin.getUserById(authUser.id),
+      supabaseAdmin
+        .from('clientes')
+        .select('id, auth_user_id, celular')
+        .eq('auth_user_id', authUser.id)
+        .maybeSingle(),
+    ]);
+
+    if (
+      confirmAuthError ||
+      !confirmedAuthUser.user ||
+      confirmedAuthUser.user.email?.toLowerCase() !== celular.technicalEmail ||
+      !confirmedAuthUser.user.email_confirmed_at ||
+      confirmClienteError ||
+      !confirmedCliente ||
+      confirmedCliente.auth_user_id !== authUser.id ||
+      confirmedCliente.celular !== celular.dbPhone
+    ) {
+      await supabaseAdmin.auth.admin.deleteUser(authUser.id);
+      await supabaseAdmin.from('clientes').delete().eq('auth_user_id', authUser.id);
+
+      return NextResponse.json(
+        {
+          error:
+            'Falha ao confirmar cadastro completo. O usuario do Auth e o perfil do cliente nao ficaram consistentes.',
+        },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      cliente,
+      auth: {
+        email_confirmed: Boolean(confirmedAuthUser.user.email_confirmed_at),
+        user_id: authUser.id,
+      },
+    }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Erro inesperado ao cadastrar cliente.' }, { status: 500 });
   }

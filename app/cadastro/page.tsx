@@ -4,8 +4,8 @@ import { FormEvent, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { signInClienteWithPhone } from '@/lib/cliente-login';
 import { formatCpf, formatPhone, normalizeClientePhone } from '@/lib/cliente-utils';
-import { clienteSupabase } from '@/lib/supabase-cliente';
 
 export default function ClienteCadastroPage() {
   const router = useRouter();
@@ -51,14 +51,12 @@ export default function ClienteCadastroPage() {
       const normalizedPhone = normalizeClientePhone(celular);
 
       if (normalizedPhone) {
-        const { error: loginError } = await clienteSupabase.auth.signInWithPassword({
-          password: senha,
-          phone: normalizedPhone.authPhone,
-        });
-
-        if (!loginError) {
+        try {
+          await signInClienteWithPhone(celular, senha);
           router.push('/minha-conta');
           return;
+        } catch {
+          setSuccess('Cadastro criado com sucesso. Entre com seu celular e senha.');
         }
       }
 

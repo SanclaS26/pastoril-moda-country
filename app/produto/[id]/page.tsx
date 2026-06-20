@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
+import { WishlistButton } from '@/app/components/WishlistButton';
 import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { TAMANHO_UNICO } from '@/config/grades-tamanho';
 import { usePublicCart } from '@/lib/use-public-cart';
+import { useWishlist } from '@/lib/use-wishlist';
 import {
   type Product,
   formatCurrency,
@@ -98,6 +100,7 @@ export default function ProductDetailPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { openClienteAuth } = useClienteAuth();
+  const { favoriteIds, toggleFavorite } = useWishlist();
   const {
     addProductToCart,
     badgeAnimating,
@@ -180,6 +183,7 @@ export default function ProductDetailPage() {
   const currentPrice = product ? getProductPrice(product) : 0;
   const hasPromotion = Boolean(product?.em_promocao && product.preco_promocional !== null);
   const productImages = product?.imagem_principal ? [product.imagem_principal] : [];
+  const isFavorite = product ? favoriteIds.has(product.id) : false;
 
   const addToCart = () => {
     if (!product) return;
@@ -346,6 +350,12 @@ export default function ProductDetailPage() {
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(360px,0.96fr)] lg:items-start">
               <div>
                 <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--pastoril-border)] bg-[var(--pastoril-soft)] shadow-[0_14px_30px_rgba(74,52,40,0.08)]">
+                  <WishlistButton
+                    className="absolute right-4 top-4 z-20 h-11 w-11"
+                    isFavorite={isFavorite}
+                    onToggle={() => toggleFavorite(product.id)}
+                    productName={product.nome}
+                  />
                   {selectedImage ? (
                     <Image
                       src={selectedImage}

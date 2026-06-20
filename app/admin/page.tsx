@@ -37,6 +37,12 @@ interface VisitStats {
   cities: Array<{ city: string; region: string | null; visits: number }>;
 }
 
+interface WishlistStats {
+  clientsWithFavorites: number;
+  totalItems: number;
+  topProducts: Array<{ count: number; product: { id: number; nome: string } | null }>;
+}
+
 type AdminSection = 'dashboard' | 'usuarios';
 
 function StatCard({ label, value, helper }: { label: string; value: string | number; helper: string }) {
@@ -170,6 +176,9 @@ export default function AdminPage() {
   const [visitStats, setVisitStats] = useState<VisitStats | null>(null);
   const [loadingVisits, setLoadingVisits] = useState(true);
   const [visitsError, setVisitsError] = useState('');
+  const [wishlistStats, setWishlistStats] = useState<WishlistStats | null>(null);
+  const [loadingWishlistStats, setLoadingWishlistStats] = useState(true);
+  const [wishlistStatsError, setWishlistStatsError] = useState('');
   const [showUserForm, setShowUserForm] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
@@ -278,6 +287,27 @@ export default function AdminPage() {
     };
 
     fetchVisits();
+  }, []);
+
+  useEffect(() => {
+    const fetchWishlistStats = async () => {
+      try {
+        setLoadingWishlistStats(true);
+        const token = await getSessionToken();
+        const response = await fetch('/api/admin/wishlists?page=1', { headers: { Authorization: `Bearer ${token}` } });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result?.error || 'Falha ao carregar favoritos.');
+        setWishlistStats(result.stats as WishlistStats);
+        setWishlistStatsError('');
+      } catch (statsError) {
+        setWishlistStats(null);
+        setWishlistStatsError(statsError instanceof Error ? statsError.message : 'Falha ao carregar favoritos.');
+      } finally {
+        setLoadingWishlistStats(false);
+      }
+    };
+
+    void fetchWishlistStats();
   }, []);
 
   const activeProducts = useMemo(
@@ -399,6 +429,25 @@ export default function AdminPage() {
               {productsError || usersError}
             </div>
           )}
+
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-xl font-bold text-[#241C17]">Listas de desejos</h2>
+              <p className="mt-1 text-sm text-[#6E625A]">Resumo dos favoritos salvos pelos clientes.</p>
+            </div>
+            {wishlistStatsError ? (
+              <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{wishlistStatsError}</p>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-3">
+                <StatCard label="Clientes com favoritos" value={loadingWishlistStats ? '...' : wishlistStats?.clientsWithFavorites ?? 0} helper="Clientes com ao menos um produto salvo" />
+                <StatCard label="Itens salvos" value={loadingWishlistStats ? '...' : wishlistStats?.totalItems ?? 0} helper="Produtos únicos por cliente" />
+                <div className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)]">
+                  <p className="text-sm font-bold text-[#4A2D1A]">Produtos mais favoritados</p>
+                  {loadingWishlistStats ? <p className="mt-3 text-sm text-[#6E625A]">Carregando...</p> : wishlistStats?.topProducts.length ? <ol className="mt-3 space-y-2">{wishlistStats.topProducts.slice(0, 3).map((item) => <li key={item.product?.id ?? item.count} className="flex justify-between gap-3 text-xs"><span className="truncate text-[#6E625A]">{item.product?.nome || 'Produto indisponível'}</span><strong>{item.count}</strong></li>)}</ol> : <p className="mt-3 text-sm text-[#6E625A]">Nenhum favorito salvo.</p>}
+                </div>
+              </div>
+            )}
+          </section>
 
           <section className="space-y-4">
             <div>

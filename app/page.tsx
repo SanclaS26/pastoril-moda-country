@@ -8,6 +8,7 @@ import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
 import { StoreMenu } from '@/app/components/StoreMenu';
+import { WishlistButton } from '@/app/components/WishlistButton';
 import { homeBannerFrameClass } from '@/lib/banner-layout';
 import { usePublicCart } from '@/lib/use-public-cart';
 import { useWishlist } from '@/lib/use-wishlist';
@@ -440,19 +441,12 @@ function ProductCard({
         </div>
       </Link>
 
-      <button
-        type="button"
-        onClick={() => onToggleFavorite(product.id)}
-        className={`absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pastoril-border)] bg-[var(--pastoril-card)]/95 shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
-          isFavorite ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
-        }`}
-        aria-label={isFavorite ? `Remover ${product.nome} dos favoritos` : `Adicionar ${product.nome} aos favoritos`}
-        aria-pressed={isFavorite}
-      >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20.8 4.8a5.5 5.5 0 0 0-7.8 0L12 5.9l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.3 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
-        </svg>
-      </button>
+      <WishlistButton
+        className="absolute right-2 top-2 z-20 h-8 w-8"
+        isFavorite={isFavorite}
+        onToggle={() => onToggleFavorite(product.id)}
+        productName={product.nome}
+      />
     </article>
   );
 }

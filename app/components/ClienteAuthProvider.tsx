@@ -402,7 +402,8 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
   };
 
   const openWishlist = () => {
-    setModalMode('wishlist');
+    setModalMode(null);
+    router.push('/favoritos');
   };
 
   const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {

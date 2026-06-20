@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Lora } from "next/font/google";
 import { ClienteAuthProvider } from "./components/ClienteAuthProvider";
 import { VisitTracker } from "./components/VisitTracker";
+import { WishlistProvider } from "@/lib/use-wishlist";
 import "./globals.css";
 
 const inter = Inter({
@@ -34,8 +35,10 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <ClienteAuthProvider>
-          <VisitTracker />
-          {children}
+          <WishlistProvider>
+            <VisitTracker />
+            {children}
+          </WishlistProvider>
         </ClienteAuthProvider>
       </body>
     </html>

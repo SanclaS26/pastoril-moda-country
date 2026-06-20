@@ -204,13 +204,13 @@ export function PublicCart({
       <button
         type="button"
         onClick={() => setIsCartOpen(true)}
-        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+16px+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--pastoril-caramel)] text-white shadow-[0_8px_18px_rgba(74,45,26,0.18)] transition hover:bg-[var(--pastoril-brown)] md:right-6 md:h-[52px] md:w-[52px]"
+        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+16px+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--pastoril-header)] text-[var(--pastoril-on-dark)] shadow-[0_8px_18px_var(--pastoril-shadow)] transition hover:brightness-110 md:right-6 md:h-[52px] md:w-[52px]"
         aria-label="Abrir carrinho"
       >
         <PublicCartIcon name="cart" className="h-6 w-6" />
         {totalItems > 0 && (
           <span
-            className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#4A2D1A] px-1 text-[11px] font-bold leading-none text-white ${
+            className={`absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--pastoril-caramel)] px-1 text-[11px] font-bold leading-none text-[var(--pastoril-on-dark)] ${
               badgeAnimating ? 'cart-badge-pulse' : ''
             }`}
           >

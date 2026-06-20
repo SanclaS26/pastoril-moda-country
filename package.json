@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "demo:seed": "node scripts/demo-products.mjs seed",
+    "demo:verify": "node scripts/demo-products.mjs verify",
+    "demo:cleanup": "node scripts/demo-products.mjs cleanup",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

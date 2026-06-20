@@ -1,19 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --pastoril-bg: #F9F6F1;
-  --pastoril-card: #FFFFFF;
-  --pastoril-brown: #4A2D1A;
-  --pastoril-caramel: #C8722C;
-  --pastoril-promo: #C8722C;
-  --pastoril-text: #241C17;
-  --pastoril-muted: #6E625A;
-  --pastoril-border: #E7E0D8;
-  --pastoril-soft: #F7F0E7;
-  --mobile-bottom-nav-height: 72px;
+  --pastoril-header: #241006;
+  --pastoril-brown: #3B1D0F;
+  --pastoril-caramel: #A85F25;
+  --pastoril-bg: #F8F4EE;
+  --pastoril-card: #FFFDF9;
+  --pastoril-soft: #F3E8DC;
+  --pastoril-border: #E8DBCE;
+  --pastoril-text: #21150F;
+  --pastoril-muted: #725F52;
+  --pastoril-promo: var(--pastoril-caramel);
+  --pastoril-on-dark: #FFF8F0;
+  --pastoril-shadow: rgba(59, 29, 15, 0.10);
+  --header: var(--pastoril-header);
+  --primary: var(--pastoril-brown);
+  --accent: var(--pastoril-caramel);
   --background: var(--pastoril-bg);
   --surface: var(--pastoril-card);
+  --soft: var(--pastoril-soft);
+  --border: var(--pastoril-border);
+  --text: var(--pastoril-text);
   --muted: var(--pastoril-muted);
+  --mobile-bottom-nav-height: 72px;
   --font-body: var(--font-inter), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-display: var(--font-lora), Georgia, "Times New Roman", serif;
   --type-title-main: 1.875rem;
@@ -35,6 +44,32 @@ body {
 
 html {
   scroll-behavior: smooth;
+}
+
+.store-header-action {
+  color: var(--pastoril-on-dark) !important;
+}
+
+.store-header-action svg {
+  color: var(--pastoril-on-dark) !important;
+  stroke: currentColor;
+}
+
+.store-header-action:hover {
+  color: #fff;
+}
+
+.store-header-action:focus-visible {
+  outline: 2px solid var(--pastoril-on-dark);
+  outline-offset: 2px;
+}
+
+.product-carousel {
+  scrollbar-width: none;
+}
+
+.product-carousel::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 640px) {

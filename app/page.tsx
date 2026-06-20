@@ -9,6 +9,7 @@ import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
 import { homeBannerFrameClass } from '@/lib/banner-layout';
 import { usePublicCart } from '@/lib/use-public-cart';
+import { useWishlist } from '@/lib/use-wishlist';
 import {
   type Product,
   formatCurrency,
@@ -120,6 +121,7 @@ function productMatchesMainCategory(product: Product, activeCategory: MainCatego
 function productMatchesSubcategory(product: Product, activeSubcategory: string) {
   if (!activeSubcategory || activeSubcategory === 'todos') return true;
   if (activeSubcategory === 'promocoes') return product.em_promocao;
+  if (activeSubcategory === 'novidades' || activeSubcategory === 'destaques') return product.destaque === true;
 
   const aliases = subcategoryAliases[activeSubcategory] ?? [activeSubcategory];
   const categoryValue = normalizeFilterValue(product.categoria);
@@ -378,21 +380,22 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
 
 function ProductCard({
   product,
+  isFavorite,
+  onToggleFavorite,
   priority = false,
 }: {
   product: Product;
+  isFavorite: boolean;
+  onToggleFavorite: (productId: number) => void;
   priority?: boolean;
 }) {
   const currentPrice = getProductPrice(product);
   const hasPromotion = product.em_promocao && product.preco_promocional !== null;
 
   return (
-    <Link
-      href={`/produto/${product.id}`}
-      aria-label={`Ver detalhes de ${product.nome}`}
-      className="group flex h-full flex-col overflow-hidden rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-[0_8px_18px_rgba(74,52,40,0.07)] transition md:hover:-translate-y-0.5 md:hover:shadow-[0_12px_24px_rgba(74,52,40,0.11)] sm:rounded-2xl"
-    >
-      <div className="relative aspect-[1.2/1] overflow-hidden bg-[var(--pastoril-soft)]">
+    <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-[0_5px_14px_var(--pastoril-shadow)] transition md:hover:-translate-y-0.5 md:hover:shadow-[0_10px_22px_var(--pastoril-shadow)]">
+      <Link href={`/produto/${product.id}`} aria-label={`Ver detalhes de ${product.nome}`} className="flex h-full flex-col">
+        <div className="relative aspect-square overflow-hidden bg-[var(--pastoril-soft)]">
         {hasPromotion && (
           <span className="type-helper absolute left-2 top-2 z-10 rounded-lg bg-[var(--pastoril-promo)] px-2 py-1 font-bold uppercase text-white shadow-sm sm:left-3 sm:top-3">
             Promo
@@ -404,41 +407,52 @@ function ProductCard({
             alt={product.nome}
             fill
             priority={priority}
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-            className="object-cover transition duration-500 md:group-hover:scale-[1.03]"
+            sizes="(min-width: 1024px) 16vw, (min-width: 640px) 25vw, 33vw"
+            className="object-contain p-1 transition duration-500 md:group-hover:scale-[1.03]"
           />
         ) : (
           <div className="type-helper flex h-full items-center justify-center px-3 text-center text-[var(--pastoril-muted)]">
             Sem foto
           </div>
         )}
-      </div>
-
-      <div className="flex flex-1 flex-col p-2.5 sm:p-4">
-        <h3 className="type-product-name min-h-[2.25rem] transition md:group-hover:text-[var(--pastoril-caramel)] sm:min-h-[2.5rem]">
-          {product.nome}
-        </h3>
-
-        <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <p className="type-price">
-            {formatCurrency(currentPrice)}
-          </p>
-          {hasPromotion && (
-            <p className="type-helper text-[var(--pastoril-muted)] line-through">
-              {formatCurrency(product.preco)}
-            </p>
-          )}
         </div>
 
-        <p className="type-helper mt-0.5 font-medium text-[var(--pastoril-muted)]">
-          C&oacute;d. {product.codigo_produto}
-        </p>
+        <div className="flex flex-1 flex-col p-2 sm:p-3">
+          <h3 className="line-clamp-2 min-h-[2.2rem] text-[11px] font-medium leading-[1.25] transition md:group-hover:text-[var(--pastoril-caramel)] sm:text-sm">
+            {product.nome}
+          </h3>
 
-        <span className="type-button mt-auto flex min-h-12 items-end pt-2 text-[var(--pastoril-caramel)]">
-          Ver detalhes
-        </span>
-      </div>
-    </Link>
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
+            <p className="text-[12px] font-bold leading-tight text-[var(--pastoril-brown)] sm:text-base">
+              {formatCurrency(currentPrice)}
+            </p>
+            {hasPromotion && (
+              <p className="hidden text-[10px] text-[var(--pastoril-muted)] line-through sm:block">
+                {formatCurrency(product.preco)}
+              </p>
+            )}
+          </div>
+
+          <p className="mt-1 text-[10px] font-medium leading-tight text-[var(--pastoril-caramel)] sm:text-xs">
+            3x de {formatCurrency(currentPrice / 3)}
+          </p>
+        </div>
+      </Link>
+
+      <button
+        type="button"
+        onClick={() => onToggleFavorite(product.id)}
+        className={`absolute right-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border border-[var(--pastoril-border)] bg-[var(--pastoril-card)]/95 shadow-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
+          isFavorite ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
+        }`}
+        aria-label={isFavorite ? `Remover ${product.nome} dos favoritos` : `Adicionar ${product.nome} aos favoritos`}
+        aria-pressed={isFavorite}
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.8 4.8a5.5 5.5 0 0 0-7.8 0L12 5.9l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1.1L12 21l7.8-7.3 1.1-1.1a5.5 5.5 0 0 0-.1-7.8Z" />
+        </svg>
+      </button>
+    </article>
   );
 }
 
@@ -573,14 +587,14 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
   if (loading) {
     return (
       <div
-        className="h-full min-h-[inherit] w-full rounded-[inherit] bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto"
+        className="h-full min-h-[inherit] w-full rounded-[inherit] bg-[linear-gradient(135deg,var(--pastoril-soft),var(--pastoril-card))] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto"
         aria-label="Carregando banners"
       />
     );
   }
 
   if (validBanners.length === 0) {
-    return <div className="h-full min-h-[inherit] w-full rounded-[inherit] bg-[linear-gradient(135deg,#EFE6DB,#FFFFFF)] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto" aria-label="Banner Pastoril Moda Country" />;
+    return <div className="h-full min-h-[inherit] w-full rounded-[inherit] bg-[linear-gradient(135deg,var(--pastoril-soft),var(--pastoril-card))] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto" aria-label="Banner Pastoril Moda Country" />;
   }
 
   return (
@@ -596,23 +610,29 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
       {activeBanner && activeImageUrl && (
         <div
           key={`banner-container-${activeBanner.id}-${currentIndex}`}
-          className="relative h-full min-h-[inherit] w-full overflow-hidden rounded-[inherit] bg-[#F9F6F1] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto"
+          className="relative h-full min-h-[inherit] w-full overflow-hidden rounded-[inherit] bg-[var(--pastoril-bg)] md:aspect-[2.55/1] md:min-h-0 lg:aspect-auto"
         >
           {previousImageUrl && previousImageUrl !== activeImageUrl && (
-            <img
+            <Image
               src={previousImageUrl}
               alt=""
+              fill
+              unoptimized
               aria-hidden="true"
-              className="banner-image-exit absolute inset-0 h-full w-full object-cover object-center"
+              className="banner-image-exit object-cover object-center"
               draggable={false}
             />
           )}
 
-          <img
+          <Image
             key={`${activeBanner.id}-${currentIndex}-${activeImageUrl}`}
             src={activeImageUrl}
             alt={activeBanner.titulo || 'Banner Pastoril Moda Country'}
-            className={`absolute inset-0 h-full w-full object-cover object-center ${
+            fill
+            priority
+            unoptimized
+            sizes="(min-width: 1280px) 1216px, 100vw"
+            className={`object-cover object-center ${
               isTransitioning ? 'banner-image-enter' : ''
             }`}
             draggable={false}
@@ -629,7 +649,7 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
               type="button"
               onClick={() => goToSlide(index)}
               className={`h-2 rounded-full transition-all ${
-                currentIndex === index ? 'w-6 bg-[var(--pastoril-caramel)]' : 'w-2 bg-white/75 shadow-[0_0_0_1px_rgba(74,45,26,0.12)]'
+                currentIndex === index ? 'w-6 bg-[var(--pastoril-caramel)]' : 'w-2 bg-[var(--pastoril-card)]/80 shadow-[0_0_0_1px_var(--pastoril-shadow)]'
               }`}
               aria-label={`Ir para banner ${index + 1}`}
               aria-current={currentIndex === index ? 'true' : undefined}
@@ -640,6 +660,56 @@ function BannerCarousel({ banners, loading }: { banners: MainBanner[]; loading: 
     </div>
   );
 }
+
+function ProductSection({
+  title,
+  products,
+  favoriteIds,
+  onToggleFavorite,
+  onViewAll,
+  priority = false,
+}: {
+  title: string;
+  products: Product[];
+  favoriteIds: Set<number>;
+  onToggleFavorite: (productId: number) => void;
+  onViewAll: () => void;
+  priority?: boolean;
+}) {
+  return (
+    <section aria-label={title}>
+      <div className="mb-3 flex items-center gap-3">
+        <h2 className="shrink-0 text-base font-bold text-[var(--pastoril-text)] sm:text-xl">{title}</h2>
+        <span className="h-px flex-1 bg-[var(--pastoril-border)]" aria-hidden="true" />
+        <button
+          type="button"
+          onClick={onViewAll}
+          className="inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold text-[var(--pastoril-brown)] sm:text-sm"
+        >
+          Ver todos <Icon name="chevron" className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="product-carousel -mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-3 scroll-smooth sm:-mx-6 sm:gap-4 sm:px-6 lg:mx-0 lg:px-0">
+        {products.map((product, index) => (
+          <div key={product.id} className="w-[42vw] max-w-[178px] shrink-0 snap-start sm:w-[220px] sm:max-w-none lg:w-[210px] xl:w-[220px]">
+            <ProductCard
+              product={product}
+              isFavorite={favoriteIds.has(product.id)}
+              onToggleFavorite={onToggleFavorite}
+              priority={priority && index < 3}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const quickLinks = [
+  { key: 'novidades', id: 'destaques', title: 'Novidades', subtitle: 'Confira agora', icon: 'spark' as IconName },
+  { key: 'promocoes', id: 'promocoes', title: 'Promoções', subtitle: 'Até 30% OFF', icon: 'belt' as IconName },
+  { key: 'mais-vendidos', id: 'destaques', title: 'Mais vendidos', subtitle: 'Os favoritos', icon: 'boot' as IconName },
+];
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -652,8 +722,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const productsSectionRef = useRef<HTMLElement | null>(null);
-  const productCarouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const { openClienteAuth } = useClienteAuth();
+  const { favoriteIds, toggleFavorite } = useWishlist();
   const publicCart = usePublicCart();
   const {
     badgeAnimating,
@@ -757,6 +827,7 @@ export default function Home() {
     () =>
       products.filter(
         (product) =>
+          product.estoque.length > 0 &&
           productMatchesMainCategory(product, activeCategory) &&
           productMatchesSubcategory(product, activeSubcategory),
       ),
@@ -768,25 +839,28 @@ export default function Home() {
     const startIndex = (visibleCurrentPage - 1) * PRODUCTS_PER_PAGE;
     return filteredProducts.slice(startIndex, startIndex + PRODUCTS_PER_PAGE);
   }, [visibleCurrentPage, filteredProducts]);
-  const productCarouselGroups = useMemo(
-    () =>
-      subcategories
-        .map((subcategory) => ({
-          ...subcategory,
-          products: products.filter(
-            (product) =>
-              productMatchesMainCategory(product, activeCategory) &&
-              productMatchesSubcategory(product, subcategory.slug),
-          ),
-        }))
-        .filter((group) => group.products.length > 0),
-    [activeCategory, products],
-  );
+  const homeProductSections = useMemo(() => {
+    const availableProducts = products.filter((product) => product.estoque.length > 0);
+    const unique = (items: Product[]) => [...new Map(items.map((product) => [product.id, product])).values()];
+
+    return [
+      { id: 'destaques', title: 'Novidades', products: unique(availableProducts.filter((product) => product.destaque)) },
+      { id: 'promocoes', title: 'Promoções', products: unique(availableProducts.filter((product) => product.em_promocao)) },
+      { id: 'masculino', title: 'Masculino', products: unique(availableProducts.filter((product) => productMatchesMainCategory(product, 'masculino'))) },
+      { id: 'feminino', title: 'Feminino', products: unique(availableProducts.filter((product) => productMatchesMainCategory(product, 'feminino'))) },
+      { id: 'infantil', title: 'Infantil', products: unique(availableProducts.filter((product) => productMatchesMainCategory(product, 'infantil'))) },
+    ].filter((section) => section.products.length > 0);
+  }, [products]);
   const selectedSubcategoryLabel =
-    subcategories.find((subcategory) => subcategory.slug === activeSubcategory)?.label ?? 'Destaques';
-  const productsTitle = activeSubcategory === 'todos' ? 'Destaques' : selectedSubcategoryLabel;
+    subcategories.find((subcategory) => subcategory.slug === activeSubcategory)?.label ??
+    quickLinks.find((item) => item.id === activeSubcategory)?.title ??
+    'Destaques';
+  const isHomeOverview = activeCategory === 'todos' && activeSubcategory === 'todos';
+  const productsTitle = activeSubcategory !== 'todos'
+    ? selectedSubcategoryLabel
+    : mainCategories.find((category) => category.id === activeCategory)?.label ?? 'Destaques';
   const hasVisibleProducts =
-    activeSubcategory === 'todos' ? productCarouselGroups.length > 0 : filteredProducts.length > 0;
+    isHomeOverview ? homeProductSections.length > 0 : filteredProducts.length > 0;
 
   const goToProductsPage = (page: number) => {
     const nextPage = Math.min(Math.max(page, 1), totalPages);
@@ -794,10 +868,6 @@ export default function Home() {
     window.requestAnimationFrame(() => {
       productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
-  };
-
-  const scrollProductCarousel = (slug: string, direction: -1 | 1) => {
-    productCarouselRefs.current[slug]?.scrollBy({ left: direction * 320, behavior: 'smooth' });
   };
 
   const scrollToProducts = () => {
@@ -842,7 +912,7 @@ export default function Home() {
           />
 
           <aside
-            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[#D9B88F]/25 bg-[#F9F6F1] shadow-xl md:max-w-[360px]"
+            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-xl md:max-w-[360px]"
             aria-label="Menu principal"
           >
             <div
@@ -851,7 +921,7 @@ export default function Home() {
               aria-hidden="true"
             />
             <div className="relative z-10 flex h-full flex-col">
-              <div className="relative flex items-center justify-center border-b border-[#F3E4D4]/18 px-14 pb-5 pt-6">
+              <div className="relative flex items-center justify-center border-b border-[var(--pastoril-border)] px-14 pb-5 pt-6">
                 <Image
                   src="/brand/pastoril-logo-header.png"
                   alt="Pastoril Moda Country"
@@ -864,7 +934,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setIsMenuOpen(false)}
-                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
                   aria-label="Fechar menu"
                 >
                   x
@@ -875,7 +945,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={goHomeFromMenu}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
                 >
                   Início
                 </button>
@@ -890,8 +960,8 @@ export default function Home() {
                         key={category.id}
                         type="button"
                         onClick={() => selectMainCategoryFromMenu(category.id)}
-                        className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C] ${
-                          isActive ? 'text-[#C8722C]' : 'text-[#4A2D1A]'
+                        className={`type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
+                          isActive ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
                         }`}
                       >
                         {category.label}
@@ -908,8 +978,8 @@ export default function Home() {
                     setIsMenuOpen(false);
                     scrollToProducts();
                   }}
-                  className={`type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C] ${
-                    activeSubcategory === 'promocoes' ? 'text-[#C8722C]' : 'text-[#4A2D1A]'
+                  className={`type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
+                    activeSubcategory === 'promocoes' ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
                   }`}
                 >
                   Promoções
@@ -921,7 +991,7 @@ export default function Home() {
                     setIsMenuOpen(false);
                     scrollToProducts();
                   }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
                 >
                   Buscar produtos
                 </button>
@@ -932,7 +1002,7 @@ export default function Home() {
                     setIsMenuOpen(false);
                     setIsCartOpen(true);
                   }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 bg-transparent px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
                 >
                   Carrinho
                 </button>
@@ -943,7 +1013,7 @@ export default function Home() {
                     setIsMenuOpen(false);
                     openClienteAuth();
                   }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[#F3E4D4]/16 px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
                 >
                   Minha conta
                 </button>
@@ -951,7 +1021,7 @@ export default function Home() {
                 <Link
                   href="/quem-somos"
                   onClick={() => setIsMenuOpen(false)}
-                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[#4A2D1A] transition hover:text-[#C8722C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
                 >
                   Quem somos
                 </Link>
@@ -962,95 +1032,50 @@ export default function Home() {
       )}
 
       <main>
-        <section className="px-1 pt-0 sm:px-2 md:px-8 md:pt-1 lg:px-0">
-          <div className="w-full">
+        <section className="relative z-20 mx-auto -mt-4 max-w-7xl px-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:h-12 before:bg-[linear-gradient(to_bottom,var(--pastoril-header),transparent)] before:content-[''] sm:px-6 md:-mt-2 md:before:h-8 lg:px-8">
+          <div className="relative w-full">
             <div className={homeBannerFrameClass}>
               <BannerCarousel banners={banners} loading={loadingBanners} />
             </div>
           </div>
         </section>
 
-        <section id="categorias" className="py-3 sm:py-4">
-          <div className="mx-auto max-w-7xl px-3 sm:px-8 lg:px-8">
-            <div className="-mx-3 overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
-              <div className="mx-auto flex min-w-max justify-center gap-5 border-b border-[#D8C7B8] pb-2 sm:min-w-0 sm:gap-9 lg:gap-12">
-                {mainCategories.map((category) => {
-                  const isActive = activeCategory === category.id;
-
-                  return (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => {
-                        setActiveCategory(category.id);
-                        setActiveSubcategory('todos');
-                        setCurrentPage(1);
-                      }}
-                      className={`group relative flex min-w-[64px] flex-col items-center gap-0 bg-transparent pb-1 text-center transition md:hover:text-[#C8722C] ${
-                        isActive ? 'text-[#C8722C]' : 'text-[#6E625A]'
-                      }`}
-                      aria-pressed={isActive}
-                    >
-                      <span className="relative flex h-[72px] w-[72px] items-center justify-center md:h-[84px] md:w-[84px]">
-                        <Image
-                          src={isActive ? category.activeIcon : category.icon}
-                          alt={category.label}
-                          fill
-                          sizes="64px"
-                          className="object-contain p-1"
-                        />
-                      </span>
-                      <span className={`type-button -mt-2.5 text-[11px] sm:text-xs ${isActive ? 'text-[#4A2D1A]' : 'text-[#6E625A]'}`}>
-                        {category.label}
-                      </span>
-                      <span
-                        className={`absolute bottom-[-9px] left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-[#C8722C] transition ${
-                          isActive ? 'opacity-100' : 'opacity-0'
-                        }`}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="-mx-3 mt-2 overflow-x-auto px-3 sm:mx-0 sm:overflow-visible sm:px-0">
-              <div className="mx-auto flex min-w-max justify-center gap-5 sm:min-w-0 sm:flex-wrap sm:gap-x-8 sm:gap-y-2 lg:gap-x-10">
-                {[{ slug: 'todos', label: 'Todos' }, ...subcategories].map((category) => (
-                  <button
-                    key={category.slug}
-                    type="button"
-                    onClick={() => {
-                      setActiveSubcategory(category.slug);
-                      setCurrentPage(1);
-                    }}
-                    className={`type-button relative min-h-8 whitespace-nowrap bg-transparent px-2 py-2 text-[11px] transition-colors sm:text-xs ${
-                      activeSubcategory === category.slug
-                        ? 'font-semibold text-[#4A2D1A]'
-                        : 'text-[#6E625A] md:hover:text-[#4A2D1A]'
-                    }`}
-                    aria-pressed={activeSubcategory === category.slug}
-                  >
-                    {category.label}
-                    {activeSubcategory === category.slug && (
-                      <span className="absolute bottom-0 left-1/2 h-0.5 w-7 -translate-x-1/2 rounded-full bg-[#C8722C] transition-all duration-200" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
+        <section id="categorias" className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            {quickLinks.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => {
+                  setActiveCategory('todos');
+                  setActiveSubcategory(item.id);
+                  setCurrentPage(1);
+                  scrollToProducts();
+                }}
+                className="flex min-w-0 items-center gap-1.5 rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] p-2 text-left shadow-[0_4px_12px_var(--pastoril-shadow)] sm:gap-3 sm:p-4"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-[var(--pastoril-caramel)] sm:h-11 sm:w-11">
+                  <Icon name={item.icon} className="h-5 w-5 sm:h-6 sm:w-6" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-[10px] leading-tight sm:text-sm">{item.title}</strong>
+                  <span className="mt-0.5 block truncate text-[9px] text-[var(--pastoril-muted)] sm:text-xs">{item.subtitle}</span>
+                </span>
+                <Icon name="chevron" className="hidden h-4 w-4 shrink-0 text-[var(--pastoril-brown)] min-[390px]:block" />
+              </button>
+            ))}
           </div>
         </section>
 
-        <div className="mx-auto max-w-7xl border-t border-[var(--pastoril-border)] px-5 py-5 sm:px-8 sm:py-8 lg:px-8">
+        <div className="mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-6 lg:px-8">
           <section id="produtos" ref={productsSectionRef}>
-            {activeSubcategory !== 'todos' && (
+            {!isHomeOverview && (
               <div className={productCategoryHeaderClass}>
                 <h2 className={productCategoryTitleClass}>{productsTitle}</h2>
                 <button
                   type="button"
                   onClick={() => {
+                    setActiveCategory('todos');
                     setActiveSubcategory('todos');
                     setCurrentPage(1);
                   }}
@@ -1063,7 +1088,7 @@ export default function Home() {
             )}
 
             {loadingProducts ? (
-              <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
+              <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] px-6 py-12 text-center text-[var(--pastoril-muted)]">
                 Carregando produtos...
               </div>
             ) : productsError ? (
@@ -1071,63 +1096,42 @@ export default function Home() {
                 {productsError}
               </div>
             ) : !hasVisibleProducts ? (
-              <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-white px-6 py-12 text-center text-[var(--pastoril-muted)]">
+              <div className="type-body rounded-2xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] px-6 py-12 text-center text-[var(--pastoril-muted)]">
                 Nenhum produto disponível no momento.
               </div>
-            ) : activeSubcategory === 'todos' ? (
+            ) : isHomeOverview ? (
               <div className="space-y-7">
-                {productCarouselGroups.map((group, groupIndex) => (
-                  <section key={group.slug} aria-label={group.label}>
-                    <div className={productCategoryHeaderClass}>
-                      <h3 className={productCategoryTitleClass}>{group.label}</h3>
-                      <div className="hidden gap-2 md:flex">
-                        <button
-                          type="button"
-                          onClick={() => scrollProductCarousel(group.slug, -1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E2D2C1] bg-transparent text-[#6E625A] transition hover:border-[#C8722C] hover:text-[#4A2D1A]"
-                          aria-label={`Ver produtos anteriores de ${group.label}`}
-                        >
-                          <Icon name="chevron" className="h-4 w-4 rotate-180" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => scrollProductCarousel(group.slug, 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E2D2C1] bg-transparent text-[#6E625A] transition hover:border-[#C8722C] hover:text-[#4A2D1A]"
-                          aria-label={`Ver próximos produtos de ${group.label}`}
-                        >
-                          <Icon name="chevron" className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      ref={(node) => {
-                        productCarouselRefs.current[group.slug] = node;
-                      }}
-                      className="-mx-5 flex snap-x gap-3 overflow-x-auto px-5 pb-3 scroll-smooth sm:-mx-8 sm:gap-5 sm:px-8 lg:mx-0 lg:px-0"
-                    >
-                      {group.products.map((product, index) => (
-                        <div
-                          key={product.id}
-                          className="w-[calc((100vw-52px)/2)] shrink-0 snap-start sm:w-[calc((100vw-104px)/3)] xl:w-[calc((100vw-12rem)/4)] 2xl:w-[305px]"
-                        >
-                          <ProductCard
-                            product={product}
-                            priority={groupIndex === 0 && index < 4}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+                {homeProductSections.map((section, sectionIndex) => (
+                  <ProductSection
+                    key={section.id}
+                    title={section.title}
+                    products={section.products}
+                    favoriteIds={favoriteIds}
+                    onToggleFavorite={toggleFavorite}
+                    priority={sectionIndex === 0}
+                    onViewAll={() => {
+                      if (section.id === 'masculino' || section.id === 'feminino' || section.id === 'infantil') {
+                        setActiveCategory(section.id);
+                        setActiveSubcategory('todos');
+                      } else {
+                        setActiveCategory('todos');
+                        setActiveSubcategory(section.id);
+                      }
+                      setCurrentPage(1);
+                      scrollToProducts();
+                    }}
+                  />
                 ))}
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 xl:grid-cols-4">
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
                   {paginatedProducts.map((product, index) => (
                     <ProductCard
                       key={product.id}
                       product={product}
+                      isFavorite={favoriteIds.has(product.id)}
+                      onToggleFavorite={toggleFavorite}
                       priority={visibleCurrentPage === 1 && index < 4}
                     />
                   ))}
@@ -1139,18 +1143,18 @@ export default function Home() {
                       type="button"
                       onClick={() => goToProductsPage(visibleCurrentPage - 1)}
                       disabled={visibleCurrentPage === 1}
-                      className="type-button rounded-full border border-[#E2D2C1] bg-transparent px-4 py-2 text-[#6E625A] transition disabled:cursor-not-allowed disabled:opacity-45 md:hover:border-[#C8722C] md:hover:text-[#4A2D1A]"
+                      className="type-button rounded-full border border-[var(--pastoril-border)] bg-transparent px-4 py-2 text-[var(--pastoril-muted)] transition disabled:cursor-not-allowed disabled:opacity-45 md:hover:border-[var(--pastoril-caramel)] md:hover:text-[var(--pastoril-brown)]"
                     >
                       Anterior
                     </button>
-                    <span className="type-helper text-[#6E625A]">
+                    <span className="type-helper text-[var(--pastoril-muted)]">
                       {visibleCurrentPage} / {totalPages}
                     </span>
                     <button
                       type="button"
                       onClick={() => goToProductsPage(visibleCurrentPage + 1)}
                       disabled={visibleCurrentPage === totalPages}
-                      className="type-button rounded-full border border-[#E2D2C1] bg-transparent px-4 py-2 text-[#6E625A] transition disabled:cursor-not-allowed disabled:opacity-45 md:hover:border-[#C8722C] md:hover:text-[#4A2D1A]"
+                      className="type-button rounded-full border border-[var(--pastoril-border)] bg-transparent px-4 py-2 text-[var(--pastoril-muted)] transition disabled:cursor-not-allowed disabled:opacity-45 md:hover:border-[var(--pastoril-caramel)] md:hover:text-[var(--pastoril-brown)]"
                     >
                       Próxima
                     </button>
@@ -1180,42 +1184,38 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="border-t border-[#E7E0D8] bg-[#F9F6F1] px-4 py-2 text-center text-[11px] font-normal leading-tight text-[#8A7A6E]">
+      <footer className="border-t border-[var(--pastoril-border)] bg-[var(--pastoril-card)] px-4 py-2 text-center text-[11px] font-normal leading-tight text-[var(--pastoril-muted)]">
         <p>&copy; 2026 Pastoril Moda Country. Todos os direitos reservados.</p>
       </footer>
 
       <nav
         data-bottom-mobile-nav
-        className="fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[#E7E0D8] bg-[#F9F6F1]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_rgba(74,45,26,0.08)] backdrop-blur"
+        className="fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[var(--pastoril-border)] bg-[var(--pastoril-card)]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_var(--pastoril-shadow)] backdrop-blur"
         aria-label="Navegação principal"
       >
-        <div className="mx-auto grid h-full max-w-[430px] grid-cols-6 items-start md:max-w-2xl md:items-center md:gap-5 md:px-4">
+        <div className="mx-auto grid h-full max-w-[430px] grid-cols-5 items-start md:max-w-2xl md:items-center md:gap-5 md:px-4">
           <button
             type="button"
             onClick={() => setIsMenuOpen(true)}
-            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[var(--pastoril-brown)]"
             aria-label="Abrir menu"
           >
             <Icon name="menu" className="h-[24px] w-[24px]" />
             <span>Menu</span>
           </button>
-          <a href="#" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#C8722C]">
+          <a href="#" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[var(--pastoril-caramel)]">
             <Icon name="home" className="h-[24px] w-[24px]" />
             <span>Início</span>
           </a>
-          <a href="#categorias" className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]">
-            <Icon name="grid" className="h-[24px] w-[24px]" />
-            <span>Categorias</span>
-          </a>
           <ClienteAuthButton
-            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[var(--pastoril-brown)]"
             iconClassName="h-[24px] w-[24px]"
             labelClassName="block"
             showLabel
           />
           <a
             href="https://wa.me/5568999244811"
-            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[var(--pastoril-brown)]"
             target="_blank"
             rel="noreferrer"
           >
@@ -1224,7 +1224,7 @@ export default function Home() {
           </a>
           <a
             href="https://www.instagram.com/pastorilcountry/"
-            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[#4A2D1A]"
+            className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[var(--pastoril-brown)]"
             target="_blank"
             rel="noreferrer"
           >

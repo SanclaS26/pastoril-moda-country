@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title desc">
+  <title id="title">Produto de demonstração</title>
+  <desc id="desc">Placeholder neutro da Pastoril Moda Country</desc>
+  <rect width="800" height="800" fill="#f3e9df"/>
+  <rect x="56" y="56" width="688" height="688" rx="44" fill="#fffdf9" stroke="#eadfd3" stroke-width="4"/>
+  <path d="M245 358c44-34 73-109 155-109s111 75 155 109M205 405c96 40 294 40 390 0M309 357c32 14 150 14 182 0" fill="none" stroke="#a85f25" stroke-linecap="round" stroke-linejoin="round" stroke-width="18"/>
+  <text x="400" y="530" fill="#4a2413" font-family="Arial, sans-serif" font-size="54" font-weight="700" text-anchor="middle">[DEMO]</text>
+  <text x="400" y="584" fill="#745f50" font-family="Arial, sans-serif" font-size="28" text-anchor="middle">Pastoril Moda Country</text>
+</svg>

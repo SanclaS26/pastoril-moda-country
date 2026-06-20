@@ -326,12 +326,12 @@ export default function AdminBannersPage() {
               </span>
             </label>
 
-            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Previa desktop</p>
+            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Prévia desktop</p>
             <div className={adminBannerDesktopPreviewClass}>
               {desktopPreview ? (
                 <Image
                   src={desktopPreview}
-                  alt="Previa desktop"
+                  alt="Prévia desktop"
                   fill
                   sizes="(min-width: 1280px) 420px, 100vw"
                   unoptimized={desktopPreview.startsWith('blob:')}
@@ -339,7 +339,7 @@ export default function AdminBannersPage() {
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm font-medium text-[#6E625A]">
-                  Previa desktop
+                  Prévia desktop
                 </div>
               )}
             </div>
@@ -357,12 +357,12 @@ export default function AdminBannersPage() {
               </span>
             </label>
 
-            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Previa celular</p>
+            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Prévia mobile</p>
             <div className={adminBannerMobilePreviewClass}>
               {mobilePreview ? (
                 <Image
                   src={mobilePreview}
-                  alt="Previa celular"
+                  alt="Prévia mobile"
                   fill
                   sizes="(min-width: 1280px) 420px, 100vw"
                   unoptimized={mobilePreview.startsWith('blob:')}
@@ -370,7 +370,7 @@ export default function AdminBannersPage() {
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-sm font-medium text-[#6E625A]">
-                  Previa celular
+                  Prévia mobile
                 </div>
               )}
             </div>
@@ -427,9 +427,9 @@ export default function AdminBannersPage() {
 
                   return (
                     <article key={banner.id} className="grid gap-4 px-5 py-5 lg:grid-cols-[220px_1fr] xl:grid-cols-[260px_1fr_auto]">
-                      <div className="grid grid-cols-[1fr_88px] gap-3">
+                      <div className="grid gap-3">
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Desktop</p>
+                          <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Prévia desktop</p>
                           <div className={adminBannerDesktopListPreviewClass}>
                             <Image
                               src={desktopUrl}
@@ -441,13 +441,13 @@ export default function AdminBannersPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Celular</p>
+                          <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Prévia mobile</p>
                           <div className={adminBannerMobileListPreviewClass}>
                             <Image
                               src={mobileUrl}
                               alt={banner.titulo || 'Banner celular'}
                               fill
-                              sizes="88px"
+                              sizes="(min-width: 1280px) 220px, 60vw"
                               className="object-cover object-center"
                             />
                           </div>

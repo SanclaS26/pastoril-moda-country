@@ -7,8 +7,9 @@ export const dynamic = 'force-dynamic';
 const TIME_ZONE = 'America/Rio_Branco';
 const PAGE_SIZE = 1000;
 const MAX_ROWS_TO_AGGREGATE = 50000;
+const UNKNOWN_CITY = 'Localização não identificada';
 
-type VisitAggregateRow = Pick<SiteVisitRow, 'visitor_id' | 'created_at'>;
+type VisitLocationRow = Pick<SiteVisitRow, 'city' | 'region'>;
 
 const dayFormatter = new Intl.DateTimeFormat('en-US', {
   day: '2-digit',
@@ -59,34 +60,27 @@ async function countVisits(
   return count ?? 0;
 }
 
-async function fetchVisitsSince(
+async function fetchVisitLocationsSince(
   supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
   createdAtGte: string,
 ) {
-  const visits: VisitAggregateRow[] = [];
+  const visits: VisitLocationRow[] = [];
 
   for (let from = 0; from < MAX_ROWS_TO_AGGREGATE; from += PAGE_SIZE) {
-    const to = from + PAGE_SIZE - 1;
     const { data, error } = await supabaseAdmin
       .from('site_visits')
-      .select('visitor_id, created_at')
+      .select('city, region')
       .gte('created_at', createdAtGte)
-      .order('created_at', { ascending: true })
-      .range(from, to);
+      .range(from, from + PAGE_SIZE - 1);
 
     if (error) {
-      throw new Error(`Erro ao carregar visitas: ${error.message}`);
+      throw new Error(`Erro ao carregar localizacao das visitas: ${error.message}`);
     }
 
-    if (!data?.length) {
-      break;
-    }
+    if (!data?.length) break;
 
     visits.push(...data);
-
-    if (data.length < PAGE_SIZE) {
-      break;
-    }
+    if (data.length < PAGE_SIZE) break;
   }
 
   return visits;
@@ -107,30 +101,27 @@ export async function GET(request: Request) {
     const startLast7Iso = getRioBrancoStartIso(last7Keys[0]);
     const startTodayIso = getRioBrancoStartIso(todayKey);
 
-    const [visitsTotal, visitsToday, visitsLast7Days, visitsLast30Days, recentVisits] = await Promise.all([
-      countVisits(authorization.supabaseAdmin),
+    const [visitsToday, visitsLast7Days, visitsLast30Days, visitLocations] = await Promise.all([
       countVisits(authorization.supabaseAdmin, startTodayIso),
       countVisits(authorization.supabaseAdmin, startLast7Iso),
       countVisits(authorization.supabaseAdmin, startLast30Iso),
-      fetchVisitsSince(authorization.supabaseAdmin, startLast30Iso),
+      fetchVisitLocationsSince(authorization.supabaseAdmin, startLast7Iso),
     ]);
 
-    const todayVisitors = new Set<string>();
-    const last30Visitors = new Set<string>();
-    const dailyCounts = new Map(last30Keys.map((date) => [date, 0]));
+    const cityCounts = new Map<string, { city: string; region: string | null; visits: number }>();
 
-    recentVisits.forEach((visit) => {
-      const dateKey = getRioBrancoDateKey(new Date(visit.created_at));
+    visitLocations.forEach((visit) => {
+      const city = visit.city?.trim() || UNKNOWN_CITY;
+      const region = city === UNKNOWN_CITY ? null : visit.region?.trim() || null;
+      const key = city === UNKNOWN_CITY
+        ? '__unknown__'
+        : `${city.toLocaleLowerCase('pt-BR')}|${region?.toLocaleLowerCase('pt-BR') ?? ''}`;
+      const current = cityCounts.get(key);
 
-      if (!dailyCounts.has(dateKey)) {
-        return;
-      }
-
-      dailyCounts.set(dateKey, (dailyCounts.get(dateKey) ?? 0) + 1);
-      last30Visitors.add(visit.visitor_id);
-
-      if (dateKey === todayKey) {
-        todayVisitors.add(visit.visitor_id);
+      if (current) {
+        current.visits += 1;
+      } else {
+        cityCounts.set(key, { city, region, visits: 1 });
       }
     });
 
@@ -139,14 +130,8 @@ export async function GET(request: Request) {
         visitsToday,
         visitsLast7Days,
         visitsLast30Days,
-        visitsTotal,
-        uniqueVisitorsToday: todayVisitors.size,
-        uniqueVisitorsLast30Days: last30Visitors.size,
       },
-      daily: last30Keys.map((date) => ({
-        date,
-        visits: dailyCounts.get(date) ?? 0,
-      })),
+      cities: [...cityCounts.values()].sort((left, right) => right.visits - left.visits),
     });
   } catch (error) {
     return NextResponse.json(

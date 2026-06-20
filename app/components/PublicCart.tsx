@@ -204,7 +204,7 @@ export function PublicCart({
       <button
         type="button"
         onClick={() => setIsCartOpen(true)}
-        className="fixed bottom-[calc(var(--mobile-bottom-nav-height)+16px+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--pastoril-header)] text-[var(--pastoril-on-dark)] shadow-[0_8px_18px_var(--pastoril-shadow)] transition hover:brightness-110 md:right-6 md:h-[52px] md:w-[52px]"
+        className="floating-cart-button fixed bottom-[calc(var(--mobile-bottom-nav-height)+16px+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full text-[var(--pastoril-on-dark)] shadow-[0_8px_18px_var(--pastoril-shadow)] transition hover:brightness-110 md:right-6 md:h-[52px] md:w-[52px]"
         aria-label="Abrir carrinho"
       >
         <PublicCartIcon name="cart" className="h-6 w-6" />

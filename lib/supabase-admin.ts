@@ -118,17 +118,23 @@ export type CategoriaRow = {
 };
 
 export type SiteVisitRow = {
+  city: string | null;
+  country: string | null;
   id: string;
   visitor_id: string;
   session_id: string;
   pathname: string;
+  region: string | null;
   created_at: string;
 };
 
 export type SiteVisitInsert = {
+  city?: string | null;
+  country?: string | null;
   visitor_id: string;
   session_id: string;
   pathname: string;
+  region?: string | null;
   created_at?: string;
 };
 

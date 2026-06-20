@@ -7,6 +7,7 @@ import { ClienteAuthButton } from '@/app/components/ClienteAuthButton';
 import { useClienteAuth } from '@/app/components/ClienteAuthProvider';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
+import { StoreMenu } from '@/app/components/StoreMenu';
 import { homeBannerFrameClass } from '@/lib/banner-layout';
 import { usePublicCart } from '@/lib/use-public-cart';
 import { useWishlist } from '@/lib/use-wishlist';
@@ -721,8 +722,15 @@ export default function Home() {
   const [activeSubcategory, setActiveSubcategory] = useState('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
   const productsSectionRef = useRef<HTMLElement | null>(null);
-  const { openClienteAuth } = useClienteAuth();
+  const {
+    clientePerfil,
+    isClienteLoggedIn,
+    loadClienteProfile,
+    logoutCliente,
+    openClienteAuth,
+  } = useClienteAuth();
   const { favoriteIds, toggleFavorite } = useWishlist();
   const publicCart = usePublicCart();
   const {
@@ -851,6 +859,11 @@ export default function Home() {
       { id: 'infantil', title: 'Infantil', products: unique(availableProducts.filter((product) => productMatchesMainCategory(product, 'infantil'))) },
     ].filter((section) => section.products.length > 0);
   }, [products]);
+  const menuCategories = mainCategories.map((category) => ({
+    id: category.id,
+    label: category.label,
+    subcategories: [],
+  }));
   const selectedSubcategoryLabel =
     subcategories.find((subcategory) => subcategory.slug === activeSubcategory)?.label ??
     quickLinks.find((item) => item.id === activeSubcategory)?.title ??
@@ -894,145 +907,42 @@ export default function Home() {
     });
   };
 
+  const openStoreMenu = () => {
+    setIsMenuOpen(true);
+    if (isClienteLoggedIn) {
+      void loadClienteProfile();
+    }
+  };
+
   return (
     <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)]">
       <StoreHeader
         onCartToggle={() => setIsCartOpen(!isCartOpen)}
-        onMenuOpen={() => setIsMenuOpen(true)}
+        onMenuOpen={openStoreMenu}
         totalItems={totalItems}
       />
 
       {isMenuOpen && (
-        <>
-          <button
-            type="button"
-            aria-label="Fechar menu"
-            onClick={() => setIsMenuOpen(false)}
-            className="fixed inset-0 z-50 bg-black/30"
-          />
-
-          <aside
-            className="fixed inset-y-0 left-0 z-[60] w-[82%] max-w-[340px] animate-[slideInMenu_220ms_ease-out] overflow-hidden border-r border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-xl md:max-w-[360px]"
-            aria-label="Menu principal"
-          >
-            <div
-              className="absolute inset-0 bg-cover bg-[position:center_bottom] bg-no-repeat opacity-70"
-              style={{ backgroundImage: "url('/brand/menu/sidebar-menu-bg.png')" }}
-              aria-hidden="true"
-            />
-            <div className="relative z-10 flex h-full flex-col">
-              <div className="relative flex items-center justify-center border-b border-[var(--pastoril-border)] px-14 pb-5 pt-6">
-                <Image
-                  src="/brand/pastoril-logo-header.png"
-                  alt="Pastoril Moda Country"
-                  width={140}
-                  height={80}
-                  priority
-                  unoptimized
-                  className="h-auto w-[120px] object-contain md:w-[140px]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-transparent text-xl leading-none text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
-                  aria-label="Fechar menu"
-                >
-                  x
-                </button>
-              </div>
-
-              <nav className="flex-1 overflow-y-auto px-4 py-3" aria-label="Links do menu">
-                <button
-                  type="button"
-                  onClick={goHomeFromMenu}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
-                >
-                  Início
-                </button>
-
-                {mainCategories
-                  .filter((category) => category.id !== 'todos')
-                  .map((category) => {
-                    const isActive = activeCategory === category.id;
-
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        onClick={() => selectMainCategoryFromMenu(category.id)}
-                        className={`type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
-                          isActive ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
-                        }`}
-                      >
-                        {category.label}
-                      </button>
-                    );
-                  })}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveCategory('todos');
-                    setActiveSubcategory('promocoes');
-                    setCurrentPage(1);
-                    setIsMenuOpen(false);
-                    scrollToProducts();
-                  }}
-                  className={`type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
-                    activeSubcategory === 'promocoes' ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
-                  }`}
-                >
-                  Promoções
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    scrollToProducts();
-                  }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
-                >
-                  Buscar produtos
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    setIsCartOpen(true);
-                  }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] bg-transparent px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
-                >
-                  Carrinho
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    openClienteAuth();
-                  }}
-                  className="type-button flex min-h-12 w-full items-center border-b border-[var(--pastoril-border)] px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
-                >
-                  Minha conta
-                </button>
-
-                <Link
-                  href="/quem-somos"
-                  onClick={() => setIsMenuOpen(false)}
-                  className="type-button flex min-h-12 w-full items-center px-2 py-3 text-left text-[var(--pastoril-brown)] transition hover:text-[var(--pastoril-caramel)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
-                >
-                  Quem somos
-                </Link>
-              </nav>
-            </div>
-          </aside>
-        </>
+        <StoreMenu
+          categories={menuCategories}
+          customerLabel={isClienteLoggedIn ? `Bem-vindo${clientePerfil?.nome ? `, ${clientePerfil.nome}` : ''}` : 'Entrar ou cadastrar'}
+          customerDetail={isClienteLoggedIn ? 'Acesse seus pedidos e dados' : 'Acesse seus pedidos e favoritos'}
+          isCategoriesOpen={isCategoriesOpen}
+          isLoggedIn={isClienteLoggedIn}
+          onCategoriesToggle={() => setIsCategoriesOpen((open) => !open)}
+          onCategory={selectMainCategoryFromMenu}
+          onClose={() => setIsMenuOpen(false)}
+          onCustomer={() => { setIsMenuOpen(false); openClienteAuth(); }}
+          onHome={goHomeFromMenu}
+          onLogout={() => { setIsMenuOpen(false); void logoutCliente(); }}
+          onNew={() => { setActiveCategory('todos'); setActiveSubcategory('destaques'); setCurrentPage(1); setIsMenuOpen(false); scrollToProducts(); }}
+          onProducts={() => { setActiveCategory('todos'); setActiveSubcategory('todos'); setCurrentPage(1); setIsMenuOpen(false); scrollToProducts(); }}
+          onPromotion={() => { setActiveCategory('todos'); setActiveSubcategory('promocoes'); setCurrentPage(1); setIsMenuOpen(false); scrollToProducts(); }}
+        />
       )}
 
       <main>
-        <section className="relative z-20 mx-auto -mt-4 max-w-7xl px-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:h-12 before:bg-[linear-gradient(to_bottom,var(--pastoril-header),transparent)] before:content-[''] sm:px-6 md:-mt-2 md:before:h-8 lg:px-8">
+        <section className="home-banner-section relative z-20 mx-auto -mt-4 max-w-7xl px-3 before:pointer-events-none before:absolute before:inset-x-0 before:-top-1 before:h-12 before:bg-[linear-gradient(to_bottom,var(--pastoril-header),transparent)] before:content-[''] sm:px-6 md:-mt-2 md:before:h-8 lg:px-8">
           <div className="relative w-full">
             <div className={homeBannerFrameClass}>
               <BannerCarousel banners={banners} loading={loadingBanners} />
@@ -1190,13 +1100,14 @@ export default function Home() {
 
       <nav
         data-bottom-mobile-nav
-        className="fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[var(--pastoril-border)] bg-[var(--pastoril-card)]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_var(--pastoril-shadow)] backdrop-blur"
+        className={`fixed bottom-0 left-0 right-0 z-40 h-[calc(72px+env(safe-area-inset-bottom))] border-t border-[var(--pastoril-border)] bg-[var(--pastoril-card)]/95 px-2 pb-[env(safe-area-inset-bottom)] pt-2 shadow-[0_-4px_14px_var(--pastoril-shadow)] backdrop-blur ${isMenuOpen ? 'invisible pointer-events-none' : ''}`}
         aria-label="Navegação principal"
+        aria-hidden={isMenuOpen}
       >
         <div className="mx-auto grid h-full max-w-[430px] grid-cols-5 items-start md:max-w-2xl md:items-center md:gap-5 md:px-4">
           <button
             type="button"
-            onClick={() => setIsMenuOpen(true)}
+            onClick={openStoreMenu}
             className="type-bottom-menu flex min-h-[56px] flex-col items-center justify-center gap-1 text-[var(--pastoril-brown)]"
             aria-label="Abrir menu"
           >

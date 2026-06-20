@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { signInClienteWithPhone } from '@/lib/cliente-login';
@@ -8,8 +8,14 @@ import { formatCpf, formatPhone, normalizeClientePhone } from '@/lib/cliente-uti
 import { clienteSupabase } from '@/lib/supabase-cliente';
 
 type ClienteAuthContextValue = {
+  clientePerfil: ClientePerfil | null;
   isClienteLoggedIn: boolean;
+  loadClienteProfile: () => Promise<void>;
+  logoutCliente: () => Promise<void>;
   openClienteAuth: () => void;
+  openClienteData: () => void;
+  openClienteOrders: () => Promise<void>;
+  openClienteWishlist: () => void;
   requireClienteForCheckout: () => Promise<Session | null>;
 };
 
@@ -447,14 +453,17 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = useMemo(
-    () => ({
-      isClienteLoggedIn: Boolean(clienteSession),
-      openClienteAuth,
-      requireClienteForCheckout,
-    }),
-    [clienteSession, openClienteAuth, requireClienteForCheckout],
-  );
+  const value = {
+    clientePerfil,
+    isClienteLoggedIn: Boolean(clienteSession),
+    loadClienteProfile: loadClientePerfil,
+    logoutCliente: handleLogout,
+    openClienteAuth,
+    openClienteData: openProfileEdit,
+    openClienteOrders: openPurchases,
+    openClienteWishlist: openWishlist,
+    requireClienteForCheckout,
+  };
 
   return (
     <ClienteAuthContext.Provider value={value}>

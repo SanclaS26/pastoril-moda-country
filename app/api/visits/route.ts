@@ -8,6 +8,7 @@ const SESSION_COOKIE = 'pastoril_session_id';
 const VISITOR_MAX_AGE = 60 * 60 * 24 * 400;
 const SESSION_MAX_AGE = 60 * 60 * 8;
 const DEDUPE_WINDOW_MS = 30 * 60 * 1000;
+const MAX_LOCATION_LENGTH = 120;
 
 const BOT_PATTERNS = [
   'bot',
@@ -75,6 +76,23 @@ function normalizePathname(pathname: unknown) {
   return trimmed.split('?')[0].split('#')[0] || null;
 }
 
+function normalizeLocationHeader(value: string | null, decode = false) {
+  if (!value) return null;
+
+  let normalized = value;
+
+  if (decode) {
+    try {
+      normalized = decodeURIComponent(value);
+    } catch {
+      return null;
+    }
+  }
+
+  const trimmed = normalized.trim();
+  return trimmed ? trimmed.slice(0, MAX_LOCATION_LENGTH) : null;
+}
+
 function withVisitCookies(response: NextResponse, visitorId: string, sessionId: string) {
   const secure = process.env.NODE_ENV === 'production';
 
@@ -122,6 +140,9 @@ export async function POST(request: Request) {
   const sessionId = isUuid(getCookieValue(request, SESSION_COOKIE))
     ? (getCookieValue(request, SESSION_COOKIE) as string)
     : crypto.randomUUID();
+  const city = normalizeLocationHeader(request.headers.get('x-vercel-ip-city'), true);
+  const region = normalizeLocationHeader(request.headers.get('x-vercel-ip-country-region'));
+  const country = normalizeLocationHeader(request.headers.get('x-vercel-ip-country'));
 
   let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
 
@@ -156,9 +177,12 @@ export async function POST(request: Request) {
 
   const { error: insertError } = await supabaseAdmin.from('site_visits').insert([
     {
+      city,
+      country,
       visitor_id: visitorId,
       session_id: sessionId,
       pathname,
+      region,
     },
   ]);
 

@@ -33,11 +33,8 @@ interface VisitStats {
     visitsToday: number;
     visitsLast7Days: number;
     visitsLast30Days: number;
-    visitsTotal: number;
-    uniqueVisitorsToday: number;
-    uniqueVisitorsLast30Days: number;
   };
-  daily: VisitDailyPoint[];
+  cities: Array<{ city: string; region: string | null; visits: number }>;
 }
 
 type AdminSection = 'dashboard' | 'usuarios';
@@ -52,24 +49,14 @@ function StatCard({ label, value, helper }: { label: string; value: string | num
   );
 }
 
-function ExtraVisitMetric({ label, value, helper }: { label: string; value: string | number; helper: string }) {
-  return (
-    <div className="border-b border-[#E7E0D8] py-4 first:pt-0 last:border-0 last:pb-0">
-      <p className="text-sm font-bold text-[#4A2D1A]">{label}</p>
-      <p className="mt-1 text-2xl font-black tracking-tight text-[#241C17]">{value}</p>
-      <p className="mt-1 text-xs font-medium leading-relaxed text-[#6E625A]">{helper}</p>
-    </div>
-  );
-}
-
-function formatDateLabel(dateKey: string) {
+export function formatDateLabel(dateKey: string) {
   const [year, month, day] = dateKey.split('-').map(Number);
   const date = new Date(year, month - 1, day);
 
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 }
 
-function VisitsChart({ data, error, loading }: { data: VisitDailyPoint[]; error: string; loading: boolean }) {
+export function VisitsChart({ data, error, loading }: { data: VisitDailyPoint[]; error: string; loading: boolean }) {
   const maxVisits = Math.max(...data.map((item) => item.visits), 1);
   const hasVisits = data.some((item) => item.visits > 0);
   const chartWidth = 720;
@@ -307,39 +294,18 @@ export default function AdminPage() {
     () => [
       {
         helper: 'Pageviews registrados desde 00h',
-        label: 'Hoje',
+        label: 'Visitas hoje',
         value: visitStats?.metrics.visitsToday ?? 0,
       },
       {
         helper: 'Soma dos ultimos 7 dias',
-        label: '7 dias',
+        label: 'Visitas nos últimos 7 dias',
         value: visitStats?.metrics.visitsLast7Days ?? 0,
       },
       {
         helper: 'Soma dos ultimos 30 dias',
-        label: '30 dias',
+        label: 'Visitas nos últimos 30 dias',
         value: visitStats?.metrics.visitsLast30Days ?? 0,
-      },
-    ],
-    [visitStats],
-  );
-
-  const extraVisitMetrics = useMemo(
-    () => [
-      {
-        helper: 'Historico total registrado',
-        label: 'Total de visitas',
-        value: visitStats?.metrics.visitsTotal ?? 0,
-      },
-      {
-        helper: 'Visitantes anonimos unicos hoje',
-        label: 'Unicos hoje',
-        value: visitStats?.metrics.uniqueVisitorsToday ?? 0,
-      },
-      {
-        helper: 'Visitantes anonimos unicos em 30 dias',
-        label: 'Unicos em 30 dias',
-        value: visitStats?.metrics.uniqueVisitorsLast30Days ?? 0,
       },
     ],
     [visitStats],
@@ -451,27 +417,34 @@ export default function AdminPage() {
               ))}
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-              <section className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] sm:p-5">
-                <div className="mb-4">
-                  <h3 className="text-base font-bold text-[#241C17]">Visitas nos ultimos 30 dias</h3>
-                  <p className="mt-1 text-xs font-medium text-[#6E625A]">Agrupadas pelo horario de Rio Branco.</p>
+            <section className="overflow-hidden rounded-2xl border border-[#E7E0D8] bg-white shadow-[0_8px_18px_rgba(74,45,26,0.04)]">
+              <div className="border-b border-[#E7E0D8] px-5 py-4">
+                <h3 className="text-base font-bold text-[#241C17]">Visitas por cidade — últimos 7 dias</h3>
+                <p className="mt-1 text-xs font-medium text-[#6E625A]">Ordenadas da maior quantidade para a menor.</p>
+                <p className="mt-1 text-xs text-[#6E625A]">Em localhost, a localização pode não estar disponível. Para validar dados reais, acesse a publicação na Vercel.</p>
+              </div>
+              {loadingVisits ? (
+                <p className="px-5 py-8 text-center text-sm text-[#6E625A]">Carregando visitas...</p>
+              ) : visitsError ? (
+                <p className="m-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{visitsError}</p>
+              ) : visitStats?.cities.length ? (
+                <ul className="divide-y divide-[#E7E0D8]">
+                  {[...visitStats.cities].sort((left, right) => right.visits - left.visits).map((item) => (
+                    <li key={`${item.city}-${item.region ?? ''}`} className="flex items-center justify-between gap-4 px-5 py-3 text-sm">
+                      <span className="font-semibold text-[#4A2D1A]">
+                        {item.city}
+                        {item.region && <span className="ml-1 font-normal text-[#6E625A]">— {item.region}</span>}
+                      </span>
+                      <span className="font-bold tabular-nums text-[#241C17]">{item.visits}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="px-5 py-8 text-center">
+                  <p className="text-sm font-semibold text-[#4A2D1A]">Nenhuma visita registrada nos últimos 7 dias.</p>
                 </div>
-                <VisitsChart data={visitStats?.daily ?? []} error={visitsError} loading={loadingVisits} />
-              </section>
-
-              <section className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] sm:p-5">
-                <h3 className="mb-4 text-base font-bold text-[#241C17]">Metricas adicionais</h3>
-                {extraVisitMetrics.map((metric) => (
-                  <ExtraVisitMetric
-                    key={metric.label}
-                    label={metric.label}
-                    value={loadingVisits ? '...' : metric.value}
-                    helper={metric.helper}
-                  />
-                ))}
-              </section>
-            </div>
+              )}
+            </section>
           </section>
         </div>
       )}

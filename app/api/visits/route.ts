@@ -7,31 +7,11 @@ const VISITOR_COOKIE = 'pastoril_visitor_id';
 const SESSION_COOKIE = 'pastoril_session_id';
 const VISITOR_MAX_AGE = 60 * 60 * 24 * 400;
 const SESSION_MAX_AGE = 60 * 60 * 8;
-const DEDUPE_WINDOW_MS = 30 * 60 * 1000;
-const MAX_LOCATION_LENGTH = 120;
-
-const BOT_PATTERNS = [
-  'bot',
-  'crawler',
-  'spider',
-  'slurp',
-  'bingpreview',
-  'facebookexternalhit',
-  'whatsapp',
-  'telegrambot',
-  'discordbot',
-  'preview',
-  'lighthouse',
-  'pagespeed',
-];
+const TIME_ZONE = 'America/Rio_Branco';
+const BOT_PATTERNS = ['bot', 'crawler', 'spider', 'slurp', 'bingpreview', 'facebookexternalhit', 'whatsapp', 'telegrambot', 'discordbot', 'preview', 'lighthouse', 'pagespeed'];
 
 function getCookieValue(request: Request, name: string) {
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  const cookie = cookieHeader
-    .split(';')
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(`${name}=`));
-
+  const cookie = (request.headers.get('cookie') ?? '').split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
   return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null;
 }
 
@@ -43,152 +23,58 @@ function shouldIgnoreRequest(request: Request) {
   const userAgent = request.headers.get('user-agent')?.toLowerCase() ?? '';
   const purpose = request.headers.get('purpose')?.toLowerCase() ?? '';
   const secPurpose = request.headers.get('sec-purpose')?.toLowerCase() ?? '';
-  const nextPrefetch = request.headers.get('next-router-prefetch');
-
-  return (
-    purpose.includes('prefetch') ||
-    secPurpose.includes('prefetch') ||
-    nextPrefetch === '1' ||
-    BOT_PATTERNS.some((pattern) => userAgent.includes(pattern))
-  );
+  return purpose.includes('prefetch') || secPurpose.includes('prefetch') || request.headers.get('next-router-prefetch') === '1' || BOT_PATTERNS.some((pattern) => userAgent.includes(pattern));
 }
 
 function normalizePathname(pathname: unknown) {
-  if (typeof pathname !== 'string') {
-    return null;
-  }
-
+  if (typeof pathname !== 'string') return null;
   const trimmed = pathname.trim();
-
-  if (!trimmed.startsWith('/') || trimmed.length > 300) {
-    return null;
-  }
-
-  if (
-    trimmed.startsWith('/admin') ||
-    trimmed.startsWith('/api/') ||
-    trimmed.startsWith('/_next/') ||
-    trimmed.includes('..')
-  ) {
-    return null;
-  }
-
+  if (!trimmed.startsWith('/') || trimmed.length > 300 || trimmed.startsWith('/admin') || trimmed.startsWith('/api/') || trimmed.startsWith('/_next/') || trimmed.includes('..')) return null;
   return trimmed.split('?')[0].split('#')[0] || null;
 }
 
-function normalizeLocationHeader(value: string | null, decode = false) {
-  if (!value) return null;
-
-  let normalized = value;
-
-  if (decode) {
-    try {
-      normalized = decodeURIComponent(value);
-    } catch {
-      return null;
-    }
-  }
-
-  const trimmed = normalized.trim();
-  return trimmed ? trimmed.slice(0, MAX_LOCATION_LENGTH) : null;
+function getVisitDate() {
+  return new Intl.DateTimeFormat('en-CA', { day: '2-digit', month: '2-digit', timeZone: TIME_ZONE, year: 'numeric' }).format(new Date());
 }
 
-function withVisitCookies(response: NextResponse, visitorId: string, sessionId: string) {
+function getBearerToken(request: Request) {
+  const [scheme, token] = request.headers.get('authorization')?.split(' ') ?? [];
+  return scheme?.toLowerCase() === 'bearer' && token ? token : null;
+}
+
+function withVisitCookies(response: NextResponse, visitorId: string | null, sessionId: string) {
   const secure = process.env.NODE_ENV === 'production';
-
-  response.cookies.set(VISITOR_COOKIE, visitorId, {
-    httpOnly: true,
-    maxAge: VISITOR_MAX_AGE,
-    path: '/',
-    sameSite: 'lax',
-    secure,
-  });
-
-  response.cookies.set(SESSION_COOKIE, sessionId, {
-    httpOnly: true,
-    maxAge: SESSION_MAX_AGE,
-    path: '/',
-    sameSite: 'lax',
-    secure,
-  });
-
+  if (visitorId) response.cookies.set(VISITOR_COOKIE, visitorId, { httpOnly: true, maxAge: VISITOR_MAX_AGE, path: '/', sameSite: 'lax', secure });
+  response.cookies.set(SESSION_COOKIE, sessionId, { httpOnly: true, maxAge: SESSION_MAX_AGE, path: '/', sameSite: 'lax', secure });
   return response;
 }
 
 export async function POST(request: Request) {
-  if (shouldIgnoreRequest(request)) {
-    return new NextResponse(null, { status: 204 });
-  }
+  if (shouldIgnoreRequest(request)) return new NextResponse(null, { status: 204 });
 
   let pathname: string | null = null;
-
-  try {
-    const body = await request.json();
-    pathname = normalizePathname(body?.pathname);
-  } catch {
-    return NextResponse.json({ error: 'Payload invalido.' }, { status: 400 });
-  }
-
-  if (!pathname) {
-    return new NextResponse(null, { status: 204 });
-  }
-
-  const visitorId = isUuid(getCookieValue(request, VISITOR_COOKIE))
-    ? (getCookieValue(request, VISITOR_COOKIE) as string)
-    : crypto.randomUUID();
-
-  const sessionId = isUuid(getCookieValue(request, SESSION_COOKIE))
-    ? (getCookieValue(request, SESSION_COOKIE) as string)
-    : crypto.randomUUID();
-  const city = normalizeLocationHeader(request.headers.get('x-vercel-ip-city'), true);
-  const region = normalizeLocationHeader(request.headers.get('x-vercel-ip-country-region'));
-  const country = normalizeLocationHeader(request.headers.get('x-vercel-ip-country'));
+  try { pathname = normalizePathname((await request.json())?.pathname); } catch { return NextResponse.json({ error: 'Payload invalido.' }, { status: 400 }); }
+  if (!pathname) return new NextResponse(null, { status: 204 });
 
   let supabaseAdmin: ReturnType<typeof getSupabaseAdmin>;
-
-  try {
-    supabaseAdmin = getSupabaseAdmin();
-  } catch (error) {
-    if (error instanceof SupabaseAdminConfigError) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ error: 'Erro ao configurar visitas.' }, { status: 500 });
+  try { supabaseAdmin = getSupabaseAdmin(); } catch (error) {
+    return NextResponse.json({ error: error instanceof SupabaseAdminConfigError ? error.message : 'Erro ao configurar visitas.' }, { status: 500 });
   }
 
-  const since = new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString();
-  const { data: recentVisit, error: recentVisitError } = await supabaseAdmin
-    .from('site_visits')
-    .select('id')
-    .eq('visitor_id', visitorId)
-    .eq('session_id', sessionId)
-    .eq('pathname', pathname)
-    .gte('created_at', since)
-    .limit(1)
-    .maybeSingle();
+  const token = getBearerToken(request);
+  const { data: userData } = token ? await supabaseAdmin.auth.getUser(token) : { data: { user: null } };
+  const userId = userData.user?.id ?? null;
+  const visitorId = userId ? null : (isUuid(getCookieValue(request, VISITOR_COOKIE)) ? getCookieValue(request, VISITOR_COOKIE) : crypto.randomUUID());
+  const sessionId = isUuid(getCookieValue(request, SESSION_COOKIE)) ? (getCookieValue(request, SESSION_COOKIE) as string) : crypto.randomUUID();
 
-  if (recentVisitError) {
-    return NextResponse.json({ error: 'Erro ao verificar visita recente.' }, { status: 500 });
-  }
+  const { error } = await supabaseAdmin.from('site_visits').insert({
+    pathname,
+    session_id: sessionId,
+    user_id: userId,
+    visit_date: getVisitDate(),
+    visitor_id: visitorId,
+  });
 
-  if (recentVisit) {
-    return withVisitCookies(NextResponse.json({ ok: true, skipped: true }), visitorId, sessionId);
-  }
-
-  const { error: insertError } = await supabaseAdmin.from('site_visits').insert([
-    {
-      city,
-      country,
-      visitor_id: visitorId,
-      session_id: sessionId,
-      pathname,
-      region,
-    },
-  ]);
-
-  if (insertError) {
-    return NextResponse.json({ error: 'Erro ao registrar visita.' }, { status: 500 });
-  }
-
-  return withVisitCookies(NextResponse.json({ ok: true }, { status: 201 }), visitorId, sessionId);
+  if (error && error.code !== '23505') return NextResponse.json({ error: 'Erro ao registrar visita.' }, { status: 500 });
+  return withVisitCookies(NextResponse.json({ ok: true, skipped: error?.code === '23505' }, { status: error ? 200 : 201 }), visitorId, sessionId);
 }

@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
 
-export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'clientes' | 'vendas' | 'banners' | 'wishlists';
+export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'clientes' | 'vendas' | 'carrinhos' | 'banners' | 'wishlists';
 
 type AdminShellProps = {
   title: string;
@@ -18,13 +18,14 @@ type AdminShellProps = {
 
 type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' | 'chevron' | 'heart';
 
-const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName }[] = [
+const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName; subItem?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin', icon: 'home' },
   { key: 'produtos', label: 'Produtos', href: '/admin/produtos', icon: 'box' },
   { key: 'usuarios', label: 'Usuarios', href: '/admin/usuarios', icon: 'users' },
   { key: 'clientes', label: 'Clientes', href: '/admin/clientes', icon: 'users' },
-  { key: 'wishlists', label: 'Listas de desejos', href: '/admin/listas-de-desejos', icon: 'heart' },
   { key: 'vendas', label: 'Vendas', href: '/admin/vendas', icon: 'box' },
+  { key: 'carrinhos', label: 'Carrinhos abertos', href: '/admin/vendas/carrinhos-abertos', icon: 'box' },
+  { key: 'wishlists', label: 'Listas de desejos', href: '/admin/listas-de-desejos', icon: 'heart' },
   { key: 'banners', label: 'Banners', href: '/admin/banners', icon: 'image' },
 ];
 
@@ -161,7 +162,7 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
             key={item.key}
             href={item.href}
             onClick={() => setSidebarOpen(false)}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition ${
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition ${item.subItem ? 'ml-5 py-2.5 text-xs' : ''} ${
               isActive
                 ? 'bg-[#C8722C] text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)]'
                 : 'text-[#4A2D1A] hover:bg-[#F7F0E7]'

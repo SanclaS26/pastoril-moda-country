@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import AdminShell from '@/app/admin/components/AdminShell';
 import { formatCpf, formatPhone } from '@/lib/cliente-utils';
 import { formatCurrency } from '@/lib/catalog';
@@ -20,6 +21,14 @@ function formatDateTime(value: string | null | undefined) {
     dateStyle: 'short',
     timeStyle: 'short',
   });
+}
+
+function formatOpenTime(createdAt: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(createdAt).getTime()) / 60000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours} h`;
+  return `${Math.round(hours / 24)} dias`;
 }
 
 function statusLabel(status: VendaStatus) {
@@ -46,6 +55,8 @@ async function getSessionToken() {
 
 export default function AdminVendasPage() {
   useProtectedRoute();
+  const pathname = usePathname();
+  const isOpenCarts = pathname.endsWith('/carrinhos-abertos');
 
   const [vendas, setVendas] = useState<VendaWithItems[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,6 +78,7 @@ export default function AdminVendasPage() {
         setLoading(true);
         const token = await getSessionToken();
         const params = new URLSearchParams();
+        params.set('view', isOpenCarts ? 'open_carts' : 'sales');
         if (search) params.set('search', search);
         if (status !== 'todos') params.set('status', status);
         if (tipo !== 'todos') params.set('tipo', tipo);
@@ -97,7 +109,7 @@ export default function AdminVendasPage() {
     const timeout = window.setTimeout(fetchVendas, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [deletedFilter, end, search, start, status, tipo]);
+  }, [deletedFilter, end, isOpenCarts, search, start, status, tipo]);
 
   const indicators = useMemo(
     () => ({
@@ -237,28 +249,37 @@ export default function AdminVendasPage() {
   };
 
   return (
-    <AdminShell title="Vendas" subtitle="Carrinhos em aberto e pedidos enviados pelo WhatsApp." active="vendas">
+    <AdminShell
+      title={isOpenCarts ? 'Carrinhos abertos' : 'Vendas'}
+      subtitle={isOpenCarts ? 'Carrinhos ainda não enviados ou finalizados.' : 'Pedidos enviados e vendas processadas.'}
+      active={isOpenCarts ? 'carrinhos' : 'vendas'}
+    >
       <div className="space-y-5">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Indicator label="Carrinhos abertos" value={loading ? '...' : indicators.carrinhos} />
-          <Indicator label="Vendas em aberto" value={loading ? '...' : indicators.emAberto} />
-          <Indicator label="Concluidas" value={loading ? '...' : indicators.concluidas} />
-          <Indicator label="Canceladas" value={loading ? '...' : indicators.canceladas} />
+          {isOpenCarts ? (
+            <Indicator label="Carrinhos abertos" value={loading ? '...' : indicators.carrinhos} />
+          ) : (
+            <>
+              <Indicator label="Vendas em aberto" value={loading ? '...' : indicators.emAberto} />
+              <Indicator label="Concluidas" value={loading ? '...' : indicators.concluidas} />
+              <Indicator label="Canceladas" value={loading ? '...' : indicators.canceladas} />
+            </>
+          )}
         </div>
 
-        <section className="grid gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] md:grid-cols-6">
+        <section className={`grid gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] ${isOpenCarts ? 'md:grid-cols-4' : 'md:grid-cols-6'}`}>
           <input value={search} onChange={(event) => setSearch(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" placeholder="Codigo, nome, CPF ou celular" />
-          <select value={tipo} onChange={(event) => setTipo(event.target.value as TipoFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
+          {!isOpenCarts && <select value={tipo} onChange={(event) => setTipo(event.target.value as TipoFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
             <option value="todos">Todos os tipos</option>
             <option value="carrinho">Carrinhos</option>
             <option value="pedido_whatsapp">WhatsApp</option>
-          </select>
-          <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
+          </select>}
+          {!isOpenCarts && <select value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
             <option value="todos">Todos os status</option>
             <option value="em_aberto">Em aberto</option>
             <option value="concluida">Concluida</option>
             <option value="cancelada">Cancelada</option>
-          </select>
+          </select>}
           <select value={deletedFilter} onChange={(event) => setDeletedFilter(event.target.value as DeletedFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
             <option value="ativas">Ativas</option>
             <option value="excluidas">Excluidas</option>
@@ -273,7 +294,7 @@ export default function AdminVendasPage() {
           {loading ? (
             <div className="px-4 py-12 text-center text-sm text-[#6E625A]">Carregando vendas...</div>
           ) : vendas.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-[#6E625A]">Nenhuma venda encontrada.</div>
+            <div className="px-4 py-12 text-center text-sm text-[#6E625A]">{isOpenCarts ? 'Nenhum carrinho aberto encontrado.' : 'Nenhuma venda encontrada.'}</div>
           ) : (
             <>
               <div className="hidden overflow-x-auto lg:block">
@@ -283,8 +304,10 @@ export default function AdminVendasPage() {
                       <Th>Codigo</Th>
                       <Th>Data</Th>
                       <Th>Cliente</Th>
-                      <Th>Produtos</Th>
+                      {isOpenCarts && <Th>Telefone</Th>}
+                      <Th>{isOpenCarts ? 'Quantidade de itens' : 'Produtos'}</Th>
                       <Th>Total</Th>
+                      {isOpenCarts && <Th>Tempo aberto</Th>}
                       <Th>Status</Th>
                       <Th>Acoes</Th>
                     </tr>
@@ -295,8 +318,10 @@ export default function AdminVendasPage() {
                         <Td>{venda.codigo}</Td>
                         <Td>{formatDateTime(venda.whatsapp_enviado_em ?? venda.created_at)}</Td>
                         <Td>{clienteLabel(venda)}</Td>
-                        <Td>{venda.itens.map((item) => `${item.quantidade_final}x ${item.nome} (${item.tamanho})`).join(' | ')}</Td>
+                        {isOpenCarts && <Td>{venda.cliente_celular ? formatPhone(venda.cliente_celular) : '-'}</Td>}
+                        <Td>{isOpenCarts ? venda.itens.reduce((sum, item) => sum + item.quantidade_final, 0) : venda.itens.map((item) => `${item.quantidade_final}x ${item.nome} (${item.tamanho})`).join(' | ')}</Td>
                         <Td>{formatCurrency(venda.total_final ?? venda.total_original)}</Td>
+                        {isOpenCarts && <Td>{formatOpenTime(venda.created_at)}</Td>}
                         <Td>{statusLabel(venda.status)}</Td>
                         <Td>
                           <div className="flex flex-wrap gap-2">
@@ -327,6 +352,7 @@ export default function AdminVendasPage() {
                       <div>
                         <h2 className="text-sm font-bold text-[#241C17]">{venda.codigo}</h2>
                         <p className="text-xs text-[#6E625A]">{clienteLabel(venda)} - {statusLabel(venda.status)}</p>
+                        {isOpenCarts && <p className="text-xs text-[#6E625A]">{venda.cliente_celular ? formatPhone(venda.cliente_celular) : 'Sem telefone'} · {formatOpenTime(venda.created_at)}</p>}
                       </div>
                       <div className="flex flex-col gap-2">
                         <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]">Ver</button>

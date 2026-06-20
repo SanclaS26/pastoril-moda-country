@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireActiveAdmin } from '@/lib/admin-auth';
 import { normalizeVendaStatus } from '@/lib/vendas';
 import { cleanupExpiredOpenCarts } from '@/lib/vendas-cleanup';
+import { CART_TYPE, OPEN_STATUS } from '@/lib/admin-dashboard';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
   const start = params.get('start');
   const end = params.get('end');
   const deleted = params.get('deleted');
+  const view = params.get('view') === 'open_carts' ? 'open_carts' : 'sales';
   const searchDigits = search.replace(/\D/g, '');
 
   let query = authorization.supabaseAdmin
@@ -33,6 +35,12 @@ export async function GET(request: Request) {
     query = query.not('deleted_at', 'is', null);
   } else {
     query = query.is('deleted_at', null);
+  }
+
+  if (view === 'open_carts') {
+    query = query.eq('tipo', CART_TYPE).eq('status', OPEN_STATUS);
+  } else {
+    query = query.or('tipo.neq.carrinho,status.neq.em_aberto');
   }
 
   if (status) {

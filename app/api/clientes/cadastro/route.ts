@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import {
   isValidCpf,
   normalizeClientePhone,
-  normalizeOptionalEmail,
+  normalizeRequiredEmail,
   onlyDigits,
 } from '@/lib/cliente-utils';
 import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteInsert } from '@/lib/supabase-admin';
@@ -59,18 +59,18 @@ export async function POST(request: Request) {
     const senha = String(body?.senha ?? '');
     const confirmarSenha = String(body?.confirmarSenha ?? '');
     const emailInput = String(body?.email ?? '').trim();
-    const email = normalizeOptionalEmail(emailInput);
+    const email = normalizeRequiredEmail(emailInput);
     const enderecoCompleto = String(body?.enderecoCompleto ?? '').trim() || null;
 
-    if (!nome || !cpf || !celular || !senha || !confirmarSenha) {
-      return NextResponse.json({ error: 'Preencha nome, CPF, celular, senha e confirmacao da senha.' }, { status: 400 });
+    if (!nome || !cpf || !celular || !emailInput || !senha || !confirmarSenha) {
+      return NextResponse.json({ error: 'Preencha nome, CPF, celular, e-mail, senha e confirmacao da senha.' }, { status: 400 });
     }
 
     if (!isValidCpf(cpf)) {
       return NextResponse.json({ error: 'CPF invalido.' }, { status: 400 });
     }
 
-    if (emailInput && !email) {
+    if (!email) {
       return NextResponse.json({ error: 'E-mail invalido.' }, { status: 400 });
     }
 
@@ -82,14 +82,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'A confirmacao da senha nao confere.' }, { status: 400 });
     }
 
-    const [{ data: existingCpf, error: cpfError }, { data: existingPhone, error: phoneError }, { data: authUsers, error: authUsersError }] = await Promise.all([
+    const [{ data: existingCpf, error: cpfError }, { data: existingPhone, error: phoneError }, { data: existingEmail, error: emailError }, { data: authUsers, error: authUsersError }] = await Promise.all([
       supabaseAdmin.from('clientes').select('id').eq('cpf', cpf).maybeSingle(),
       supabaseAdmin.from('clientes').select('id').eq('celular', celular.dbPhone).maybeSingle(),
+      supabaseAdmin.from('clientes').select('id').eq('email', email).maybeSingle(),
       supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     ]);
 
-    if (cpfError || phoneError) {
-      return NextResponse.json({ error: 'Erro ao verificar CPF ou celular cadastrado.' }, { status: 500 });
+    if (cpfError || phoneError || emailError) {
+      return NextResponse.json({ error: 'Erro ao verificar CPF, celular ou e-mail cadastrado.' }, { status: 500 });
     }
 
     if (authUsersError) {
@@ -109,25 +110,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Ja existe um cadastro com este celular.' }, { status: 409 });
     }
 
-    const existingAuthUser = authUsers.users.find((user) => user.email?.toLowerCase() === celular.technicalEmail);
+    if (existingEmail) {
+      return NextResponse.json({ error: 'Ja existe um cadastro com este e-mail.' }, { status: 409 });
+    }
+
+    const existingAuthUser = authUsers.users.find((user) => user.email?.toLowerCase() === email);
 
     if (existingAuthUser) {
-      return NextResponse.json({ error: 'Ja existe um acesso de login com este celular.' }, { status: 409 });
+      return NextResponse.json({ error: 'Ja existe um acesso de login com este e-mail.' }, { status: 409 });
     }
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: celular.technicalEmail,
+      email,
       email_confirm: true,
       password: senha,
       user_metadata: {
         celular: celular.dbPhone,
+        email,
         nome,
         tipo: 'cliente',
       },
     });
 
     if (isAlreadyRegisteredError(authError)) {
-      return NextResponse.json({ error: 'Ja existe um acesso cadastrado para este celular ou e-mail.' }, { status: 409 });
+      return NextResponse.json({ error: 'Ja existe um acesso cadastrado para este e-mail.' }, { status: 409 });
     }
 
     if (isPasswordError(authError)) {
@@ -148,13 +154,13 @@ export async function POST(request: Request) {
 
     const authUser = authData.user;
 
-    if (authUser.email?.toLowerCase() !== celular.technicalEmail || !authUser.email_confirmed_at) {
+    if (authUser.email?.toLowerCase() !== email || !authUser.email_confirmed_at) {
       await supabaseAdmin.auth.admin.deleteUser(authUser.id);
 
       return NextResponse.json(
         {
           error:
-            'Falha ao confirmar usuario no Supabase Auth. O e-mail tecnico do cliente nao foi criado ou confirmado corretamente.',
+            'Falha ao confirmar usuario no Supabase Auth. O e-mail do cliente nao foi criado ou confirmado corretamente.',
         },
         { status: 500 },
       );
@@ -165,6 +171,7 @@ export async function POST(request: Request) {
       cpf,
       email,
       endereco_completo: enderecoCompleto,
+      must_change_password: false,
       nome,
       auth_user_id: authUser.id,
     };
@@ -192,7 +199,7 @@ export async function POST(request: Request) {
       supabaseAdmin.auth.admin.getUserById(authUser.id),
       supabaseAdmin
         .from('clientes')
-        .select('id, auth_user_id, celular')
+        .select('id, auth_user_id, celular, email')
         .eq('auth_user_id', authUser.id)
         .maybeSingle(),
     ]);
@@ -200,12 +207,13 @@ export async function POST(request: Request) {
     if (
       confirmAuthError ||
       !confirmedAuthUser.user ||
-      confirmedAuthUser.user.email?.toLowerCase() !== celular.technicalEmail ||
+      confirmedAuthUser.user.email?.toLowerCase() !== email ||
       !confirmedAuthUser.user.email_confirmed_at ||
       confirmClienteError ||
       !confirmedCliente ||
       confirmedCliente.auth_user_id !== authUser.id ||
-      confirmedCliente.celular !== celular.dbPhone
+      confirmedCliente.celular !== celular.dbPhone ||
+      confirmedCliente.email !== email
     ) {
       await supabaseAdmin.auth.admin.deleteUser(authUser.id);
       await supabaseAdmin.from('clientes').delete().eq('auth_user_id', authUser.id);

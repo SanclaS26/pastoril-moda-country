@@ -14,6 +14,7 @@ type Cliente = {
   celular: string;
   email: string | null;
   endereco_completo: string | null;
+  must_change_password: boolean;
   created_at?: string | null;
 };
 
@@ -53,7 +54,10 @@ export default function AdminClientesPage() {
   const [success, setSuccess] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
+  const [clienteToReset, setClienteToReset] = useState<Cliente | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     const fetchClientes = async () => {
@@ -117,6 +121,47 @@ export default function AdminClientesPage() {
     } finally {
       setDeleting(false);
     }
+  };
+
+  const handleResetPassword = async () => {
+    if (!clienteToReset) return;
+
+    try {
+      setResetting(true);
+      setError('');
+      setSuccess('');
+      setTemporaryPassword('');
+      const token = await getSessionToken();
+      const response = await fetch(`/api/admin/clientes/${encodeURIComponent(String(clienteToReset.id))}/reset-password`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Nao foi possivel redefinir a senha.');
+      }
+
+      setTemporaryPassword(String(data.temporaryPassword ?? ''));
+      setClientes((current) =>
+        current.map((cliente) =>
+          cliente.id === clienteToReset.id ? { ...cliente, must_change_password: true } : cliente,
+        ),
+      );
+      setSuccess('Senha temporaria gerada. Copie agora; ela nao sera exibida novamente.');
+    } catch (resetError) {
+      setError(resetError instanceof Error ? resetError.message : 'Erro ao redefinir senha.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const copyTemporaryPassword = async () => {
+    if (!temporaryPassword) return;
+    await navigator.clipboard.writeText(temporaryPassword);
+    setSuccess('Senha temporaria copiada.');
   };
 
   return (
@@ -199,6 +244,16 @@ export default function AdminClientesPage() {
                           </button>
                           <button
                             type="button"
+                            onClick={() => {
+                              setTemporaryPassword('');
+                              setClienteToReset(cliente);
+                            }}
+                            className="rounded-lg border border-[#E7E0D8] px-3 py-2 text-xs font-bold text-[#4A2D1A] transition hover:border-[#C8722C] hover:bg-[#F7F0E7]"
+                          >
+                            Redefinir senha
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => setClienteToDelete(cliente)}
                             className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
                           >
@@ -227,6 +282,16 @@ export default function AdminClientesPage() {
                           className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]"
                         >
                           Ver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTemporaryPassword('');
+                            setClienteToReset(cliente);
+                          }}
+                          className="rounded-lg border border-[#E7E0D8] px-3 py-2 text-xs font-bold text-[#4A2D1A]"
+                        >
+                          Senha
                         </button>
                         <button
                           type="button"
@@ -291,6 +356,10 @@ export default function AdminClientesPage() {
                 <dd className="mt-1 text-[#241C17]">{selectedCliente.email || '-'}</dd>
               </div>
               <div>
+                <dt className="font-bold text-[#4A2D1A]">Troca de senha</dt>
+                <dd className="mt-1 text-[#241C17]">{selectedCliente.must_change_password ? 'Obrigatoria no proximo acesso' : 'Nao pendente'}</dd>
+              </div>
+              <div>
                 <dt className="font-bold text-[#4A2D1A]">Data de cadastro</dt>
                 <dd className="mt-1 text-[#241C17]">{formatDate(selectedCliente.created_at)}</dd>
               </div>
@@ -299,6 +368,87 @@ export default function AdminClientesPage() {
                 <dd className="mt-1 whitespace-pre-wrap text-[#241C17]">{selectedCliente.endereco_completo || '-'}</dd>
               </div>
             </dl>
+          </section>
+        </div>
+      )}
+
+      {clienteToReset && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#241C17]/60 px-4 py-6">
+          <button
+            type="button"
+            className="absolute inset-0 cursor-default"
+            aria-label="Cancelar redefinicao"
+            onClick={() => !resetting && setClienteToReset(null)}
+          />
+
+          <section
+            className="relative z-10 w-full max-w-md rounded-2xl border border-[#E7E0D8] bg-white p-5 text-[#241C17] shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-cliente-title"
+          >
+            <div className="mb-4">
+              <h2 id="reset-cliente-title" className="text-xl font-bold text-[#4A2D1A]">
+                Redefinir senha
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-[#6E625A]">
+                As sessoes do cliente poderao ser encerradas. O cliente sera obrigado a criar uma nova senha no proximo acesso.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] p-4 text-sm">
+              <p className="font-bold text-[#241C17]">{clienteToReset.nome}</p>
+              <p className="mt-1 text-[#6E625A]">{clienteToReset.email || 'Cliente sem e-mail cadastrado'}</p>
+            </div>
+
+            {temporaryPassword ? (
+              <div className="mt-5 space-y-3">
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Esta senha temporaria sera exibida somente agora. Envie ao cliente por um canal seguro e nunca por URL.
+                </div>
+                <div className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 font-mono text-lg font-bold tracking-wide text-[#241C17]">
+                  {temporaryPassword}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={copyTemporaryPassword}
+                    className="rounded-xl bg-[#C8722C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#4A2D1A]"
+                  >
+                    Copiar senha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTemporaryPassword('');
+                      setClienteToReset(null);
+                    }}
+                    className="rounded-xl border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7]"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setClienteToReset(null)}
+                  disabled={resetting}
+                  className="rounded-xl border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetPassword}
+                  disabled={resetting}
+                  className="rounded-xl bg-[#C8722C] px-4 py-3 text-sm font-bold text-white transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resetting ? 'Gerando...' : 'Gerar senha temporaria'}
+                </button>
+              </div>
+            )}
           </section>
         </div>
       )}

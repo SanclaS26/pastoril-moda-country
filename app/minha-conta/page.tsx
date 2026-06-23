@@ -15,6 +15,7 @@ type Cliente = {
   celular: string;
   email: string | null;
   endereco_completo: string | null;
+  must_change_password: boolean;
 };
 
 export default function MinhaContaPage() {
@@ -27,6 +28,11 @@ export default function MinhaContaPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [emailRequiredFromRedirect] = useState(() =>
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('email') === 'obrigatorio'
+      : false,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -55,6 +61,10 @@ export default function MinhaContaPage() {
         if (!mounted) return;
 
         const loadedCliente = result.cliente as Cliente;
+        if (loadedCliente.must_change_password) {
+          router.push('/alterar-senha');
+          return;
+        }
         setCliente(loadedCliente);
         setNome(loadedCliente.nome ?? '');
         setEmail(loadedCliente.email ?? '');
@@ -176,6 +186,14 @@ export default function MinhaContaPage() {
               </div>
             )}
 
+            {cliente && !cliente.email && (
+              <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800">
+                {emailRequiredFromRedirect
+                  ? 'Cadastre um e-mail para continuar usando os recursos da sua conta.'
+                  : 'Seu cadastro ainda nao possui e-mail. Informe um e-mail para manter a conta segura.'}
+              </div>
+            )}
+
             <form onSubmit={handleSave} className="space-y-4">
               <label className="block">
                 <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">Nome</span>
@@ -188,13 +206,14 @@ export default function MinhaContaPage() {
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail opcional</span>
+                <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail</span>
                 <input
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => setEmail(event.target.value.toLowerCase())}
                   type="email"
                   className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] outline-none focus:border-[#C8722C] focus:ring-4 focus:ring-[#C8722C]/10"
                   placeholder="voce@email.com"
+                  required
                 />
               </label>
 

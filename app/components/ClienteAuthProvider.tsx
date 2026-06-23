@@ -27,6 +27,7 @@ type ClientePerfil = {
   celular: string;
   email: string | null;
   endereco_completo: string | null;
+  must_change_password: boolean;
 };
 
 type ClienteCompra = {
@@ -256,7 +257,19 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
     setIsLoggingIn(true);
 
     try {
-      await signInClienteWithPhone(celular, senha);
+      const result = await signInClienteWithPhone(celular, senha);
+      if (result.must_change_password) {
+        setModalMode(null);
+        router.push('/alterar-senha');
+        resolveCheckout(null);
+        return;
+      }
+      if (!result.email) {
+        setModalMode(null);
+        router.push('/minha-conta?email=obrigatorio');
+        resolveCheckout(null);
+        return;
+      }
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : 'Nao foi possivel autenticar o cliente.');
       setIsLoggingIn(false);
@@ -314,7 +327,13 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
 
       if (normalizedPhone) {
         try {
-          await signInClienteWithPhone(cadastroCelular, cadastroSenha);
+          const result = await signInClienteWithPhone(cadastroCelular, cadastroSenha);
+          if (result.must_change_password) {
+            setModalMode(null);
+            router.push('/alterar-senha');
+            resolveCheckout(null);
+            return;
+          }
           setCadastroNome('');
           setCadastroCpf('');
           setCadastroCelular('');
@@ -514,7 +533,7 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                     : modalMode === 'checkoutPrompt'
                       ? 'Entre ou crie seu cadastro para enviar o pedido pelo WhatsApp.'
                     : modalMode === 'cadastro'
-                      ? 'Crie seu acesso com celular e senha.'
+                    ? 'Crie seu acesso com celular, e-mail e senha.'
                       : modalMode === 'edit'
                         ? 'Atualize seus dados de cliente.'
                         : modalMode === 'purchases'
@@ -705,13 +724,14 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                   </label>
 
                   <label className="block sm:col-span-2">
-                    <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail opcional</span>
+                    <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail</span>
                     <input
                       value={profileEmail}
-                      onChange={(event) => setProfileEmail(event.target.value)}
+                      onChange={(event) => setProfileEmail(event.target.value.toLowerCase())}
                       type="email"
                       className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] outline-none focus:border-[#C8722C] focus:ring-4 focus:ring-[#C8722C]/10"
                       placeholder="voce@email.com"
+                      required
                     />
                   </label>
 
@@ -793,13 +813,14 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                   </label>
 
                   <label className="block sm:col-span-2">
-                    <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail opcional</span>
+                    <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail</span>
                     <input
                       value={cadastroEmail}
-                      onChange={(event) => setCadastroEmail(event.target.value)}
+                      onChange={(event) => setCadastroEmail(event.target.value.toLowerCase())}
                       type="email"
                       className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] outline-none focus:border-[#C8722C] focus:ring-4 focus:ring-[#C8722C]/10"
                       placeholder="voce@email.com"
+                      required
                     />
                   </label>
 
@@ -909,6 +930,19 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                     {isLoggingIn ? 'Entrando...' : 'Entrar'}
                   </button>
                 </form>
+
+                <p className="mt-4 text-center text-sm">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalMode(null);
+                      router.push('/recuperar-senha');
+                    }}
+                    className="font-bold text-[#C8722C] hover:text-[#4A2D1A]"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </p>
 
                 <p className="mt-5 text-center text-sm text-[#6E625A]">
                   Ainda nao tem cadastro?{' '}

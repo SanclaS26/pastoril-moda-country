@@ -43,32 +43,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Informe a senha.' }, { status: 400 });
     }
 
-    const { data: usersData, error: usersError } = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
+    const { data: cliente, error: clienteError } = await supabaseAdmin
+      .from('clientes')
+      .select('id, auth_user_id, nome, celular, email, must_change_password')
+      .eq('celular', normalizedPhone.dbPhone)
+      .maybeSingle();
 
-    if (usersError) {
-      console.info('[cliente-login-auth-users-error]', {
-        code: getAuthErrorCode(usersError),
-        message: getAuthErrorMessage(usersError),
-      });
-
-      return NextResponse.json(
-        { error: `Nao foi possivel verificar o usuario no Supabase Auth: ${getAuthErrorMessage(usersError)}` },
-        { status: 500 },
-      );
+    if (clienteError) {
+      return NextResponse.json({ error: `Nao foi possivel verificar o cadastro: ${clienteError.message}` }, { status: 500 });
     }
 
-    const authUser = usersData.users.find((user) => user.email?.toLowerCase() === normalizedPhone.technicalEmail);
-
-    if (!authUser) {
+    if (!cliente?.auth_user_id) {
       return NextResponse.json(
         {
           error:
             'Nao existe usuario no Supabase Auth para este celular. Refaca o cadastro ou verifique se ele foi criado corretamente.',
         },
         { status: 404 },
+      );
+    }
+
+    const { data: authUserData, error: authLookupError } = await supabaseAdmin.auth.admin.getUserById(cliente.auth_user_id);
+    const authUser = authUserData.user;
+
+    if (authLookupError || !authUser?.email) {
+      return NextResponse.json(
+        { error: `Nao foi possivel localizar o acesso do cliente: ${getAuthErrorMessage(authLookupError)}` },
+        { status: 500 },
       );
     }
 
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
     );
 
     const { data: loginData, error: loginError } = await supabaseAuth.auth.signInWithPassword({
-      email: normalizedPhone.technicalEmail,
+      email: authUser.email,
       password,
     });
 
@@ -120,6 +121,10 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
+      cliente: {
+        email: cliente.email,
+        must_change_password: cliente.must_change_password,
+      },
       session: {
         access_token: loginData.session.access_token,
         refresh_token: loginData.session.refresh_token,

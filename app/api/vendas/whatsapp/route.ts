@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getClienteAccessBlock } from '@/lib/cliente-access';
 import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteRow, type VendaRow } from '@/lib/supabase-admin';
 import {
   WHATSAPP_STORE_PHONE,
@@ -30,7 +31,7 @@ async function getClienteFromRequest(request: Request, supabaseAdmin: ReturnType
 
   const { data } = await supabaseAdmin
     .from('clientes')
-    .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo')
+    .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password')
     .eq('auth_user_id', user.id)
     .maybeSingle();
 
@@ -166,6 +167,12 @@ export async function POST(request: Request) {
 
     if (!cliente) {
       return NextResponse.json({ error: 'Cliente nao autenticado.' }, { status: 401 });
+    }
+
+    const block = getClienteAccessBlock(cliente);
+
+    if (block) {
+      return NextResponse.json({ code: block.code, error: block.error }, { status: block.status });
     }
 
     const { data: existing } = await supabaseAdmin

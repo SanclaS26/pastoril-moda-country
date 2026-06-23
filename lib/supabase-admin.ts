@@ -150,6 +150,7 @@ export type ClienteRow = {
   celular: string;
   email: string | null;
   endereco_completo: string | null;
+  must_change_password: boolean;
   created_at?: string;
   updated_at?: string;
 };
@@ -161,6 +162,7 @@ export type ClienteInsert = {
   celular: string;
   email?: string | null;
   endereco_completo?: string | null;
+  must_change_password?: boolean;
 };
 
 export type ClienteUpdate = Partial<Omit<ClienteInsert, 'auth_user_id'>>;

@@ -85,3 +85,11 @@ export function normalizeOptionalEmail(value: string | null | undefined) {
 
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
+
+export function normalizeRequiredEmail(value: string | null | undefined) {
+  return normalizeOptionalEmail(value);
+}
+
+export function isTechnicalClienteEmail(value: string | null | undefined) {
+  return Boolean(value?.toLowerCase().endsWith('@clientes.pastoril.local'));
+}

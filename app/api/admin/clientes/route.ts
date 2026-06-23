@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await authorization.supabaseAdmin
     .from('clientes')
-    .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, created_at')
+    .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password, created_at')
     .order('created_at', { ascending: false });
 
   if (error) {

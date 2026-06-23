@@ -2,6 +2,11 @@
 
 import { clienteSupabase } from '@/lib/supabase-cliente';
 
+export type ClienteLoginResult = {
+  email: string | null;
+  must_change_password: boolean;
+};
+
 export async function signInClienteWithPhone(celular: string, senha: string) {
   const response = await fetch('/api/clientes/login', {
     body: JSON.stringify({ celular, senha }),
@@ -28,4 +33,9 @@ export async function signInClienteWithPhone(celular: string, senha: string) {
   if (error) {
     throw new Error(error.message);
   }
+
+  return {
+    email: data?.cliente?.email ?? null,
+    must_change_password: Boolean(data?.cliente?.must_change_password),
+  } satisfies ClienteLoginResult;
 }

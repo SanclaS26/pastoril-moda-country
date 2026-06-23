@@ -28,7 +28,15 @@ export default function ClienteLoginPage() {
     setIsLoading(true);
 
     try {
-      await signInClienteWithPhone(celular, senha);
+      const result = await signInClienteWithPhone(celular, senha);
+      if (result.must_change_password) {
+        router.push('/alterar-senha');
+        return;
+      }
+      if (!result.email) {
+        router.push('/minha-conta?email=obrigatorio');
+        return;
+      }
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Nao foi possivel autenticar o cliente.');
       setIsLoading(false);
@@ -94,6 +102,12 @@ export default function ClienteLoginPage() {
             {isLoading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-sm">
+          <Link href="/recuperar-senha" className="font-bold text-[#C8722C] hover:text-[#4A2D1A]">
+            Esqueci minha senha
+          </Link>
+        </p>
 
         <p className="mt-6 text-center text-sm text-[#6E625A]">
           Ainda nao tem conta?{' '}

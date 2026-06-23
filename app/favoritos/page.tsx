@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { PublicCart } from '@/app/components/PublicCart';
 import { StoreHeader } from '@/app/components/StoreHeader';
 import { WishlistButton } from '@/app/components/WishlistButton';
@@ -16,8 +17,10 @@ import {
 } from '@/lib/catalog';
 import { usePublicCart } from '@/lib/use-public-cart';
 import { useWishlist } from '@/lib/use-wishlist';
+import { clienteSupabase } from '@/lib/supabase-cliente';
 
 export default function FavoritesPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState('');
@@ -43,6 +46,35 @@ export default function FavoritesPage() {
     updateCartQuantity,
     whatsappFallbackUrl,
   } = publicCart;
+
+  useEffect(() => {
+    const checkClienteAccess = async () => {
+      const { data } = await clienteSupabase.auth.getSession();
+      const token = data.session?.access_token;
+
+      if (!token) return;
+
+      const response = await fetch('/api/clientes/perfil', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const result = await response.json();
+
+      if (!response.ok) return;
+
+      if (result?.cliente?.must_change_password) {
+        router.push('/alterar-senha');
+        return;
+      }
+
+      if (!result?.cliente?.email) {
+        router.push('/minha-conta?email=obrigatorio');
+      }
+    };
+
+    void checkClienteAccess();
+  }, [router]);
 
   useEffect(() => {
     const loadProducts = async () => {

@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import {
   getClienteTechnicalEmail,
   isValidCpf,
+  isTechnicalClienteEmail,
   normalizeClientePhone,
-  normalizeOptionalEmail,
+  normalizeRequiredEmail,
   onlyDigits,
 } from '@/lib/cliente-utils';
 import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteUpdate } from '@/lib/supabase-admin';
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
 
   const { data: cliente, error } = await authorization.supabaseAdmin
     .from('clientes')
-    .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo')
+    .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password')
     .eq('auth_user_id', authorization.user.id)
     .maybeSingle();
 
@@ -89,7 +90,7 @@ export async function PATCH(request: Request) {
     const cpf = onlyDigits(String(body?.cpf ?? ''));
     const celular = normalizeClientePhone(String(body?.celular ?? ''));
     const emailInput = String(body?.email ?? '').trim();
-    const email = normalizeOptionalEmail(emailInput);
+    const email = normalizeRequiredEmail(emailInput);
     const enderecoCompleto = String(body?.enderecoCompleto ?? '').trim() || null;
 
     if (!nome) {
@@ -104,7 +105,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Informe um celular valido com DDD.' }, { status: 400 });
     }
 
-    if (emailInput && !email) {
+    if (!emailInput || !email) {
       return NextResponse.json({ error: 'E-mail invalido.' }, { status: 400 });
     }
 
@@ -112,7 +113,7 @@ export async function PATCH(request: Request) {
       await Promise.all([
         authorization.supabaseAdmin
           .from('clientes')
-          .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo')
+          .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password')
           .eq('auth_user_id', authorization.user.id)
           .maybeSingle(),
         authorization.supabaseAdmin
@@ -154,16 +155,19 @@ export async function PATCH(request: Request) {
     }
 
     const phoneChanged = celular.dbPhone !== currentCliente.celular;
+    const emailChanged = email !== currentCliente.email;
+    const shouldUpdateAuthEmail = emailChanged || isTechnicalClienteEmail(authorization.user.email);
 
-    if (phoneChanged) {
+    if (phoneChanged || shouldUpdateAuthEmail) {
       const { error: authUpdateError } = await authorization.supabaseAdmin.auth.admin.updateUserById(
         authorization.user.id,
         {
-          email: celular.technicalEmail,
+          email,
           email_confirm: true,
           user_metadata: {
             ...(authorization.user.user_metadata ?? {}),
             celular: celular.dbPhone,
+            email,
             nome,
           },
         },
@@ -189,17 +193,18 @@ export async function PATCH(request: Request) {
       .from('clientes')
       .update(updatePayload)
       .eq('auth_user_id', authorization.user.id)
-      .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo')
+      .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password')
       .single();
 
     if (error || !cliente) {
-      if (phoneChanged) {
+      if (phoneChanged || shouldUpdateAuthEmail) {
         await authorization.supabaseAdmin.auth.admin.updateUserById(authorization.user.id, {
-          email: getClienteTechnicalEmail(currentCliente.celular),
+          email: authorization.user.email || getClienteTechnicalEmail(currentCliente.celular),
           email_confirm: true,
           user_metadata: {
             ...(authorization.user.user_metadata ?? {}),
             celular: currentCliente.celular,
+            email: currentCliente.email,
             nome: currentCliente.nome,
           },
         });
@@ -213,8 +218,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({
       cliente,
-      message: phoneChanged
-        ? 'Perfil atualizado. Seu celular de acesso tambem foi atualizado.'
+      message: phoneChanged || emailChanged
+        ? 'Perfil atualizado. Seus dados de acesso tambem foram atualizados.'
         : 'Perfil atualizado com sucesso.',
     });
   } catch {

@@ -83,7 +83,7 @@ export default function ClienteCadastroPage() {
           />
           <h1 className="mt-5 text-2xl font-bold text-[#4A2D1A]">Criar cadastro</h1>
           <p className="mt-2 text-sm leading-6 text-[#6E625A]">
-            Use seu celular e uma senha para acessar sua conta Pastoril.
+            Use seu celular, e-mail e uma senha para acessar sua conta Pastoril.
           </p>
         </div>
 
@@ -123,13 +123,14 @@ export default function ClienteCadastroPage() {
           </label>
 
           <label className="block sm:col-span-2">
-            <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail opcional</span>
+            <span className="mb-2 block text-sm font-semibold text-[#4A2D1A]">E-mail</span>
             <input
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => setEmail(event.target.value.toLowerCase())}
               type="email"
               className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] outline-none focus:border-[#C8722C] focus:ring-4 focus:ring-[#C8722C]/10"
               placeholder="voce@email.com"
+              required
             />
           </label>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -133,6 +133,9 @@ export default function AdminProdutosPage() {
   useProtectedRoute();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [productsTotal, setProductsTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [productSearch, setProductSearch] = useState('');
   const [departamentos, setDepartamentos] = useState<Departamento[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loadingDepartamentos, setLoadingDepartamentos] = useState(true);
@@ -154,10 +157,9 @@ export default function AdminProdutosPage() {
   const [saving, setSaving] = useState(false);
   const [deactivatingId, setDeactivatingId] = useState<number | null>(null);
 
-  const filteredProducts = useMemo(
-    () => products.filter((product) => promotionFilter === 'todos' || product.em_promocao),
-    [products, promotionFilter],
-  );
+  const totalPages = Math.max(1, Math.ceil(productsTotal / 10));
+  const pageStart = productsTotal === 0 ? 0 : (page - 1) * 10 + 1;
+  const pageEnd = Math.min(productsTotal, page * 10);
   const tipoGradeAtual = useMemo(
     () => getTipoGradeTamanho(form.departamento, form.publico || null),
     [form.departamento, form.publico],
@@ -170,22 +172,30 @@ export default function AdminProdutosPage() {
   const produtoSemTamanho = isGradeSemTamanho(tipoGradeAtual);
   const produtoTamanhoUnico = isGradeTamanhoUnico(tipoGradeAtual);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getSessionToken();
-      const response = await fetch('/api/admin/produtos', { headers: { Authorization: `Bearer ${token}` } });
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: '10',
+      });
+      if (promotionFilter === 'promocao') params.set('promotion', 'promocao');
+      if (productSearch.trim()) params.set('search', productSearch.trim());
+      const response = await fetch(`/api/admin/produtos?${params.toString()}`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || 'Erro ao carregar produtos.');
       setProducts(Array.isArray(data.products) ? data.products : []);
+      setProductsTotal(Number(data.total ?? 0));
       setError('');
     } catch (fetchError) {
       setProducts([]);
+      setProductsTotal(0);
       setError(fetchError instanceof Error ? fetchError.message : 'Erro ao carregar produtos.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, productSearch, promotionFilter]);
 
   const fetchDepartamentos = async () => {
     try {
@@ -232,7 +242,7 @@ export default function AdminProdutosPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchProducts(), 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [fetchProducts]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchDepartamentos(), 0);
@@ -510,7 +520,10 @@ export default function AdminProdutosPage() {
           <div className="flex flex-col gap-2 sm:flex-row">
             <select
               value={promotionFilter}
-              onChange={(event) => setPromotionFilter(event.target.value as 'todos' | 'promocao')}
+              onChange={(event) => {
+                setPage(1);
+                setPromotionFilter(event.target.value as 'todos' | 'promocao');
+              }}
               className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700"
             >
               <option value="todos">Todos</option>
@@ -531,6 +544,20 @@ export default function AdminProdutosPage() {
         {error && <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <input
+              value={productSearch}
+              onChange={(event) => {
+                setPage(1);
+                setProductSearch(event.target.value);
+              }}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-amber-600 sm:max-w-md"
+              placeholder="Buscar por codigo, nome, marca ou categoria"
+            />
+            <p className="text-sm font-semibold text-slate-600">
+              Exibindo {pageStart}-{pageEnd} de {productsTotal} produtos
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px]">
               <thead className="border-b border-slate-200 bg-slate-50">
@@ -543,10 +570,10 @@ export default function AdminProdutosPage() {
               <tbody>
                 {loading ? (
                   <tr><td colSpan={12} className="px-6 py-10 text-center text-sm text-slate-600">Carregando produtos...</td></tr>
-                ) : filteredProducts.length === 0 ? (
+                ) : products.length === 0 ? (
                   <tr><td colSpan={12} className="px-6 py-10 text-center text-sm text-slate-600">Nenhum produto encontrado.</td></tr>
                 ) : (
-                  filteredProducts.map((product) => (
+                  products.map((product) => (
                     <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="px-4 py-3">
                         {product.imagem_principal ? (
@@ -587,6 +614,17 @@ export default function AdminProdutosPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-slate-600">Pagina {page} de {totalPages}</p>
+            <div className="flex gap-2">
+              <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => Math.max(1, current - 1))} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
+                Anterior
+              </button>
+              <button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => Math.min(totalPages, current + 1))} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
+                Proxima
+              </button>
+            </div>
           </div>
         </div>
       </main>

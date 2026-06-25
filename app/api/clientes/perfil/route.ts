@@ -3,13 +3,20 @@ import {
   getClienteTechnicalEmail,
   isValidCpf,
   isTechnicalClienteEmail,
+  normalizeCpf,
   normalizeClientePhone,
   normalizeRequiredEmail,
-  onlyDigits,
 } from '@/lib/cliente-utils';
 import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteUpdate } from '@/lib/supabase-admin';
 
 export const dynamic = 'force-dynamic';
+
+type ErrorDetails = {
+  code?: string;
+  message: string;
+  name?: string;
+  status?: number;
+};
 
 function getBearerToken(request: Request) {
   const authorization = request.headers.get('authorization');
@@ -20,6 +27,58 @@ function getBearerToken(request: Request) {
   }
 
   return token;
+}
+
+function getStringField(body: Record<string, unknown>, field: string) {
+  const value = body[field];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function getErrorDetails(error: unknown): ErrorDetails {
+  const errorRecord = error && typeof error === 'object' ? error as Record<string, unknown> : null;
+  const message = errorRecord && 'message' in errorRecord && errorRecord.message
+    ? String(errorRecord.message)
+    : error instanceof Error && error.message
+      ? error.message
+      : 'Erro desconhecido';
+  const code = errorRecord && 'code' in errorRecord && errorRecord.code ? String(errorRecord.code) : undefined;
+  const statusValue = errorRecord && 'status' in errorRecord ? Number(errorRecord.status) : undefined;
+
+  return {
+    code,
+    message,
+    name: error instanceof Error ? error.name : undefined,
+    status: Number.isFinite(statusValue) ? statusValue : undefined,
+  };
+}
+
+function isEmailAlreadyRegisteredError(details: ErrorDetails) {
+  const message = details.message.toLowerCase();
+  const code = details.code?.toLowerCase() ?? '';
+
+  return (
+    code.includes('email') ||
+    code.includes('user_already_exists') ||
+    message.includes('already') ||
+    message.includes('registered') ||
+    message.includes('email_exists') ||
+    message.includes('duplicate') ||
+    message.includes('unique')
+  );
+}
+
+function getClientAuthUpdateMessage(error: unknown) {
+  const details = getErrorDetails(error);
+
+  if (isEmailAlreadyRegisteredError(details)) {
+    return 'Este e-mail ja esta vinculado a outra conta. Use outro e-mail ou recupere o acesso a conta existente.';
+  }
+
+  if (details.status === 401 || details.status === 403 || details.message.toLowerCase().includes('api key')) {
+    return 'Configuracao administrativa do Supabase invalida ou sem permissao para atualizar o acesso do cliente.';
+  }
+
+  return `Nao foi possivel atualizar o acesso do cliente: ${details.message}`;
 }
 
 async function requireCliente(request: Request) {
@@ -85,109 +144,228 @@ export async function PATCH(request: Request) {
   }
 
   try {
-    const body = await request.json();
-    const nome = String(body?.nome ?? '').trim();
-    const cpf = onlyDigits(String(body?.cpf ?? ''));
-    const celular = normalizeClientePhone(String(body?.celular ?? ''));
-    const emailInput = String(body?.email ?? '').trim();
-    const email = normalizeRequiredEmail(emailInput);
-    const enderecoCompleto = String(body?.enderecoCompleto ?? '').trim() || null;
+    const parsedBody = await request.json();
+    const body = parsedBody && typeof parsedBody === 'object' && !Array.isArray(parsedBody)
+      ? parsedBody as Record<string, unknown>
+      : {};
 
-    if (!nome) {
-      return NextResponse.json({ error: 'Informe seu nome.' }, { status: 400 });
-    }
-
-    if (!cpf || !isValidCpf(cpf)) {
-      return NextResponse.json({ error: 'CPF invalido.' }, { status: 400 });
-    }
-
-    if (!celular) {
-      return NextResponse.json({ error: 'Informe um celular valido com DDD.' }, { status: 400 });
-    }
-
-    if (!emailInput || !email) {
-      return NextResponse.json({ error: 'E-mail invalido.' }, { status: 400 });
-    }
-
-    const [{ data: currentCliente, error: currentError }, { data: existingCpf }, { data: existingPhone }, { data: existingEmail }] =
-      await Promise.all([
-        authorization.supabaseAdmin
-          .from('clientes')
-          .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password')
-          .eq('auth_user_id', authorization.user.id)
-          .maybeSingle(),
-        authorization.supabaseAdmin
-          .from('clientes')
-          .select('id')
-          .eq('cpf', cpf)
-          .neq('auth_user_id', authorization.user.id)
-          .maybeSingle(),
-        authorization.supabaseAdmin
-          .from('clientes')
-          .select('id')
-          .eq('celular', celular.dbPhone)
-          .neq('auth_user_id', authorization.user.id)
-          .maybeSingle(),
-        email
-          ? authorization.supabaseAdmin
-              .from('clientes')
-              .select('id')
-              .eq('email', email)
-              .neq('auth_user_id', authorization.user.id)
-              .maybeSingle()
-          : Promise.resolve({ data: null, error: null }),
-      ]);
+    const { data: currentCliente, error: currentError } = await authorization.supabaseAdmin
+      .from('clientes')
+      .select('id, auth_user_id, nome, cpf, celular, email, endereco_completo, must_change_password')
+      .eq('auth_user_id', authorization.user.id)
+      .maybeSingle();
 
     if (currentError || !currentCliente) {
       return NextResponse.json({ error: 'Perfil de cliente nao encontrado.' }, { status: 404 });
     }
 
-    if (existingCpf) {
-      return NextResponse.json({ error: 'Ja existe um cadastro com este CPF.' }, { status: 409 });
+    const updates: ClienteUpdate = {};
+    const nomeInput = getStringField(body, 'nome');
+    const cpfInput = getStringField(body, 'cpf');
+    const celularInput = getStringField(body, 'celular');
+    const emailInput = getStringField(body, 'email');
+    const enderecoInput = getStringField(body, 'enderecoCompleto');
+
+    if (nomeInput !== undefined) {
+      const normalizedNome = nomeInput.trim();
+      if (!normalizedNome) {
+        return NextResponse.json({ error: 'Informe seu nome.' }, { status: 400 });
+      }
+      updates.nome = normalizedNome;
     }
 
-    if (existingPhone) {
-      return NextResponse.json({ error: 'Ja existe um cadastro com este celular.' }, { status: 409 });
+    if (cpfInput !== undefined && cpfInput.trim() !== '') {
+      const normalizedCpf = normalizeCpf(cpfInput);
+      const currentCpf = normalizeCpf(currentCliente.cpf);
+
+      if (normalizedCpf !== currentCpf) {
+        if (normalizedCpf.length !== 11 || !isValidCpf(normalizedCpf)) {
+          return NextResponse.json({ error: 'CPF invalido.' }, { status: 400 });
+        }
+
+        updates.cpf = normalizedCpf;
+      }
     }
 
-    if (existingEmail) {
-      return NextResponse.json({ error: 'Ja existe um cadastro com este e-mail.' }, { status: 409 });
+    if (celularInput !== undefined && celularInput.trim() !== '') {
+      const normalizedPhone = normalizeClientePhone(celularInput);
+
+      if (!normalizedPhone) {
+        return NextResponse.json({ error: 'Informe um celular valido com DDD.' }, { status: 400 });
+      }
+
+      updates.celular = normalizedPhone.dbPhone;
     }
 
-    const phoneChanged = celular.dbPhone !== currentCliente.celular;
-    const emailChanged = email !== currentCliente.email;
+    if (emailInput !== undefined) {
+      const normalizedEmail = normalizeRequiredEmail(emailInput);
+
+      if (!emailInput.trim() || !normalizedEmail) {
+        return NextResponse.json({ error: 'E-mail invalido.' }, { status: 400 });
+      }
+
+      updates.email = normalizedEmail;
+    }
+
+    if (enderecoInput !== undefined && enderecoInput.trim() !== '') {
+      updates.endereco_completo = enderecoInput.trim();
+    }
+
+    const nextNome = updates.nome ?? currentCliente.nome;
+    const nextCelular = updates.celular ?? currentCliente.celular;
+    const nextEmail = updates.email ?? currentCliente.email;
+
+    if (!nextEmail) {
+      return NextResponse.json({ error: 'E-mail invalido.' }, { status: 400 });
+    }
+
+    if (!currentCliente.auth_user_id) {
+      return NextResponse.json(
+        { error: 'Este cliente nao possui vinculo com uma conta do Supabase Auth.' },
+        { status: 409 },
+      );
+    }
+
+    if (currentCliente.auth_user_id !== authorization.user.id) {
+      return NextResponse.json(
+        { error: 'O vinculo de autenticacao do cliente nao corresponde a sessao atual.' },
+        { status: 409 },
+      );
+    }
+
+    if (updates.cpf && updates.cpf !== normalizeCpf(currentCliente.cpf)) {
+      const { data, error } = await authorization.supabaseAdmin
+        .from('clientes')
+        .select('id, cpf')
+        .neq('auth_user_id', authorization.user.id);
+
+      if (error) {
+        return NextResponse.json({ error: 'Erro ao verificar CPF cadastrado.' }, { status: 500 });
+      }
+
+      const duplicatedCpf = (data ?? []).find((cliente) => normalizeCpf(cliente.cpf ?? '') === updates.cpf);
+
+      if (duplicatedCpf) {
+        return NextResponse.json({ error: 'Ja existe um cadastro com este CPF.' }, { status: 409 });
+      }
+    }
+
+    if (updates.celular && updates.celular !== currentCliente.celular) {
+      const { data: existingPhone, error: phoneError } = await authorization.supabaseAdmin
+        .from('clientes')
+        .select('id')
+        .eq('celular', updates.celular)
+        .neq('auth_user_id', authorization.user.id)
+        .maybeSingle();
+
+      if (phoneError) {
+        return NextResponse.json({ error: 'Erro ao verificar celular cadastrado.' }, { status: 500 });
+      }
+
+      if (existingPhone) {
+        return NextResponse.json({ error: 'Ja existe um cadastro com este celular.' }, { status: 409 });
+      }
+    }
+
+    if (updates.email && updates.email !== currentCliente.email) {
+      const { data: authUsers, error: authUsersError } = await authorization.supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+
+      if (authUsersError) {
+        return NextResponse.json(
+          { error: `Erro ao verificar e-mail no Supabase Auth: ${getErrorDetails(authUsersError).message}` },
+          { status: 500 },
+        );
+      }
+
+      const existingAuthUser = authUsers.users.find((user) => user.email?.trim().toLowerCase() === updates.email);
+
+      if (existingAuthUser && existingAuthUser.id !== currentCliente.auth_user_id) {
+        const { data: linkedCliente, error: linkedClienteError } = await authorization.supabaseAdmin
+          .from('clientes')
+          .select('id, auth_user_id')
+          .eq('auth_user_id', existingAuthUser.id)
+          .maybeSingle();
+
+        if (linkedClienteError) {
+          return NextResponse.json({ error: 'Erro ao verificar o vinculo do e-mail informado.' }, { status: 500 });
+        }
+
+        if (linkedCliente) {
+          return NextResponse.json(
+            { error: 'Este e-mail ja esta vinculado a outra conta. Use outro e-mail ou recupere o acesso a conta existente em Esqueci minha senha.' },
+            { status: 409 },
+          );
+        }
+
+        return NextResponse.json(
+          { error: 'Este e-mail pertence a uma conta antiga sem vinculo completo. Entre em contato com a administracao para corrigir o acesso com seguranca.' },
+          { status: 409 },
+        );
+      }
+
+      const { data: existingEmailProfiles, error: emailError } = await authorization.supabaseAdmin
+        .from('clientes')
+        .select('id, auth_user_id')
+        .eq('email', updates.email);
+
+      if (emailError) {
+        return NextResponse.json({ error: 'Erro ao verificar e-mail cadastrado.' }, { status: 500 });
+      }
+
+      const conflictingProfile = (existingEmailProfiles ?? []).find((cliente) => cliente.auth_user_id !== currentCliente.auth_user_id);
+
+      if (conflictingProfile?.auth_user_id) {
+        return NextResponse.json(
+          { error: 'Este e-mail ja esta vinculado a outra conta. Use outro e-mail ou recupere o acesso a conta existente em Esqueci minha senha.' },
+          { status: 409 },
+        );
+      }
+
+      if (conflictingProfile) {
+        return NextResponse.json(
+          { error: 'Este e-mail aparece em um cadastro antigo sem vinculo completo. Entre em contato com a administracao para corrigir o acesso com seguranca.' },
+          { status: 409 },
+        );
+      }
+    }
+
+    const phoneChanged = nextCelular !== currentCliente.celular;
+    const emailChanged = nextEmail !== currentCliente.email;
     const shouldUpdateAuthEmail = emailChanged || isTechnicalClienteEmail(authorization.user.email);
 
     if (phoneChanged || shouldUpdateAuthEmail) {
+      const { data: linkedAuthUser, error: authLookupError } = await authorization.supabaseAdmin.auth.admin.getUserById(currentCliente.auth_user_id);
+
+      if (authLookupError || !linkedAuthUser.user) {
+        return NextResponse.json(
+          { error: `Conta Auth vinculada ao cliente nao encontrada: ${getErrorDetails(authLookupError).message}` },
+          { status: 409 },
+        );
+      }
+
       const { error: authUpdateError } = await authorization.supabaseAdmin.auth.admin.updateUserById(
-        authorization.user.id,
+        currentCliente.auth_user_id,
         {
-          email,
+          email: nextEmail,
           email_confirm: true,
           user_metadata: {
             ...(authorization.user.user_metadata ?? {}),
-            celular: celular.dbPhone,
-            email,
-            nome,
+            celular: nextCelular,
+            email: nextEmail,
+            nome: nextNome,
           },
         },
       );
 
       if (authUpdateError) {
         return NextResponse.json(
-          { error: `Nao foi possivel atualizar o acesso do cliente: ${authUpdateError.message}` },
+          { error: getClientAuthUpdateMessage(authUpdateError) },
           { status: 500 },
         );
       }
     }
 
-    const updatePayload: ClienteUpdate = {
-      celular: celular.dbPhone,
-      cpf,
-      email,
-      endereco_completo: enderecoCompleto,
-      nome,
-    };
+    const updatePayload: ClienteUpdate = updates;
 
     const { data: cliente, error } = await authorization.supabaseAdmin
       .from('clientes')
@@ -198,7 +376,7 @@ export async function PATCH(request: Request) {
 
     if (error || !cliente) {
       if (phoneChanged || shouldUpdateAuthEmail) {
-        await authorization.supabaseAdmin.auth.admin.updateUserById(authorization.user.id, {
+        await authorization.supabaseAdmin.auth.admin.updateUserById(currentCliente.auth_user_id, {
           email: authorization.user.email || getClienteTechnicalEmail(currentCliente.celular),
           email_confirm: true,
           user_metadata: {

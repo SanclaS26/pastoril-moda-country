@@ -20,7 +20,7 @@ export type PublicVendaItemInput = {
 };
 
 export type VendaWithItems = VendaRow & {
-  itens: VendaItemRow[];
+  itens: Array<VendaItemRow & { estoque_disponivel?: number | null }>;
 };
 
 export function generateVendaCode(prefix: 'CAR' | 'PED') {

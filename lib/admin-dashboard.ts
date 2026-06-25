@@ -5,8 +5,8 @@ export const COMPLETED_STATUS = 'concluida' as const;
 export const CART_TYPE = 'carrinho' as const;
 export const ORDER_TYPE = 'pedido_whatsapp' as const;
 
-export function isOpenCart(venda: Pick<VendaRow, 'status' | 'tipo'>) {
-  return venda.tipo === CART_TYPE && venda.status === OPEN_STATUS;
+export function isOpenCart(venda: Pick<VendaRow, 'status' | 'tipo' | 'whatsapp_enviado_em'>) {
+  return venda.tipo === CART_TYPE && venda.status === OPEN_STATUS && venda.whatsapp_enviado_em === null;
 }
 
 export function isOpenOrder(venda: Pick<VendaRow, 'status' | 'tipo'>) {

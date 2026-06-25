@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     .from('vendas')
     .select('*')
     .not('cliente_auth_user_id', 'is', null)
-    .order('created_at', { ascending: false });
+    .order(view === 'open_carts' ? 'updated_at' : 'whatsapp_enviado_em', { ascending: true, nullsFirst: false });
 
   if (deleted === 'only') {
     query = query.not('deleted_at', 'is', null);
@@ -38,9 +38,9 @@ export async function GET(request: Request) {
   }
 
   if (view === 'open_carts') {
-    query = query.eq('tipo', CART_TYPE).eq('status', OPEN_STATUS);
+    query = query.eq('tipo', CART_TYPE).eq('status', OPEN_STATUS).is('whatsapp_enviado_em', null);
   } else {
-    query = query.or('tipo.neq.carrinho,status.neq.em_aberto');
+    query = query.eq('tipo', 'pedido_whatsapp').not('whatsapp_enviado_em', 'is', null);
   }
 
   if (status) {
@@ -78,12 +78,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: `Erro ao carregar itens das vendas: ${itensError.message}` }, { status: 500 });
   }
 
+  const stockIds = [...new Set((itens ?? []).map((item) => item.estoque_produto_id).filter((id): id is number => typeof id === 'number'))];
+  const { data: stocks, error: stocksError } = stockIds.length
+    ? await authorization.supabaseAdmin
+        .from('estoque_produtos')
+        .select('id, quantidade')
+        .in('id', stockIds)
+    : { data: [], error: null };
+
+  if (stocksError) {
+    return NextResponse.json({ error: `Erro ao carregar estoque dos itens: ${stocksError.message}` }, { status: 500 });
+  }
+
+  const stockById = new Map((stocks ?? []).map((stock) => [stock.id, stock.quantidade]));
+
   const withItems = (vendas ?? []).map((venda) => ({
     ...venda,
-    itens: (itens ?? []).filter((item) => item.venda_id === venda.id),
+    itens: (itens ?? [])
+      .filter((item) => item.venda_id === venda.id)
+      .map((item) => ({
+        ...item,
+        estoque_disponivel: item.estoque_produto_id ? (stockById.get(item.estoque_produto_id) ?? null) : null,
+      })),
   }));
 
   const filtered = withItems.filter((venda) => {
+    if (view === 'open_carts' && venda.itens.length === 0) return false;
     if (!search) return true;
 
     return (

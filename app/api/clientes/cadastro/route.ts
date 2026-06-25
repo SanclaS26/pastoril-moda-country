@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import {
   isValidCpf,
+  normalizeCpf,
   normalizeClientePhone,
   normalizeRequiredEmail,
-  onlyDigits,
 } from '@/lib/cliente-utils';
 import { getSupabaseAdmin, SupabaseAdminConfigError, type ClienteInsert } from '@/lib/supabase-admin';
 
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const nome = String(body?.nome ?? '').trim();
-    const cpf = onlyDigits(String(body?.cpf ?? ''));
+    const cpf = normalizeCpf(String(body?.cpf ?? ''));
     const celular = normalizeClientePhone(String(body?.celular ?? ''));
     const senha = String(body?.senha ?? '');
     const confirmarSenha = String(body?.confirmarSenha ?? '');

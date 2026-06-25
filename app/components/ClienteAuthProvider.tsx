@@ -4,7 +4,7 @@ import { createContext, FormEvent, ReactNode, useCallback, useContext, useEffect
 import { useRouter } from 'next/navigation';
 import type { Session } from '@supabase/supabase-js';
 import { signInClienteWithPhone } from '@/lib/cliente-login';
-import { formatCpf, formatPhone, normalizeClientePhone } from '@/lib/cliente-utils';
+import { formatCpf, formatPhone, normalizeClientePhone, normalizeCpf } from '@/lib/cliente-utils';
 import { clienteSupabase } from '@/lib/supabase-cliente';
 
 type ClienteAuthContextValue = {
@@ -441,14 +441,28 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      const profilePayload: {
+        celular?: string;
+        cpf?: string;
+        email?: string;
+        enderecoCompleto?: string;
+        nome?: string;
+      } = {
+        email: profileEmail,
+        enderecoCompleto: profileEndereco,
+        nome: profileNome,
+      };
+
+      if (clientePerfil && normalizeCpf(profileCpf) !== normalizeCpf(clientePerfil.cpf)) {
+        profilePayload.cpf = profileCpf;
+      }
+
+      if (clientePerfil && normalizeClientePhone(profileCelular)?.dbPhone !== clientePerfil.celular) {
+        profilePayload.celular = profileCelular;
+      }
+
       const response = await fetch('/api/clientes/perfil', {
-        body: JSON.stringify({
-          celular: profileCelular,
-          cpf: profileCpf,
-          email: profileEmail,
-          enderecoCompleto: profileEndereco,
-          nome: profileNome,
-        }),
+        body: JSON.stringify(profilePayload),
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',

@@ -54,7 +54,7 @@ type IconName =
   | 'accessory';
 
 type MainCategoryId = 'masculino' | 'feminino' | 'infantil' | 'todos';
-const PRODUCTS_PER_PAGE = 20;
+const PRODUCTS_PER_PAGE = 10;
 
 const mainCategories: { id: MainCategoryId; label: string; icon: string; activeIcon: string }[] = [
   {
@@ -395,11 +395,11 @@ function ProductCard({
   const hasPromotion = product.em_promocao && product.preco_promocional !== null;
 
   return (
-    <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] shadow-[0_5px_14px_var(--pastoril-shadow)] transition md:hover:-translate-y-0.5 md:hover:shadow-[0_10px_22px_var(--pastoril-shadow)]">
+    <article className="group relative flex h-full min-w-0 flex-col">
       <Link href={`/produto/${product.id}`} aria-label={`Ver detalhes de ${product.nome}`} className="flex h-full flex-col">
-        <div className="relative aspect-square overflow-hidden bg-[var(--pastoril-soft)]">
+        <div className="relative aspect-[3/4] overflow-hidden rounded-lg border border-[var(--pastoril-border)] bg-[var(--pastoril-soft)] shadow-[0_6px_16px_var(--pastoril-shadow)]">
         {hasPromotion && (
-          <span className="type-helper absolute left-2 top-2 z-10 rounded-lg bg-[var(--pastoril-promo)] px-2 py-1 font-bold uppercase text-white shadow-sm sm:left-3 sm:top-3">
+          <span className="type-helper absolute right-2 top-2 z-10 rounded-md bg-[var(--pastoril-promo)] px-2 py-1 font-bold uppercase text-white shadow-sm sm:right-3 sm:top-3">
             Promo
           </span>
         )}
@@ -409,44 +409,43 @@ function ProductCard({
             alt={product.nome}
             fill
             priority={priority}
-            sizes="(min-width: 1024px) 16vw, (min-width: 640px) 25vw, 33vw"
-            className="object-contain p-1 transition duration-500 md:group-hover:scale-[1.03]"
+            sizes="(min-width: 1280px) 300px, (min-width: 1024px) 24vw, (min-width: 640px) 260px, 72vw"
+            className="object-contain p-2 transition duration-500 md:group-hover:scale-[1.025] sm:p-3"
           />
         ) : (
           <div className="type-helper flex h-full items-center justify-center px-3 text-center text-[var(--pastoril-muted)]">
             Sem foto
           </div>
         )}
+          <WishlistButton
+            className="absolute left-2 top-2 z-20 h-10 w-10 sm:left-3 sm:top-3 sm:h-11 sm:w-11 [&_svg]:h-6 [&_svg]:w-6"
+            isFavorite={isFavorite}
+            onToggle={() => onToggleFavorite(product.id)}
+            productName={product.nome}
+          />
         </div>
 
-        <div className="flex flex-1 flex-col p-2 sm:p-3">
-          <h3 className="line-clamp-2 min-h-[2.2rem] text-[11px] font-medium leading-[1.25] transition md:group-hover:text-[var(--pastoril-caramel)] sm:text-sm">
+        <div className="flex flex-1 flex-col px-0 pt-3 sm:pt-3.5">
+          <h3 className="line-clamp-2 min-h-[2.6rem] text-[0.8rem] font-semibold uppercase leading-[1.28] tracking-normal text-[var(--pastoril-text)] transition md:group-hover:text-[var(--pastoril-caramel)] sm:text-[0.95rem]">
             {product.nome}
           </h3>
 
-          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1 gap-y-0.5">
-            <p className="text-[12px] font-bold leading-tight text-[var(--pastoril-brown)] sm:text-base">
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <p className="text-[1rem] font-bold leading-tight text-[var(--pastoril-brown)] sm:text-[1.18rem]">
               {formatCurrency(currentPrice)}
             </p>
             {hasPromotion && (
-              <p className="hidden text-[10px] text-[var(--pastoril-muted)] line-through sm:block">
+              <p className="text-[0.72rem] text-[var(--pastoril-muted)] line-through sm:text-xs">
                 {formatCurrency(product.preco)}
               </p>
             )}
           </div>
 
-          <p className="mt-1 text-[10px] font-medium leading-tight text-[var(--pastoril-caramel)] sm:text-xs">
-            3x de {formatCurrency(currentPrice / 3)}
+          <p className="mt-1 text-[0.76rem] font-medium leading-snug text-[var(--pastoril-caramel)] sm:text-sm">
+            3x de {formatCurrency(currentPrice / 3)} sem juros
           </p>
         </div>
       </Link>
-
-      <WishlistButton
-        className="absolute right-2 top-2 z-20 h-8 w-8"
-        isFavorite={isFavorite}
-        onToggle={() => onToggleFavorite(product.id)}
-        productName={product.nome}
-      />
     </article>
   );
 }
@@ -684,9 +683,9 @@ function ProductSection({
           Ver todos <Icon name="chevron" className="h-4 w-4" />
         </button>
       </div>
-      <div className="product-carousel -mx-3 flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-3 scroll-smooth sm:-mx-6 sm:gap-4 sm:px-6 lg:mx-0 lg:px-0">
+      <div className="product-carousel -mx-3 flex snap-x snap-mandatory gap-5 overflow-x-auto px-3 pb-4 scroll-smooth sm:-mx-6 sm:gap-6 sm:px-6 lg:mx-0 lg:px-0">
         {products.map((product, index) => (
-          <div key={product.id} className="w-[42vw] max-w-[178px] shrink-0 snap-start sm:w-[220px] sm:max-w-none lg:w-[210px] xl:w-[220px]">
+          <div key={product.id} className="w-[72vw] max-w-[310px] shrink-0 snap-start sm:w-[260px] sm:max-w-none lg:w-[280px] xl:w-[300px]">
             <ProductCard
               product={product}
               isFavorite={favoriteIds.has(product.id)}
@@ -909,7 +908,7 @@ export default function Home() {
   };
 
   return (
-    <div className="type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)]">
+    <div className="store-top-safe-area type-body min-h-screen bg-[var(--pastoril-bg)] pb-[calc(96px+env(safe-area-inset-bottom))] text-[var(--pastoril-text)]">
       <StoreHeader
         onCartToggle={() => setIsCartOpen(!isCartOpen)}
         onMenuOpen={openStoreMenu}
@@ -1029,7 +1028,7 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-4 lg:grid-cols-6">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-5 sm:gap-y-8 lg:grid-cols-4 xl:grid-cols-5">
                   {paginatedProducts.map((product, index) => (
                     <ProductCard
                       key={product.id}

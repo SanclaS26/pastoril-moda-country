@@ -12,6 +12,7 @@ import {
 } from '@/lib/banner-layout';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
+import ConfirmDialog from '../components/ConfirmDialog';
 import AdminShell from '../components/AdminShell';
 
 type Banner = {
@@ -85,6 +86,7 @@ export default function AdminBannersPage() {
   const [mobilePreview, setMobilePreview] = useState('');
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [bannerToDelete, setBannerToDelete] = useState<Banner | null>(null);
 
   const isEditing = Boolean(editingBanner);
 
@@ -224,11 +226,6 @@ export default function AdminBannersPage() {
 
   const runBannerAction = async (banner: Banner, action: Exclude<BannerAction, null>) => {
     if (busyBanner) return;
-
-    if (action === 'delete') {
-      const confirmed = window.confirm(`Excluir o banner "${banner.titulo || 'Banner sem titulo'}"? Esta acao remove o registro e as imagens do Storage.`);
-      if (!confirmed) return;
-    }
 
     setBusyBanner({ id: banner.id, action });
     setError('');
@@ -494,7 +491,7 @@ export default function AdminBannersPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => runBannerAction(banner, 'delete')}
+                          onClick={() => setBannerToDelete(banner)}
                           disabled={Boolean(currentAction)}
                           className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -509,6 +506,19 @@ export default function AdminBannersPage() {
           </section>
         </div>
       </div>
+      {bannerToDelete && (
+        <ConfirmDialog
+          title="Excluir banner?"
+          message={`Esta acao remove o banner "${bannerToDelete.titulo || 'Banner sem titulo'}" e suas imagens do Storage.`}
+          confirmLabel="Excluir banner"
+          loading={busyBanner?.id === bannerToDelete.id && busyBanner.action === 'delete'}
+          onCancel={() => {
+            if (!busyBanner) setBannerToDelete(null);
+          }}
+          onConfirm={() => void runBannerAction(bannerToDelete, 'delete').then(() => setBannerToDelete(null))}
+          tone="danger"
+        />
+      )}
     </AdminShell>
   );
 }

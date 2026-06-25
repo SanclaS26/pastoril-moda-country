@@ -2,6 +2,10 @@ export function onlyDigits(value: string) {
   return value.replace(/\D/g, '');
 }
 
+export function normalizeCpf(value: string) {
+  return onlyDigits(value);
+}
+
 export function formatCpf(value: string) {
   const digits = onlyDigits(value).slice(0, 11);
 
@@ -33,7 +37,7 @@ export function formatPhone(value: string) {
 }
 
 export function isValidCpf(value: string) {
-  const cpf = onlyDigits(value);
+  const cpf = normalizeCpf(value);
 
   if (cpf.length !== 11 || /^(\d)\1+$/.test(cpf)) {
     return false;

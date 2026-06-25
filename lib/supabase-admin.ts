@@ -185,6 +185,8 @@ export type VendaRow = {
   total_final: number | null;
   observacoes_admin: string | null;
   whatsapp_enviado_em: string | null;
+  concluded_at: string | null;
+  first_admin_response_at: string | null;
   estoque_baixado: boolean;
   deleted_at: string | null;
   deleted_by: string | null;
@@ -192,9 +194,11 @@ export type VendaRow = {
   updated_at: string;
 };
 
-export type VendaInsert = Omit<VendaRow, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'deleted_by'> & {
+export type VendaInsert = Omit<VendaRow, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'deleted_by' | 'concluded_at' | 'first_admin_response_at'> & {
   deleted_at?: string | null;
   deleted_by?: string | null;
+  concluded_at?: string | null;
+  first_admin_response_at?: string | null;
 };
 export type VendaUpdate = Partial<Omit<VendaInsert, 'codigo'>>;
 
@@ -320,6 +324,22 @@ type Database = {
           p_expira_antes?: string;
         };
         Returns: number;
+      };
+      concluir_venda: {
+        Args: { p_venda_id: string };
+        Returns: VendaRow;
+      };
+      cancelar_venda: {
+        Args: { p_venda_id: string };
+        Returns: VendaRow;
+      };
+      reabrir_venda: {
+        Args: { p_venda_id: string };
+        Returns: VendaRow;
+      };
+      registrar_primeira_resposta_admin: {
+        Args: { p_venda_id: string };
+        Returns: VendaRow;
       };
     };
     Enums: Record<string, never>;

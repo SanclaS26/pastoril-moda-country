@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -20,6 +20,35 @@ import {
 } from '@/lib/catalog';
 
 type IconName = 'arrow' | 'cart' | 'minus' | 'plus';
+
+type Point = {
+  x: number;
+  y: number;
+};
+
+const MIN_LIGHTBOX_ZOOM = 1;
+const MAX_LIGHTBOX_ZOOM = 4;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function getPointerDistance(first: Point, second: Point) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function clampLightboxOffset(offset: Point, zoom: number) {
+  if (zoom <= 1) {
+    return { x: 0, y: 0 };
+  }
+
+  const maxOffset = Math.min(520, 80 + (zoom - 1) * 240);
+
+  return {
+    x: clamp(offset.x, -maxOffset, maxOffset),
+    y: clamp(offset.y, -maxOffset, maxOffset),
+  };
+}
 
 function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {
   const common = {
@@ -85,6 +114,279 @@ function DetailSkeleton() {
   );
 }
 
+function ProductImageLightbox({
+  alt,
+  images,
+  initialIndex,
+  onClose,
+}: {
+  alt: string;
+  images: string[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const [zoom, setZoom] = useState(1);
+  const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const pointersRef = useRef(new Map<number, Point>());
+  const dragStartRef = useRef<Point | null>(null);
+  const offsetStartRef = useRef<Point>({ x: 0, y: 0 });
+  const pinchStartDistanceRef = useRef(0);
+  const pinchStartZoomRef = useRef(1);
+  const activeImage = images[activeIndex] ?? images[0] ?? '';
+  const hasMultipleImages = images.length > 1;
+
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    setOffset({ x: 0, y: 0 });
+  }, []);
+
+  const updateZoom = useCallback((nextZoom: number) => {
+    const clampedZoom = clamp(nextZoom, MIN_LIGHTBOX_ZOOM, MAX_LIGHTBOX_ZOOM);
+
+    setZoom(clampedZoom);
+    setOffset((current) => clampLightboxOffset(current, clampedZoom));
+  }, []);
+
+  const goToImage = useCallback((direction: 1 | -1) => {
+    resetZoom();
+    setActiveIndex((current) => (current + direction + images.length) % images.length);
+  }, [images.length, resetZoom]);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+
+      const focusableElements = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute('disabled'));
+
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const point = { x: event.clientX, y: event.clientY };
+    pointersRef.current.set(event.pointerId, point);
+
+    if (pointersRef.current.size === 1 && zoom > 1) {
+      dragStartRef.current = point;
+      offsetStartRef.current = offset;
+    }
+
+    if (pointersRef.current.size === 2) {
+      const [first, second] = Array.from(pointersRef.current.values());
+      pinchStartDistanceRef.current = getPointerDistance(first, second);
+      pinchStartZoomRef.current = zoom;
+      dragStartRef.current = null;
+    }
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointersRef.current.has(event.pointerId)) return;
+
+    const point = { x: event.clientX, y: event.clientY };
+    pointersRef.current.set(event.pointerId, point);
+
+    if (pointersRef.current.size === 2) {
+      const [first, second] = Array.from(pointersRef.current.values());
+      const distance = getPointerDistance(first, second);
+      const startDistance = pinchStartDistanceRef.current || distance;
+      const nextZoom = pinchStartZoomRef.current * (distance / startDistance);
+      updateZoom(nextZoom);
+      return;
+    }
+
+    if (dragStartRef.current && zoom > 1) {
+      const nextOffset = {
+        x: offsetStartRef.current.x + point.x - dragStartRef.current.x,
+        y: offsetStartRef.current.y + point.y - dragStartRef.current.y,
+      };
+      setOffset(clampLightboxOffset(nextOffset, zoom));
+    }
+  };
+
+  const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    dragStartRef.current = null;
+
+    if (pointersRef.current.size === 1 && zoom > 1) {
+      const [remainingPoint] = Array.from(pointersRef.current.values());
+      dragStartRef.current = remainingPoint;
+      offsetStartRef.current = offset;
+    }
+  };
+
+  const handleDoubleClick = () => {
+    if (zoom > 1) {
+      resetZoom();
+      return;
+    }
+
+    updateZoom(2.25);
+  };
+
+  const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const delta = event.deltaY > 0 ? -0.22 : 0.22;
+    updateZoom(zoom + delta);
+  };
+
+  return (
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Foto ampliada de ${alt}`}
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[#120A06]/78 px-3 py-[calc(16px+env(safe-area-inset-top))] text-[var(--pastoril-on-dark)] backdrop-blur-md sm:px-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,248,240,0.08),transparent_56%)]" aria-hidden="true" />
+
+      <div className="absolute left-3 right-3 top-[calc(12px+env(safe-area-inset-top))] z-20 flex items-center justify-between gap-3 sm:left-6 sm:right-6">
+        <button
+          ref={closeButtonRef}
+          type="button"
+          onClick={onClose}
+          className="rounded-full border border-white/20 bg-black/24 px-4 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-black/36 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
+          aria-label="Fechar imagem ampliada"
+        >
+          Fechar
+        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => updateZoom(zoom - 0.35)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/24 text-lg font-semibold text-white backdrop-blur transition hover:bg-black/36"
+            aria-label="Diminuir zoom"
+          >
+            -
+          </button>
+          <button
+            type="button"
+            onClick={() => updateZoom(zoom + 0.35)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/24 text-lg font-semibold text-white backdrop-blur transition hover:bg-black/36"
+            aria-label="Aumentar zoom"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={resetZoom}
+            className="rounded-full border border-white/20 bg-black/24 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-black/36"
+          >
+            Restaurar zoom
+          </button>
+        </div>
+      </div>
+
+      {hasMultipleImages && (
+        <>
+          <button
+            type="button"
+            onClick={() => goToImage(-1)}
+            className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/24 text-2xl text-white backdrop-blur transition hover:bg-black/36 sm:left-6"
+            aria-label="Imagem anterior"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => goToImage(1)}
+            className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/24 text-2xl text-white backdrop-blur transition hover:bg-black/36 sm:right-6"
+            aria-label="Proxima imagem"
+          >
+            ›
+          </button>
+        </>
+      )}
+
+      <div
+        className={`relative z-10 flex h-[82svh] w-full max-w-6xl touch-none select-none items-center justify-center overflow-hidden ${zoom > 1 ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onDoubleClick={handleDoubleClick}
+        onWheel={handleWheel}
+      >
+        {activeImage && (
+          <Image
+            src={activeImage}
+            alt={alt}
+            fill
+            sizes="100vw"
+            unoptimized
+            className="object-contain transition-transform duration-100 ease-out"
+            draggable={false}
+            style={{
+              transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})`,
+            }}
+          />
+        )}
+      </div>
+
+      {hasMultipleImages && (
+        <div className="absolute bottom-[calc(12px+env(safe-area-inset-bottom))] left-0 right-0 z-20 flex justify-center gap-2 px-4">
+          {images.map((image, index) => (
+            <button
+              key={image}
+              type="button"
+              onClick={() => {
+                resetZoom();
+                setActiveIndex(index);
+              }}
+              className={`relative h-12 w-12 overflow-hidden rounded-lg border transition ${index === activeIndex ? 'border-[var(--pastoril-caramel)]' : 'border-white/30 opacity-70'}`}
+              aria-label={`Abrir imagem ${index + 1}`}
+              aria-current={index === activeIndex ? 'true' : undefined}
+            >
+              <Image src={image} alt="" fill sizes="48px" className="object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProductDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -99,6 +401,8 @@ export default function ProductDetailPage() {
   const [cartError, setCartError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const lightboxTriggerRef = useRef<HTMLButtonElement | null>(null);
   const { openClienteAuth } = useClienteAuth();
   const { favoriteIds, toggleFavorite } = useWishlist();
   const {
@@ -183,7 +487,15 @@ export default function ProductDetailPage() {
   const currentPrice = product ? getProductPrice(product) : 0;
   const hasPromotion = Boolean(product?.em_promocao && product.preco_promocional !== null);
   const productImages = product?.imagem_principal ? [product.imagem_principal] : [];
+  const selectedImageIndex = Math.max(0, productImages.findIndex((image) => image === selectedImage));
   const isFavorite = product ? favoriteIds.has(product.id) : false;
+
+  const closeLightbox = useCallback(() => {
+    setIsLightboxOpen(false);
+    window.requestAnimationFrame(() => {
+      lightboxTriggerRef.current?.focus();
+    });
+  }, []);
 
   const addToCart = () => {
     if (!product) return;
@@ -357,14 +669,22 @@ export default function ProductDetailPage() {
                     productName={product.nome}
                   />
                   {selectedImage ? (
-                    <Image
-                      src={selectedImage}
-                      alt={product.nome}
-                      fill
-                      priority
-                      sizes="(min-width: 1024px) 50vw, 100vw"
-                      className="object-cover"
-                    />
+                    <button
+                      ref={lightboxTriggerRef}
+                      type="button"
+                      onClick={() => setIsLightboxOpen(true)}
+                      className="absolute inset-0 cursor-zoom-in focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-6px] focus-visible:outline-[var(--pastoril-caramel)]"
+                      aria-label={`Ampliar foto de ${product.nome}`}
+                    >
+                      <Image
+                        src={selectedImage}
+                        alt={product.nome}
+                        fill
+                        priority
+                        sizes="(min-width: 1024px) 50vw, 100vw"
+                        className="object-cover"
+                      />
+                    </button>
                   ) : (
                     <div className="type-helper flex h-full items-center justify-center px-6 text-center text-[var(--pastoril-muted)]">
                       Produto sem imagem cadastrada
@@ -528,6 +848,15 @@ export default function ProductDetailPage() {
         whatsappFallbackUrl={whatsappFallbackUrl}
         finalizeOnWhatsApp={finalizeOnWhatsApp}
       />
+
+      {isLightboxOpen && product && productImages.length > 0 && (
+        <ProductImageLightbox
+          alt={product.nome}
+          images={productImages}
+          initialIndex={selectedImageIndex}
+          onClose={closeLightbox}
+        />
+      )}
     </div>
   );
 }

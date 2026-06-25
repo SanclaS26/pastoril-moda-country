@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireActiveAdmin } from '@/lib/admin-auth';
-import type { VendaItemRow, VendaUpdate } from '@/lib/supabase-admin';
+import type { VendaItemInsert, VendaItemRow, VendaUpdate } from '@/lib/supabase-admin';
 import { normalizeVendaStatus } from '@/lib/vendas';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,11 @@ type ItemUpdateInput = {
   id: string;
   quantidade_final: number;
   valor_unitario_final: number;
+};
+
+type ItemAddInput = {
+  estoque_produto_id: number;
+  quantidade_final: number;
 };
 
 async function loadVenda(supabaseAdmin: ReturnType<typeof import('@/lib/supabase-admin').getSupabaseAdmin>, id: string) {
@@ -29,94 +34,137 @@ async function loadVenda(supabaseAdmin: ReturnType<typeof import('@/lib/supabase
   const { data: itens, error: itensError } = await supabaseAdmin
     .from('venda_itens')
     .select('*')
-    .eq('venda_id', id);
+    .eq('venda_id', id)
+    .order('created_at', { ascending: true });
 
   if (itensError) {
     throw new Error(itensError.message);
   }
 
-  return { itens: (itens ?? []) as VendaItemRow[], venda };
+  const stockIds = [...new Set((itens ?? []).map((item) => item.estoque_produto_id).filter((stockId): stockId is number => typeof stockId === 'number'))];
+  const { data: stocks, error: stockError } = stockIds.length
+    ? await supabaseAdmin.from('estoque_produtos').select('id, quantidade').in('id', stockIds)
+    : { data: [], error: null };
+
+  if (stockError) {
+    throw new Error(stockError.message);
+  }
+
+  const stockById = new Map((stocks ?? []).map((stock) => [stock.id, stock.quantidade]));
+  const itensWithStock = (itens ?? []).map((item) => ({
+    ...item,
+    estoque_disponivel: item.estoque_produto_id ? (stockById.get(item.estoque_produto_id) ?? null) : null,
+  }));
+
+  return { itens: itensWithStock as Array<VendaItemRow & { estoque_disponivel?: number | null }>, venda };
 }
 
-async function baixarEstoque(
+async function ensureStockAvailable(
   supabaseAdmin: ReturnType<typeof import('@/lib/supabase-admin').getSupabaseAdmin>,
-  vendaId: string,
-  itens: VendaItemRow[],
+  item: Pick<VendaItemRow, 'estoque_produto_id' | 'nome' | 'produto_id' | 'quantidade_final' | 'tamanho'>,
 ) {
-  for (const item of itens) {
-    if (item.quantidade_final <= 0) continue;
+  if (!item.estoque_produto_id) {
+    throw new Error(`Item ${item.nome} nao possui estoque vinculado.`);
+  }
 
-    const { data: stock, error: stockError } = await supabaseAdmin
-      .from('estoque_produtos')
-      .select('id, quantidade')
-      .eq('produto_id', item.produto_id)
-      .eq('tamanho', item.tamanho)
-      .single();
+  const { data: stock, error } = await supabaseAdmin
+    .from('estoque_produtos')
+    .select('id, produto_id, tamanho, quantidade')
+    .eq('id', item.estoque_produto_id)
+    .eq('produto_id', item.produto_id)
+    .eq('tamanho', item.tamanho)
+    .single();
 
-    if (stockError || !stock) {
-      throw new Error(`Estoque nao encontrado para ${item.nome} (${item.tamanho}).`);
-    }
+  if (error || !stock) {
+    throw new Error(`Estoque nao encontrado para ${item.nome} (${item.tamanho}).`);
+  }
 
-    if (stock.quantidade < item.quantidade_final) {
-      throw new Error(`Estoque insuficiente para ${item.nome} (${item.tamanho}).`);
-    }
-
-    const { error: updateError } = await supabaseAdmin
-      .from('estoque_produtos')
-      .update({ quantidade: stock.quantidade - item.quantidade_final })
-      .eq('id', stock.id);
-
-    if (updateError) {
-      throw new Error(`Erro ao baixar estoque de ${item.nome}: ${updateError.message}`);
-    }
-
-    await supabaseAdmin.from('venda_estoque_movimentos').insert([{
-      estoque_produto_id: stock.id,
-      produto_id: item.produto_id,
-      quantidade: item.quantidade_final,
-      tamanho: item.tamanho,
-      tipo: 'baixa',
-      venda_id: vendaId,
-    }]);
+  if (stock.quantidade < item.quantidade_final) {
+    throw new Error(`Estoque insuficiente para ${item.nome} (${item.tamanho}). Disponivel: ${stock.quantidade}, solicitado: ${item.quantidade_final}.`);
   }
 }
 
-async function restaurarEstoque(
+async function addItemToVenda(
   supabaseAdmin: ReturnType<typeof import('@/lib/supabase-admin').getSupabaseAdmin>,
   vendaId: string,
-  itens: VendaItemRow[],
+  input: ItemAddInput,
 ) {
-  for (const item of itens) {
-    if (item.quantidade_final <= 0) continue;
+  const quantidade = Number(input.quantidade_final);
+  const estoqueProdutoId = Number(input.estoque_produto_id);
 
-    const { data: stock, error: stockError } = await supabaseAdmin
-      .from('estoque_produtos')
-      .select('id, quantidade')
-      .eq('produto_id', item.produto_id)
-      .eq('tamanho', item.tamanho)
-      .single();
+  if (!Number.isInteger(estoqueProdutoId) || estoqueProdutoId <= 0 || !Number.isInteger(quantidade) || quantidade <= 0) {
+    throw new Error('Produto e quantidade para adicionar sao obrigatorios.');
+  }
 
-    if (stockError || !stock) {
-      throw new Error(`Estoque nao encontrado para restaurar ${item.nome} (${item.tamanho}).`);
-    }
+  const { data: stock, error: stockError } = await supabaseAdmin
+    .from('estoque_produtos')
+    .select('id, produto_id, tamanho, quantidade')
+    .eq('id', estoqueProdutoId)
+    .single();
 
+  if (stockError || !stock) {
+    throw new Error('Tamanho com estoque nao encontrado.');
+  }
+
+  const { data: product, error: productError } = await supabaseAdmin
+    .from('produtos')
+    .select('id, codigo_produto, nome, preco, preco_promocional, em_promocao, ativo')
+    .eq('id', stock.produto_id)
+    .eq('ativo', true)
+    .single();
+
+  if (productError || !product) {
+    throw new Error('Produto inexistente ou inativo.');
+  }
+
+  const { data: existingItem, error: existingError } = await supabaseAdmin
+    .from('venda_itens')
+    .select('*')
+    .eq('venda_id', vendaId)
+    .eq('produto_id', product.id)
+    .eq('tamanho', stock.tamanho)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(`Erro ao verificar item existente: ${existingError.message}`);
+  }
+
+  const nextQuantity = (existingItem?.quantidade_final ?? 0) + quantidade;
+
+  if (stock.quantidade < nextQuantity) {
+    throw new Error(`Estoque insuficiente para ${product.nome} (${stock.tamanho}). Disponivel: ${stock.quantidade}, solicitado: ${nextQuantity}.`);
+  }
+
+  if (existingItem) {
     const { error: updateError } = await supabaseAdmin
-      .from('estoque_produtos')
-      .update({ quantidade: stock.quantidade + item.quantidade_final })
-      .eq('id', stock.id);
+      .from('venda_itens')
+      .update({ quantidade_final: nextQuantity })
+      .eq('id', existingItem.id);
 
     if (updateError) {
-      throw new Error(`Erro ao restaurar estoque de ${item.nome}: ${updateError.message}`);
+      throw new Error(`Erro ao atualizar item existente: ${updateError.message}`);
     }
+    return;
+  }
 
-    await supabaseAdmin.from('venda_estoque_movimentos').insert([{
-      estoque_produto_id: stock.id,
-      produto_id: item.produto_id,
-      quantidade: item.quantidade_final,
-      tamanho: item.tamanho,
-      tipo: 'restauracao',
-      venda_id: vendaId,
-    }]);
+  const unitPrice = product.em_promocao && product.preco_promocional !== null ? product.preco_promocional : product.preco;
+  const itemPayload: VendaItemInsert = {
+    codigo_produto: product.codigo_produto,
+    estoque_produto_id: stock.id,
+    nome: product.nome,
+    produto_id: product.id,
+    quantidade_final: quantidade,
+    quantidade_original: quantidade,
+    tamanho: stock.tamanho,
+    valor_unitario_final: unitPrice,
+    valor_unitario_original: unitPrice,
+    venda_id: vendaId,
+  };
+
+  const { error: insertError } = await supabaseAdmin.from('venda_itens').insert([itemPayload]);
+
+  if (insertError) {
+    throw new Error(`Erro ao adicionar produto a venda: ${insertError.message}`);
   }
 }
 
@@ -134,6 +182,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const nextStatus = normalizeVendaStatus(body?.status ?? null);
     const observacoesAdmin = typeof body?.observacoes_admin === 'string' ? body.observacoes_admin : undefined;
     const itemUpdates = Array.isArray(body?.itens) ? (body.itens as ItemUpdateInput[]) : [];
+    const itemAdds = Array.isArray(body?.add_itens) ? (body.add_itens as ItemAddInput[]) : [];
     const { venda } = await loadVenda(authorization.supabaseAdmin, id);
 
     if (action === 'restore') {
@@ -163,9 +212,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       const quantidade = Number(update.quantidade_final);
       const valor = Number(update.valor_unitario_final);
 
-      if (!update.id || !Number.isInteger(quantidade) || quantidade < 0 || !Number.isFinite(valor) || valor < 0) {
+      if (!update.id || !Number.isInteger(quantidade) || quantidade < 1 || !Number.isFinite(valor) || valor < 0) {
         return NextResponse.json({ error: 'Itens finais invalidos.' }, { status: 400 });
       }
+
+      const currentItem = (await loadVenda(authorization.supabaseAdmin, id)).itens.find((item) => item.id === update.id);
+      if (!currentItem) {
+        return NextResponse.json({ error: 'Item da venda nao encontrado.' }, { status: 404 });
+      }
+
+      await ensureStockAvailable(authorization.supabaseAdmin, {
+        ...currentItem,
+        quantidade_final: quantidade,
+      });
 
       const { error } = await authorization.supabaseAdmin
         .from('venda_itens')
@@ -181,6 +240,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
+    for (const itemAdd of itemAdds) {
+      await addItemToVenda(authorization.supabaseAdmin, id, itemAdd);
+    }
+
     const { itens: refreshedItems, venda: refreshedVenda } = await loadVenda(authorization.supabaseAdmin, id);
     const totalFinal = refreshedItems.reduce((total, item) => total + item.quantidade_final * item.valor_unitario_final, 0);
     const updateVenda: VendaUpdate = {
@@ -191,19 +254,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       updateVenda.observacoes_admin = observacoesAdmin;
     }
 
-    if (nextStatus && nextStatus !== refreshedVenda.status) {
-      if (nextStatus === 'concluida' && !refreshedVenda.estoque_baixado) {
-        await baixarEstoque(authorization.supabaseAdmin, id, refreshedItems);
-        updateVenda.estoque_baixado = true;
-      }
-
-      if (refreshedVenda.estoque_baixado && (nextStatus === 'cancelada' || nextStatus === 'em_aberto')) {
-        await restaurarEstoque(authorization.supabaseAdmin, id, refreshedItems);
-        updateVenda.estoque_baixado = false;
-      }
-
-      updateVenda.status = nextStatus;
-    } else if (!nextStatus && venda.status === 'concluida' && !venda.estoque_baixado) {
+    if (!nextStatus && venda.status === 'concluida' && !venda.estoque_baixado) {
       return NextResponse.json({ error: 'Venda concluida sem controle de estoque consistente.' }, { status: 409 });
     }
 
@@ -218,12 +269,37 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: `Erro ao atualizar venda: ${vendaError?.message ?? 'venda nao retornada.'}` }, { status: 500 });
     }
 
+    let finalVenda = updatedVenda;
+
+    if (nextStatus && nextStatus !== refreshedVenda.status) {
+      const rpcName = nextStatus === 'concluida'
+        ? 'concluir_venda'
+        : nextStatus === 'cancelada'
+          ? 'cancelar_venda'
+          : 'reabrir_venda';
+      const { data: rpcVenda, error: rpcError } = await authorization.supabaseAdmin.rpc(rpcName, { p_venda_id: id });
+
+      if (rpcError || !rpcVenda) {
+        return NextResponse.json({ error: `Erro ao mudar status da venda: ${rpcError?.message ?? 'venda nao retornada.'}` }, { status: 500 });
+      }
+
+      finalVenda = rpcVenda;
+    } else if (observacoesAdmin !== undefined || itemUpdates.length > 0 || itemAdds.length > 0) {
+      const { data: responseVenda, error: responseError } = await authorization.supabaseAdmin.rpc('registrar_primeira_resposta_admin', { p_venda_id: id });
+
+      if (responseError || !responseVenda) {
+        return NextResponse.json({ error: `Erro ao registrar primeira resposta: ${responseError?.message ?? 'venda nao retornada.'}` }, { status: 500 });
+      }
+
+      finalVenda = responseVenda;
+    }
+
     const { data: updatedItems } = await authorization.supabaseAdmin
       .from('venda_itens')
       .select('*')
       .eq('venda_id', id);
 
-    return NextResponse.json({ venda: { ...updatedVenda, itens: updatedItems ?? [] } });
+    return NextResponse.json({ venda: { ...finalVenda, itens: updatedItems ?? [] } });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Erro inesperado ao atualizar venda.' },

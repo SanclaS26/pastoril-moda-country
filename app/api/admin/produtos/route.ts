@@ -207,18 +207,42 @@ async function validateDepartmentAndCategory(
   return { departamento, categoria };
 }
 
-async function listProducts(supabaseAdmin: ReturnType<typeof getSupabaseAdmin>) {
-  const { data: products, error: productsError } = await supabaseAdmin
+async function listProducts(
+  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
+  options: { code?: string; page?: number; pageSize?: number; promotion?: string; search?: string } = {},
+) {
+  const pageSize = Math.min(Math.max(options.pageSize ?? 10, 1), 50);
+  const page = Math.max(options.page ?? 1, 1);
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const search = options.search?.trim();
+  const code = options.code?.trim();
+
+  let query = supabaseAdmin
     .from('produtos')
-    .select('*')
-    .order('id', { ascending: false });
+    .select('*', { count: 'exact' });
+
+  if (code) {
+    query = query.eq('codigo_produto', code).eq('ativo', true);
+  } else if (search) {
+    const escaped = search.replace(/[%_]/g, (match) => `\\${match}`);
+    query = query.or(`codigo_produto.ilike.%${escaped}%,nome.ilike.%${escaped}%,departamento.ilike.%${escaped}%,categoria.ilike.%${escaped}%,marca.ilike.%${escaped}%`);
+  }
+
+  if (options.promotion === 'promocao') {
+    query = query.eq('em_promocao', true);
+  }
+
+  const { count, data: products, error: productsError } = await query
+    .order('id', { ascending: false })
+    .range(from, to);
 
   if (productsError) {
     throw new Error(`Erro ao listar produtos: ${productsError.message}`);
   }
 
   if (!products?.length) {
-    return [];
+    return { page, pageSize, products: [], total: count ?? 0 };
   }
 
   const productIds = products.map((product) => product.id);
@@ -232,9 +256,14 @@ async function listProducts(supabaseAdmin: ReturnType<typeof getSupabaseAdmin>) 
     throw new Error(`Erro ao listar estoque dos produtos: ${stockError.message}`);
   }
 
-  return products.map((product) =>
-    formatProduct(product, (stock ?? []).filter((item) => item.produto_id === product.id))
-  );
+  return {
+    page,
+    pageSize,
+    products: products.map((product) =>
+      formatProduct(product, (stock ?? []).filter((item) => item.produto_id === product.id))
+    ),
+    total: count ?? products.length,
+  };
 }
 
 export async function GET(request: Request) {
@@ -245,8 +274,17 @@ export async function GET(request: Request) {
   }
 
   try {
-    const products = await listProducts(authorization.supabaseAdmin);
-    return NextResponse.json({ products });
+    const params = new URL(request.url).searchParams;
+    const page = Number(params.get('page') ?? 1);
+    const pageSize = Number(params.get('pageSize') ?? 10);
+    const products = await listProducts(authorization.supabaseAdmin, {
+      code: params.get('code') ?? undefined,
+      page: Number.isInteger(page) ? page : 1,
+      pageSize: Number.isInteger(pageSize) ? pageSize : 10,
+      promotion: params.get('promotion') ?? undefined,
+      search: params.get('search') ?? undefined,
+    });
+    return NextResponse.json(products);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro ao listar produtos.' }, { status: 500 });
   }

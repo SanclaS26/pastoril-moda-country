@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
 
-export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'clientes' | 'vendas' | 'carrinhos' | 'banners' | 'wishlists';
+export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'clientes' | 'vendas' | 'carrinhos' | 'wishlists' | 'erp' | 'banners';
 
 type AdminShellProps = {
   title: string;
@@ -16,7 +16,7 @@ type AdminShellProps = {
   children: ReactNode;
 };
 
-type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' | 'chevron' | 'heart';
+type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' | 'chevron' | 'heart' | 'plug';
 
 const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName; subItem?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin', icon: 'home' },
@@ -26,6 +26,7 @@ const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName;
   { key: 'vendas', label: 'Vendas', href: '/admin/vendas', icon: 'box' },
   { key: 'carrinhos', label: 'Carrinhos abertos', href: '/admin/vendas/carrinhos-abertos', icon: 'box' },
   { key: 'wishlists', label: 'Listas de desejos', href: '/admin/listas-de-desejos', icon: 'heart' },
+  { key: 'erp', label: 'Integrações ERP', href: '/admin/integracoes/erp', icon: 'plug' },
   { key: 'banners', label: 'Banners', href: '/admin/banners', icon: 'image' },
 ];
 
@@ -94,6 +95,17 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
     return (
       <svg {...common}>
         <path d="M20.4 8.7c0 4.8-8.4 10-8.4 10s-8.4-5.2-8.4-10A4.4 4.4 0 0 1 12 7.3a4.4 4.4 0 0 1 8.4 1.4Z" />
+      </svg>
+    );
+  }
+
+  if (name === 'plug') {
+    return (
+      <svg {...common}>
+        <path d="M8.5 7.5 6 5" />
+        <path d="M15.5 7.5 18 5" />
+        <path d="M7.5 8.5h9v4.2a4.5 4.5 0 0 1-9 0V8.5Z" />
+        <path d="M12 17.2V21" />
       </svg>
     );
   }

@@ -17,6 +17,49 @@ type AdminUserInsert = {
   ativo: boolean;
 };
 
+export type ErpIntegrationRow = {
+  id: number;
+  erp_name: string | null;
+  provider_name: string | null;
+  api_base_url: string | null;
+  api_version: string | null;
+  environment: 'Producao' | 'Homologacao' | 'Sandbox';
+  auth_type: 'API Key' | 'Bearer Token' | 'OAuth 2.0' | 'Usuario e senha' | 'Ainda nao definido';
+  sync_interval_minutes: number;
+  sync_products: boolean;
+  sync_categories: boolean;
+  sync_prices: boolean;
+  sync_images: boolean;
+  sync_stock: boolean;
+  send_confirmed_sales: boolean;
+  is_active: boolean;
+  credentials_configured: boolean;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ErpIntegrationUpdate = Partial<
+  Pick<
+    ErpIntegrationRow,
+    | 'erp_name'
+    | 'provider_name'
+    | 'api_base_url'
+    | 'api_version'
+    | 'environment'
+    | 'auth_type'
+    | 'sync_interval_minutes'
+    | 'sync_products'
+    | 'sync_categories'
+    | 'sync_prices'
+    | 'sync_images'
+    | 'sync_stock'
+    | 'send_confirmed_sales'
+  >
+>;
+
 export type ProdutoRow = {
   id: number;
   codigo_produto: string;
@@ -237,6 +280,12 @@ type Database = {
         Row: AdminUserRow;
         Insert: AdminUserInsert;
         Update: Partial<AdminUserInsert>;
+        Relationships: [];
+      };
+      erp_integrations: {
+        Row: ErpIntegrationRow;
+        Insert: ErpIntegrationUpdate & { id?: number };
+        Update: ErpIntegrationUpdate;
         Relationships: [];
       };
       produtos: {

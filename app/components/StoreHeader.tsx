@@ -54,7 +54,7 @@ type StoreHeaderProps = {
 
 export function StoreHeader({ onCartToggle, onMenuOpen, totalItems }: StoreHeaderProps) {
   return (
-    <header className="relative bg-[var(--pastoril-header)] shadow-[0_5px_18px_var(--pastoril-shadow)]">
+    <header className="relative bg-[var(--pastoril-header)] pt-[env(safe-area-inset-top)] shadow-[0_5px_18px_var(--pastoril-shadow)]">
       <div className="relative z-30 mx-auto grid h-[72px] max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-4 sm:h-[82px] sm:px-6 lg:px-8">
         <div className="flex items-center justify-start">
           {onMenuOpen ? (

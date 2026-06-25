@@ -38,7 +38,7 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--pastoril-header);
   color: var(--pastoril-text);
   font-family: var(--font-body);
   overflow-x: clip;

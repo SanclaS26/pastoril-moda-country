@@ -473,7 +473,7 @@ export default function AdminClientesPage() {
                 Excluir cliente?
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-[#6E625A]">
-                Esta acao removera o cadastro e tambem o acesso de login do cliente. O historico de vendas sera preservado.
+                Esta acao e sensivel. Clientes com pedidos ou vendas nao serao excluidos fisicamente para preservar o historico comercial.
               </p>
             </div>
 
@@ -497,7 +497,7 @@ export default function AdminClientesPage() {
                 disabled={deleting}
                 className="rounded-xl bg-rose-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {deleting ? 'Excluindo...' : 'Excluir'}
+                {deleting ? 'Excluindo...' : 'Excluir cliente'}
               </button>
             </div>
           </section>

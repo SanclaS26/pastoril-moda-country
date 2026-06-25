@@ -9,7 +9,8 @@ type WishlistContextValue = {
   error: string;
   favoriteIds: Set<number>;
   isLoading: boolean;
-  toggleFavorite: (productId: number) => void;
+  pendingIds: Set<number>;
+  toggleFavorite: (productId: number | string | bigint) => void;
 };
 
 const WishlistContext = createContext<WishlistContextValue | null>(null);
@@ -35,6 +36,7 @@ function writeLocalWishlist(ids: Set<number>) {
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const [favoriteIds, setFavoriteIds] = useState<Set<number>>(new Set());
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -100,15 +102,28 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
     };
   }, [synchronize]);
 
-  const toggleFavorite = useCallback((productId: number) => {
-    if (!Number.isInteger(productId) || productId <= 0) return;
+  const normalizeProductId = useCallback((productId: number | string | bigint) => {
+    const normalized = Number(productId);
+    return Number.isInteger(normalized) && normalized > 0 ? normalized : undefined;
+  }, []);
+
+  const toggleFavorite = useCallback((productId: number | string | bigint) => {
+    const normalizedId = normalizeProductId(productId);
+    if (!normalizedId) return;
 
     setError('');
-    setFavoriteIds((current) => {
-      const wasFavorite = current.has(productId);
+    setPendingIds((current) => {
+      if (current.has(normalizedId)) return current;
       const next = new Set(current);
-      if (wasFavorite) next.delete(productId);
-      else next.add(productId);
+      next.add(normalizedId);
+      return next;
+    });
+
+    setFavoriteIds((current) => {
+      const wasFavorite = current.has(normalizedId);
+      const next = new Set(current);
+      if (wasFavorite) next.delete(normalizedId);
+      else next.add(normalizedId);
 
       void (async () => {
         const { data: sessionData } = await clienteSupabase.auth.getSession();
@@ -116,26 +131,42 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
         if (!user) {
           writeLocalWishlist(next);
+          setPendingIds((currentPending) => {
+            const nextPending = new Set(currentPending);
+            nextPending.delete(normalizedId);
+            return nextPending;
+          });
           return;
         }
 
         const result = wasFavorite
-          ? await clienteSupabase.from('wishlist_items').delete().eq('user_id', user.id).eq('product_id', productId)
-          : await clienteSupabase.from('wishlist_items').insert({ product_id: productId, user_id: user.id });
+          ? await clienteSupabase.from('wishlist_items').delete().eq('user_id', user.id).eq('product_id', normalizedId)
+          : await clienteSupabase.from('wishlist_items').insert({ product_id: normalizedId, user_id: user.id });
 
         if (result.error) {
-          setFavoriteIds(current);
+          setFavoriteIds((currentRevert) => {
+            const reverted = new Set(currentRevert);
+            if (wasFavorite) reverted.add(normalizedId);
+            else reverted.delete(normalizedId);
+            return reverted;
+          });
           setError('Não foi possível atualizar sua lista de desejos.');
         }
+
+        setPendingIds((currentPending) => {
+          const nextPending = new Set(currentPending);
+          nextPending.delete(normalizedId);
+          return nextPending;
+        });
       })();
 
       return next;
     });
-  }, []);
+  }, [normalizeProductId]);
 
   const value = useMemo(
-    () => ({ error, favoriteIds, isLoading, toggleFavorite }),
-    [error, favoriteIds, isLoading, toggleFavorite],
+    () => ({ error, favoriteIds, isLoading, pendingIds, toggleFavorite }),
+    [error, favoriteIds, isLoading, pendingIds, toggleFavorite],
   );
 
   return <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>;

@@ -701,8 +701,7 @@ function ProductSection({
 
 const quickLinks = [
   { key: 'novidades', id: 'destaques', title: 'Novidades', subtitle: 'Confira agora', icon: 'spark' as IconName },
-  { key: 'promocoes', id: 'promocoes', title: 'Promoções', subtitle: 'Até 30% OFF', icon: 'belt' as IconName },
-  { key: 'mais-vendidos', id: 'destaques', title: 'Mais vendidos', subtitle: 'Os favoritos', icon: 'boot' as IconName },
+  { key: 'promocoes', id: 'promocoes', title: 'Promoções', subtitle: 'Aproveite as ofertas', icon: 'belt' as IconName },
 ];
 
 export default function Home() {
@@ -944,7 +943,7 @@ export default function Home() {
         </section>
 
         <section id="categorias" className="mx-auto max-w-7xl px-3 py-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {quickLinks.map((item) => (
               <button
                 key={item.key}
@@ -955,16 +954,21 @@ export default function Home() {
                   setCurrentPage(1);
                   scrollToProducts();
                 }}
-                className="flex min-w-0 items-center gap-1.5 rounded-xl border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] p-2 text-left shadow-[0_4px_12px_var(--pastoril-shadow)] sm:gap-3 sm:p-4"
+                className="group flex min-h-[132px] min-w-0 flex-col justify-between rounded-[28px] border border-[var(--pastoril-border)] bg-[var(--pastoril-card)] p-5 text-left shadow-[0_18px_40px_rgba(74,52,40,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_42px_rgba(74,52,40,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)]"
               >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--pastoril-soft)] text-[var(--pastoril-caramel)] sm:h-11 sm:w-11">
-                  <Icon name={item.icon} className="h-5 w-5 sm:h-6 sm:w-6" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <strong className="block truncate text-[10px] leading-tight sm:text-sm">{item.title}</strong>
-                  <span className="mt-0.5 block truncate text-[9px] text-[var(--pastoril-muted)] sm:text-xs">{item.subtitle}</span>
-                </span>
-                <Icon name="chevron" className="hidden h-4 w-4 shrink-0 text-[var(--pastoril-brown)] min-[390px]:block" />
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--pastoril-soft)] border border-[var(--pastoril-border)] text-[var(--pastoril-caramel)] shadow-sm">
+                    <Icon name={item.icon} className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-[0.08em] text-[var(--pastoril-brown)] sm:text-base">{item.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-[var(--pastoril-muted)] sm:text-sm">{item.subtitle}</p>
+                  </div>
+                </div>
+                <div className="mt-6 flex items-center justify-between text-[var(--pastoril-brown)] opacity-90 transition group-hover:text-[var(--pastoril-caramel)]">
+                  <span className="text-xs font-semibold uppercase tracking-[0.2em] sm:text-sm">Ver agora</span>
+                  <Icon name="chevron" className="h-4 w-4 shrink-0" />
+                </div>
               </button>
             ))}
           </div>

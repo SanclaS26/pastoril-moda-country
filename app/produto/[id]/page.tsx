@@ -404,7 +404,7 @@ export default function ProductDetailPage() {
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const lightboxTriggerRef = useRef<HTMLButtonElement | null>(null);
   const { openClienteAuth } = useClienteAuth();
-  const { favoriteIds, toggleFavorite } = useWishlist();
+  const { favoriteIds, pendingIds, toggleFavorite } = useWishlist();
   const {
     addProductToCart,
     badgeAnimating,
@@ -663,8 +663,9 @@ export default function ProductDetailPage() {
               <div>
                 <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--pastoril-border)] bg-[var(--pastoril-soft)] shadow-[0_14px_30px_rgba(74,52,40,0.08)]">
                   <WishlistButton
-                    className="absolute right-4 top-4 z-20 h-11 w-11"
+                    className="absolute left-4 top-4 z-30 h-11 w-11"
                     isFavorite={isFavorite}
+                    disabled={pendingIds.has(product.id)}
                     onToggle={() => toggleFavorite(product.id)}
                     productName={product.nome}
                   />

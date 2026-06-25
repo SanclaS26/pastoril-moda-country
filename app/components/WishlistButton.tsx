@@ -5,20 +5,23 @@ type WishlistButtonProps = {
   isFavorite: boolean;
   onToggle: () => void;
   productName: string;
+  disabled?: boolean;
 };
 
-export function WishlistButton({ className = '', isFavorite, onToggle, productName }: WishlistButtonProps) {
+export function WishlistButton({ className = '', isFavorite, onToggle, productName, disabled = false }: WishlistButtonProps) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (disabled) return;
         onToggle();
       }}
-      className={`flex items-center justify-center rounded-full border border-transparent bg-transparent transition hover:bg-[var(--pastoril-card)]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
+      className={`flex items-center justify-center rounded-full border border-transparent bg-transparent text-[var(--pastoril-brown)] transition hover:bg-[var(--pastoril-card)]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--pastoril-caramel)] ${
         isFavorite ? 'text-[var(--pastoril-caramel)]' : 'text-[var(--pastoril-brown)]'
-      } ${className}`}
+      } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${className}`}
       aria-label={isFavorite ? `Remover ${productName} dos favoritos` : `Adicionar ${productName} aos favoritos`}
       aria-pressed={isFavorite}
     >

@@ -7,6 +7,7 @@ const OPENAI_MODEL = 'gpt-4.1-mini';
 const OPENAI_TIMEOUT_MS = 10_000;
 const MAX_INPUT_CHARS = 2_000;
 const MAX_TOOL_CALLS = 3;
+const MAX_TOOL_CYCLES = 3;
 
 const WHATSAPP_AI_INSTRUCTIONS = [
   'Voce e a atendente virtual da Pastoril Moda Country, uma loja de moda country.',
@@ -16,7 +17,8 @@ const WHATSAPP_AI_INSTRUCTIONS = [
   'Regras obrigatorias:',
   '',
   '- Nao invente produtos, precos, tamanhos, estoque, promocoes, pedidos ou prazos.',
-  '- Antes de responder sobre produto, preco, tamanho, estoque, categoria, promocao ou novidade, consulte as ferramentas disponiveis do catalogo.',
+  '- Quando o cliente perguntar sobre produto, preco, tamanho, estoque, categoria, promocao, novidade ou opcoes semelhantes, consulte as ferramentas do catalogo.',
+  '- Mensagens simples de saudacao ou conversa geral podem ser respondidas sem ferramentas.',
   '- Informe somente dados retornados pelas ferramentas.',
   '- Se nao houver resultados, diga que nao encontrou no catalogo atual.',
   '- Disponibilidade pode mudar ate a confirmacao final; nao prometa reserva.',
@@ -56,7 +58,15 @@ type GetProductDetailsToolArgs = {
 };
 
 type ToolExecutionResult = {
-  payload: string;
+  output: string;
+};
+
+type ErrorDiagnostics = {
+  errorCode: string | null;
+  errorName: string;
+  errorStatus: number | null;
+  errorType: string | null;
+  sanitizedMessage: string;
 };
 
 export class WhatsAppAIError extends Error {
@@ -83,6 +93,45 @@ function getOpenAIClient() {
   }
 
   return openaiClient;
+}
+
+function sanitizeLogMessage(value: string | null | undefined) {
+  const normalized = (value ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) {
+    return 'erro_desconhecido';
+  }
+
+  return normalized.slice(0, 300);
+}
+
+function extractErrorDiagnostics(error: unknown): ErrorDiagnostics {
+  if (error instanceof Error) {
+    const maybeApiError = error as Error & {
+      code?: string | null;
+      status?: number;
+      type?: string | null;
+    };
+
+    return {
+      errorCode: maybeApiError.code ?? null,
+      errorName: error.name,
+      errorStatus: typeof maybeApiError.status === 'number' ? maybeApiError.status : null,
+      errorType: maybeApiError.type ?? null,
+      sanitizedMessage: sanitizeLogMessage(error.message),
+    };
+  }
+
+  return {
+    errorCode: null,
+    errorName: 'UnknownError',
+    errorStatus: null,
+    errorType: null,
+    sanitizedMessage: sanitizeLogMessage(String(error)),
+  };
 }
 
 function normalizeTextArg(value: unknown, maxLength: number) {
@@ -139,33 +188,35 @@ function parseGetProductDetailsArgs(raw: unknown): GetProductDetailsToolArgs | n
 function getToolDefinitions() {
   return [
     {
+      description: 'Busca produtos ativos por texto, categoria, departamento e tamanho com limite controlado.',
       name: 'search_products',
       parameters: {
         additionalProperties: false,
         properties: {
-          category: { type: 'string' },
-          department: { type: 'string' },
-          in_stock_only: { type: 'boolean' },
+          category: { type: ['string', 'null'] },
+          department: { type: ['string', 'null'] },
+          in_stock_only: { type: ['boolean', 'null'] },
           limit: { maximum: 8, minimum: 1, type: 'integer' },
           query: { type: 'string' },
-          size: { type: 'string' },
+          size: { type: ['string', 'null'] },
         },
-        required: [],
+        required: ['query', 'size', 'category', 'department', 'limit'],
         type: 'object',
       },
       strict: true,
       type: 'function' as const,
     },
     {
+      description: 'Retorna detalhes sanitizados de um produto especifico do catalogo ativo.',
       name: 'get_product_details',
       parameters: {
         additionalProperties: false,
         properties: {
-          in_stock_only: { type: 'boolean' },
+          in_stock_only: { type: ['boolean', 'null'] },
           product_id: { minimum: 1, type: 'integer' },
-          size: { type: 'string' },
+          size: { type: ['string', 'null'] },
         },
-        required: ['product_id'],
+        required: ['product_id', 'size', 'in_stock_only'],
         type: 'object',
       },
       strict: true,
@@ -178,6 +229,41 @@ function getFunctionCalls(response: OpenAI.Responses.Response) {
   return response.output.filter((item): item is OpenAI.Responses.ResponseFunctionToolCall => item.type === 'function_call');
 }
 
+function mapOutputToInputItems(response: OpenAI.Responses.Response): OpenAI.Responses.ResponseInputItem[] {
+  const inputItems: OpenAI.Responses.ResponseInputItem[] = [];
+
+  for (const item of response.output) {
+    if (item.type === 'function_call') {
+      inputItems.push({
+        arguments: item.arguments,
+        call_id: item.call_id,
+        name: item.name,
+        type: 'function_call',
+      });
+      continue;
+    }
+
+    if (item.type === 'message') {
+      const content: OpenAI.Responses.ResponseInputContent[] = item.content
+        .filter((contentItem): contentItem is OpenAI.Responses.ResponseOutputText => contentItem.type === 'output_text')
+        .map((contentItem) => ({
+          text: contentItem.text,
+          type: 'input_text',
+        }));
+
+      if (content.length > 0) {
+        inputItems.push({
+          content,
+          role: 'assistant',
+          type: 'message',
+        });
+      }
+    }
+  }
+
+  return inputItems;
+}
+
 async function executeToolCall(call: OpenAI.Responses.ResponseFunctionToolCall): Promise<ToolExecutionResult> {
   let parsedArguments: unknown = null;
 
@@ -185,16 +271,16 @@ async function executeToolCall(call: OpenAI.Responses.ResponseFunctionToolCall):
     parsedArguments = JSON.parse(call.arguments);
   } catch {
     return {
-      payload: JSON.stringify({ error: 'invalid_arguments' }),
+      output: JSON.stringify({ ok: false, error: 'invalid_arguments' }),
     };
   }
 
   if (call.name === 'search_products') {
     const args = parseSearchProductsArgs(parsedArguments);
 
-    if (!args) {
+    if (!args || !args.query) {
       return {
-        payload: JSON.stringify({ error: 'invalid_arguments' }),
+        output: JSON.stringify({ ok: false, error: 'invalid_arguments' }),
       };
     }
 
@@ -209,7 +295,7 @@ async function executeToolCall(call: OpenAI.Responses.ResponseFunctionToolCall):
       });
 
       return {
-        payload: JSON.stringify(result),
+        output: JSON.stringify({ ok: true, products: result.products }),
       };
     } catch (error) {
       if (error instanceof CatalogQueryError) {
@@ -225,7 +311,7 @@ async function executeToolCall(call: OpenAI.Responses.ResponseFunctionToolCall):
 
     if (!args) {
       return {
-        payload: JSON.stringify({ error: 'invalid_arguments' }),
+        output: JSON.stringify({ ok: false, error: 'invalid_arguments' }),
       };
     }
 
@@ -237,7 +323,7 @@ async function executeToolCall(call: OpenAI.Responses.ResponseFunctionToolCall):
       });
 
       return {
-        payload: JSON.stringify(result),
+        output: JSON.stringify({ ok: true, product: result.product }),
       };
     } catch (error) {
       if (error instanceof CatalogQueryError) {
@@ -249,7 +335,7 @@ async function executeToolCall(call: OpenAI.Responses.ResponseFunctionToolCall):
   }
 
   return {
-    payload: JSON.stringify({ error: 'unsupported_tool' }),
+    output: JSON.stringify({ ok: false, error: 'unsupported_tool' }),
   };
 }
 
@@ -269,8 +355,21 @@ function sanitizeCustomerMessage(customerMessage: string) {
 
 export async function generateWhatsAppReply(customerMessage: string) {
   const openai = getOpenAIClient();
-  const input = sanitizeCustomerMessage(customerMessage);
+  const customerInput = sanitizeCustomerMessage(customerMessage);
   const tools = getToolDefinitions();
+
+  const accumulatedInput: OpenAI.Responses.ResponseInputItem[] = [
+    {
+      content: [
+        {
+          text: customerInput,
+          type: 'input_text',
+        },
+      ],
+      role: 'user',
+      type: 'message',
+    },
+  ];
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
@@ -278,87 +377,79 @@ export async function generateWhatsAppReply(customerMessage: string) {
   console.info('[whatsapp-ai] Solicitacao iniciada');
 
   try {
-    let response = await openai.responses.create(
-      {
-        input: [
-          {
-            content: [
-              {
-                text: input,
-                type: 'input_text',
-              },
-            ],
-            role: 'user',
-            type: 'message',
-          },
-        ],
-        instructions: WHATSAPP_AI_INSTRUCTIONS,
-        max_output_tokens: 180,
-        model: OPENAI_MODEL,
-        tools,
-      },
-      {
-        signal: controller.signal,
-      },
-    );
-
+    let response: OpenAI.Responses.Response | null = null;
     let toolCallsUsed = 0;
 
-    while (toolCallsUsed < MAX_TOOL_CALLS) {
-      const functionCalls = getFunctionCalls(response);
-
-      if (!functionCalls.length) {
-        break;
-      }
-
-      const remainingCalls = MAX_TOOL_CALLS - toolCallsUsed;
-      const callsToExecute = functionCalls.slice(0, remainingCalls);
-
-      const toolOutputs: OpenAI.Responses.ResponseInputItem[] = [];
-
-      for (const call of callsToExecute) {
-        const execution = await executeToolCall(call);
-
-        toolOutputs.push({
-          call_id: call.call_id,
-          output: execution.payload,
-          type: 'function_call_output',
-        });
-
-        toolCallsUsed += 1;
-      }
-
-      for (const call of functionCalls.slice(remainingCalls)) {
-        toolOutputs.push({
-          call_id: call.call_id,
-          output: JSON.stringify({ error: 'tool_call_limit_reached' }),
-          type: 'function_call_output',
-        });
-      }
-
+    for (let cycle = 0; cycle < MAX_TOOL_CYCLES; cycle += 1) {
       response = await openai.responses.create(
         {
-          input: toolOutputs,
+          input: accumulatedInput,
+          instructions: WHATSAPP_AI_INSTRUCTIONS,
           max_output_tokens: 180,
           model: OPENAI_MODEL,
-          previous_response_id: response.id,
           tools,
         },
         {
           signal: controller.signal,
         },
       );
+
+      accumulatedInput.push(...mapOutputToInputItems(response));
+
+      const functionCalls = getFunctionCalls(response);
+
+      if (!functionCalls.length) {
+        const finalText = response.output_text?.trim();
+
+        if (finalText) {
+          console.info('[whatsapp-ai] Resposta gerada');
+          return finalText;
+        }
+
+        throw new WhatsAppAIError('empty_response', 'Resposta vazia da OpenAI.');
+      }
+
+      for (const call of functionCalls) {
+        if (toolCallsUsed >= MAX_TOOL_CALLS) {
+          accumulatedInput.push({
+            call_id: call.call_id,
+            output: JSON.stringify({ ok: false, error: 'tool_call_limit_reached' }),
+            type: 'function_call_output',
+          });
+          continue;
+        }
+
+        const execution = await executeToolCall(call);
+
+        accumulatedInput.push({
+          call_id: call.call_id,
+          output: execution.output,
+          type: 'function_call_output',
+        });
+
+        toolCallsUsed += 1;
+      }
     }
 
-    const output = response.output_text.trim();
+    const finalText = response?.output_text?.trim();
 
-    if (!output) {
-      throw new WhatsAppAIError('empty_response', 'Resposta vazia da OpenAI.');
+    if (finalText) {
+      console.info('[whatsapp-ai] Resposta gerada');
+      return finalText;
     }
 
-    console.info('[whatsapp-ai] Resposta gerada');
-    return output;
+    throw new WhatsAppAIError('empty_response', 'Resposta vazia da OpenAI.');
   } catch (error) {
+    const diagnostics = extractErrorDiagnostics(error);
+
+    console.warn('[whatsapp-ai] Falha', {
+      code: diagnostics.errorCode,
+      message: diagnostics.sanitizedMessage,
+      name: diagnostics.errorName,
+      status: diagnostics.errorStatus,
+      type: diagnostics.errorType,
+    });
+
     if (controller.signal.aborted) {
       console.warn('[whatsapp-ai] Timeout da OpenAI');
       throw new WhatsAppAIError('timeout', 'Tempo limite excedido na OpenAI.');

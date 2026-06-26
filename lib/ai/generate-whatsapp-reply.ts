@@ -18,6 +18,8 @@ const WHATSAPP_AI_INSTRUCTIONS = [
   '',
   '- Nao invente produtos, precos, tamanhos, estoque, promocoes, pedidos ou prazos.',
   '- Quando o cliente perguntar sobre produto, preco, tamanho, estoque, categoria, promocao, novidade ou opcoes semelhantes, consulte as ferramentas do catalogo.',
+  '- Para buscas por categoria ou departamento, normalize plural, singular e sinonimos para um termo canonico simples, por exemplo: botas, botina e texana -> bota; camisas -> camisa.',
+  '- Em perguntas de disponibilidade como "quais botas voces tem" ou "tem camisa tamanho M", prefira enviar in_stock_only como true.',
   '- Mensagens simples de saudacao ou conversa geral podem ser respondidas sem ferramentas.',
   '- Informe somente dados retornados pelas ferramentas.',
   '- Se nao houver resultados, diga que nao encontrou no catalogo atual.',

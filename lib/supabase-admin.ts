@@ -190,7 +190,7 @@ export type WhatsAppPresentedProduct = {
   productId: number;
 };
 
-export type WhatsAppConversationState = 'idle' | 'sending_gallery' | 'awaiting_photo_number';
+export type WhatsAppConversationState = 'idle' | 'sending_gallery' | 'awaiting_photo_number' | 'awaiting_size_preference';
 
 export type WhatsAppAtendimentoSessaoRow = {
   id: string;
@@ -203,6 +203,9 @@ export type WhatsAppAtendimentoSessaoRow = {
   awaiting_product_position: boolean;
   conversation_state: WhatsAppConversationState;
   last_category: string | null;
+  pending_category: string | null;
+  pending_department: string | null;
+  requested_size: string | null;
   presented_products: WhatsAppPresentedProduct[];
   created_at: string;
   updated_at: string;
@@ -218,6 +221,9 @@ export type WhatsAppAtendimentoSessaoInsert = {
   awaiting_product_position?: boolean;
   conversation_state?: WhatsAppConversationState;
   last_category?: string | null;
+  pending_category?: string | null;
+  pending_department?: string | null;
+  requested_size?: string | null;
   presented_products?: WhatsAppPresentedProduct[];
 };
 

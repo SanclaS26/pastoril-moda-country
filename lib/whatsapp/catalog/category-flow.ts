@@ -1,4 +1,4 @@
-import { departamentosProduto } from '@/config/grades-tamanho';
+import { departamentosProduto, getTipoGradeTamanho, isGradeSemSeletor } from '@/config/grades-tamanho';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 const FEATURED_PRODUCTS_PAGE_SIZE = 200;
@@ -70,6 +70,10 @@ export type CatalogAudience = 'Feminino' | 'Masculino' | 'Infantil';
 export type DepartmentDetection = {
   audience: CatalogAudience | null;
   department: string | null;
+};
+
+export type FeaturedProductsFilter = {
+  size?: string | null;
 };
 
 export type WhatsAppCatalogProduct = {
@@ -193,6 +197,15 @@ function mapProductsWithStock(products: ProdutoRow[], stockRows: StockRow[]) {
     .filter((product) => product.estoqueDisponivel.length > 0);
 }
 
+function normalizeSizeValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function detectDepartmentFromMessage(text: string): DepartmentDetection {
   const normalized = normalizeText(text);
   const tokens = normalized.split(' ').filter(Boolean);
@@ -238,7 +251,15 @@ export function extractProductPositionFromMessage(text: string) {
   return parsed;
 }
 
-export async function getFeaturedProductsByDepartment(department: string | null, audience: CatalogAudience | null = null) {
+export function categoryRequiresSizeSelection(department: string | null, audience: CatalogAudience | null = null) {
+  if (!department) {
+    return Boolean(audience);
+  }
+
+  return !isGradeSemSeletor(getTipoGradeTamanho(department, audience));
+}
+
+async function getFeaturedProductRows(department: string | null, audience: CatalogAudience | null = null) {
   const supabaseAdmin = getSupabaseAdmin();
 
   const allProducts: ProdutoRow[] = [];
@@ -284,10 +305,50 @@ export async function getFeaturedProductsByDepartment(department: string | null,
   }
 
   const dedupedProducts = Array.from(new Map(allProducts.map((product) => [product.id, product])).values());
+  return dedupedProducts.filter((product) => isValidPublicImageUrl(product.imagem_principal));
+}
+
+export async function getAvailableSizesForCategory(department: string | null, audience: CatalogAudience | null = null) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const products = await getFeaturedProductRows(department, audience);
+  if (!products.length) {
+    return [];
+  }
+
+  const { data: stockRows, error: stockError } = await supabaseAdmin
+    .from('estoque_produtos')
+    .select('produto_id, tamanho, quantidade')
+    .in('produto_id', products.map((product) => product.id))
+    .gt('quantidade', 0);
+
+  if (stockError) {
+    throw stockError;
+  }
+
+  const sizes = new Map<string, string>();
+
+  for (const stock of (stockRows ?? []) as StockRow[]) {
+    const normalized = normalizeSizeValue(stock.tamanho);
+    if (normalized && !sizes.has(normalized)) {
+      sizes.set(normalized, stock.tamanho.trim());
+    }
+  }
+
+  return Array.from(sizes.values()).sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+}
+
+export async function getFeaturedProductsByDepartment(
+  department: string | null,
+  audience: CatalogAudience | null = null,
+  filter: FeaturedProductsFilter = {},
+) {
+  const supabaseAdmin = getSupabaseAdmin();
+  const dedupedProducts = await getFeaturedProductRows(department, audience);
   if (!dedupedProducts.length) {
     return [];
   }
 
+  const requestedSize = filter.size ? normalizeSizeValue(filter.size) : null;
   const { data: stockRows, error: stockError } = await supabaseAdmin
     .from('estoque_produtos')
     .select('produto_id, tamanho, quantidade')
@@ -298,7 +359,12 @@ export async function getFeaturedProductsByDepartment(department: string | null,
     throw stockError;
   }
 
-  return mapProductsWithStock(dedupedProducts, (stockRows ?? []) as StockRow[]);
+  const availableStockRows = (stockRows ?? []) as StockRow[];
+  const filteredStockRows = requestedSize
+    ? availableStockRows.filter((stock) => normalizeSizeValue(stock.tamanho) === requestedSize)
+    : availableStockRows;
+
+  return mapProductsWithStock(dedupedProducts, filteredStockRows);
 }
 
 export async function getProductById(productId: number) {

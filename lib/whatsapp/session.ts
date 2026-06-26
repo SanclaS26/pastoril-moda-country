@@ -6,6 +6,8 @@ import {
 } from '@/lib/supabase-admin';
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const SESSION_SELECT_COLUMNS =
+  'id, phone, session_started_at, last_interaction_at, active_gallery_id, photo_selection_expires_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, pending_category, pending_department, requested_size, presented_products, created_at, updated_at';
 
 export type WhatsAppSessionState = {
   activeGalleryId: string | null;
@@ -13,9 +15,12 @@ export type WhatsAppSessionState = {
   conversationState: WhatsAppConversationState;
   isNewSession: boolean;
   lastCategory: string | null;
+  pendingCategory: string | null;
+  pendingDepartment: string | null;
   phone: string;
   photoSelectionExpiresAt: string | null;
   presentedProducts: WhatsAppPresentedProduct[];
+  requestedSize: string | null;
   siteNoticeSent: boolean;
 };
 
@@ -24,14 +29,20 @@ export type UpdateWhatsAppSessionInput = {
   awaitingProductPosition?: boolean;
   conversationState?: WhatsAppConversationState;
   lastCategory?: string | null;
+  pendingCategory?: string | null;
+  pendingDepartment?: string | null;
   photoSelectionExpiresAt?: string | null;
   presentedProducts?: WhatsAppPresentedProduct[];
+  requestedSize?: string | null;
   siteNoticeSent?: boolean;
 };
 
 export type StartGallerySessionInput = {
   activeGalleryId: string;
   lastCategory?: string | null;
+  pendingCategory?: string | null;
+  pendingDepartment?: string | null;
+  requestedSize?: string | null;
 };
 
 export type FinalizeGallerySessionInput = {
@@ -57,9 +68,12 @@ function mapSession(row: WhatsAppAtendimentoSessaoRow, isNewSession: boolean): W
     conversationState: row.conversation_state,
     isNewSession,
     lastCategory: row.last_category,
+    pendingCategory: row.pending_category,
+    pendingDepartment: row.pending_department,
     phone: row.phone,
     photoSelectionExpiresAt: row.photo_selection_expires_at,
     presentedProducts,
+    requestedSize: row.requested_size,
     siteNoticeSent: row.site_notice_sent,
   };
 }
@@ -75,7 +89,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
 
   const { data, error } = await supabaseAdmin
     .from('whatsapp_atendimento_sessoes')
-    .select('id, phone, session_started_at, last_interaction_at, active_gallery_id, photo_selection_expires_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
+    .select(SESSION_SELECT_COLUMNS)
     .eq('phone', normalizedPhone)
     .maybeSingle();
 
@@ -93,14 +107,17 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
         active_gallery_id: null,
         conversation_state: 'idle',
         last_category: null,
+        pending_category: null,
+        pending_department: null,
         last_interaction_at: nowIso,
         photo_selection_expires_at: null,
         phone: normalizedPhone,
         presented_products: [],
+        requested_size: null,
         session_started_at: nowIso,
         site_notice_sent: false,
       })
-      .select('id, phone, session_started_at, last_interaction_at, active_gallery_id, photo_selection_expires_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
+      .select(SESSION_SELECT_COLUMNS)
       .single();
 
     if (insertError) {
@@ -121,14 +138,17 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
         active_gallery_id: null,
         conversation_state: 'idle',
         last_category: null,
+        pending_category: null,
+        pending_department: null,
         last_interaction_at: nowIso,
         photo_selection_expires_at: null,
         presented_products: [],
+        requested_size: null,
         session_started_at: nowIso,
         site_notice_sent: false,
       })
       .eq('id', data.id)
-      .select('id, phone, session_started_at, last_interaction_at, active_gallery_id, photo_selection_expires_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
+      .select(SESSION_SELECT_COLUMNS)
       .single();
 
     if (resetError) {
@@ -142,7 +162,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
     .from('whatsapp_atendimento_sessoes')
     .update({ last_interaction_at: nowIso })
     .eq('id', data.id)
-    .select('id, phone, session_started_at, last_interaction_at, active_gallery_id, photo_selection_expires_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
+    .select(SESSION_SELECT_COLUMNS)
     .single();
 
   if (touchError) {
@@ -165,8 +185,11 @@ export async function updateWhatsAppSession(phone: string, input: UpdateWhatsApp
     conversation_state?: WhatsAppConversationState;
     last_category?: string | null;
     last_interaction_at: string;
+    pending_category?: string | null;
+    pending_department?: string | null;
     photo_selection_expires_at?: string | null;
     presented_products?: WhatsAppPresentedProduct[];
+    requested_size?: string | null;
     site_notice_sent?: boolean;
   } = {
     last_interaction_at: new Date().toISOString(),
@@ -186,6 +209,18 @@ export async function updateWhatsAppSession(phone: string, input: UpdateWhatsApp
 
   if (Object.prototype.hasOwnProperty.call(input, 'lastCategory')) {
     updates.last_category = input.lastCategory ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'pendingCategory')) {
+    updates.pending_category = input.pendingCategory ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'pendingDepartment')) {
+    updates.pending_department = input.pendingDepartment ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input, 'requestedSize')) {
+    updates.requested_size = input.requestedSize ?? null;
   }
 
   if (Object.prototype.hasOwnProperty.call(input, 'photoSelectionExpiresAt')) {
@@ -232,8 +267,11 @@ export async function startGallerySessionIfAvailable(phone: string, input?: Star
     conversation_state: WhatsAppConversationState;
     last_category?: string | null;
     last_interaction_at: string;
+    pending_category?: string | null;
+    pending_department?: string | null;
     photo_selection_expires_at: string | null;
     presented_products: WhatsAppPresentedProduct[];
+    requested_size?: string | null;
   } = {
     active_gallery_id: input?.activeGalleryId ?? '',
     awaiting_product_position: false,
@@ -245,6 +283,18 @@ export async function startGallerySessionIfAvailable(phone: string, input?: Star
 
   if (Object.prototype.hasOwnProperty.call(input ?? {}, 'lastCategory')) {
     updates.last_category = input?.lastCategory ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input ?? {}, 'pendingCategory')) {
+    updates.pending_category = input?.pendingCategory ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input ?? {}, 'pendingDepartment')) {
+    updates.pending_department = input?.pendingDepartment ?? null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(input ?? {}, 'requestedSize')) {
+    updates.requested_size = input?.requestedSize ?? null;
   }
 
   if (!updates.active_gallery_id) {

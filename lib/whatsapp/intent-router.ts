@@ -104,7 +104,7 @@ function normalizeCategoryValue(value: string | null) {
 }
 
 function isExplicitCategoryChange(normalizedText: string, session: WhatsAppSessionState) {
-  return session.awaitingProductPosition || containsAny(normalizedText, CHANGE_CATEGORY_KEYWORDS);
+  return session.awaitingProductPosition || session.conversationState === 'awaiting_size_preference' || containsAny(normalizedText, CHANGE_CATEGORY_KEYWORDS);
 }
 
 export function extractPhotoSelection(message: string): number | null {
@@ -164,6 +164,15 @@ export function routeWhatsAppIntent({
       audience: categoryDetection.audience,
       department: categoryDetection.department,
       intent: 'cancel_gallery',
+      selectedPhotoPosition: null,
+    };
+  }
+
+  if (containsAny(normalizedText, CHANGE_CATEGORY_KEYWORDS) && !hasCategoryRequest) {
+    return {
+      audience: categoryDetection.audience,
+      department: categoryDetection.department,
+      intent: 'change_category',
       selectedPhotoPosition: null,
     };
   }
@@ -247,15 +256,6 @@ export function routeWhatsAppIntent({
     };
   }
 
-  if (containsAny(normalizedText, PRODUCT_KEYWORDS)) {
-    return {
-      audience: categoryDetection.audience,
-      department: categoryDetection.department,
-      intent: 'product_question',
-      selectedPhotoPosition: null,
-    };
-  }
-
   const selectedPhotoPosition = extractPhotoSelection(message);
   if (selectedPhotoPosition && selectedPhotoPosition > 0) {
     console.info('[whatsapp-intent] Seleção de foto identificada');
@@ -268,6 +268,15 @@ export function routeWhatsAppIntent({
   }
 
   console.info('[whatsapp-intent] Mensagem não é seleção de foto');
+
+  if (containsAny(normalizedText, PRODUCT_KEYWORDS) && session.conversationState !== 'awaiting_size_preference') {
+    return {
+      audience: categoryDetection.audience,
+      department: categoryDetection.department,
+      intent: 'product_question',
+      selectedPhotoPosition: null,
+    };
+  }
 
   if (containsAny(normalizedText, GREETING_KEYWORDS)) {
     return {

@@ -1,9 +1,15 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
-import { departamentosProduto } from '@/config/grades-tamanho';
+import { departamentosProduto, getOpcoesTamanho, getTipoGradeTamanho } from '@/config/grades-tamanho';
 import { generateWhatsAppReply } from '@/lib/ai/generate-whatsapp-reply';
-import { getFeaturedProductsByDepartment, getProductById } from '@/lib/whatsapp/catalog/category-flow';
+import {
+  categoryRequiresSizeSelection,
+  getAvailableSizesForCategory,
+  getFeaturedProductsByDepartment,
+  getProductById,
+  type CatalogAudience,
+} from '@/lib/whatsapp/catalog/category-flow';
 import { routeWhatsAppIntent, type WhatsAppIntentResult } from '@/lib/whatsapp/intent-router';
 import { enqueueWhatsAppSend } from '@/lib/whatsapp/send-queue';
 import {
@@ -29,6 +35,7 @@ export const dynamic = 'force-dynamic';
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
 const IMAGE_SEND_DELAY_MS = 700;
 const FINAL_PROMPT_DELAY_MS = 1000;
+const PRODUCT_DETAILS_FOLLOW_UP_DELAY_MS = 1000;
 const PHOTO_SELECTION_TIMEOUT_MINUTES = 30;
 
 const INTRO_MESSAGE =
@@ -38,6 +45,13 @@ const SITE_INTRO_MESSAGE = `Você também pode conhecer nossa vitrine pelo site:
 const CATEGORY_PRE_GALLERY_MESSAGE = 'Estas são as novidades em destaque dessa categoria. 🤎';
 const CATEGORY_PRE_GALLERY_SITE_MESSAGE =
   `As fotos abaixo mostram as novidades selecionadas da categoria.\n\nPara ver mais produtos, acesse:\n${STORE_INFO.siteUrl}`;
+
+const CATEGORY_PRE_GALLERY_ALL_SIZES_MESSAGE = 'Estas são as novidades em destaque dessa categoria com tamanhos disponíveis. 🤎';
+const CATEGORY_PRE_GALLERY_SIZE_MESSAGE = 'Estas são as novidades em destaque disponíveis no tamanho {size}. 🤎';
+const SIZE_PREFERENCE_REMINDER_MESSAGE = 'Quando quiser continuar, responda “todos” ou informe o tamanho que procura.';
+const SIZE_PREFERENCE_RETRY_MESSAGE = 'Você quer ver todos os tamanhos disponíveis ou informar outro tamanho?';
+const INVALID_SIZE_MESSAGE =
+  'Não reconheci esse tamanho. Você pode responder “todos” ou informar um tamanho disponível para essa categoria.';
 
 const SELECTION_PROMPT_MESSAGE =
   'Digite o número da foto que você quer saber mais detalhes.\n\nOu digite o nome de outra categoria para ver novas opções.';
@@ -317,6 +331,110 @@ function normalizeCategorySessionValue(department: string | null, audience: stri
   return department ?? audience ?? null;
 }
 
+function normalizeSizeValue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeMessageForMatch(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isAllSizesRequest(message: string) {
+  const normalized = normalizeMessageForMatch(message);
+  return [
+    'todos',
+    'todo',
+    'todas',
+    'qualquer tamanho',
+    'todos os tamanhos',
+    'mostrar tudo',
+    'quero ver todos',
+  ].includes(normalized);
+}
+
+function looksLikeSizeAttempt(message: string) {
+  const normalized = normalizeMessageForMatch(message);
+  if (!normalized) return false;
+  if (/(^|\b)(foto|pedido|codigo|cod|horario|hora|abre|fecha)\b/.test(normalized)) return false;
+  if (/^(pp|p|m|g|gg|xg)$/.test(normalized)) return true;
+  if (/^\d{1,2}$/.test(normalized)) return true;
+  return /\b(tamanho|numero|número|calco|calço|uso|quero)\b/.test(normalized) && /\b(pp|p|m|g|gg|xg|\d{1,2})\b/.test(normalized);
+}
+
+function extractRequestedSize(message: string, validSizes: string[]) {
+  const validByNormalized = new Map(validSizes.map((size) => [normalizeSizeValue(size), size]));
+  const normalizedMessage = normalizeMessageForMatch(message).toUpperCase();
+
+  if (!normalizedMessage || /\b(FOTO|PEDIDO|CODIGO|COD)\b/.test(normalizedMessage)) {
+    return null;
+  }
+
+  for (const token of normalizedMessage.split(' ')) {
+    const match = validByNormalized.get(normalizeSizeValue(token));
+    if (match) {
+      return match;
+    }
+  }
+
+  return null;
+}
+
+function formatShortSizeList(sizes: string[]) {
+  const unique = Array.from(new Set(sizes.map((size) => size.trim()).filter(Boolean)));
+  if (!unique.length) return '';
+  return ` Tamanhos disponíveis: ${unique.slice(0, 12).join(', ')}.`;
+}
+
+function getRecognizedSizesForCategory(department: string | null, audience: CatalogAudience | null, availableSizes: string[]) {
+  const configuredSizes = department ? getOpcoesTamanho(department, audience) : [];
+  return Array.from(new Set([...configuredSizes, ...availableSizes]));
+}
+
+function buildSizePreferenceQuestion(department: string | null, audience: CatalogAudience | null, availableSizes: string[]) {
+  const category = department ?? audience;
+  const tipoGrade = category ? getTipoGradeTamanho(category, audience) : null;
+  const configuredSizes = department ? getOpcoesTamanho(department, audience) : [];
+  const examples = availableSizes.length ? availableSizes.slice(0, 5) : configuredSizes.slice(0, 5);
+  const exampleText = examples.length ? examples.join(', ') : tipoGrade === 'calcado' ? '35, 38, 40 ou 42' : 'P, M, G, GG ou 42';
+  const categoryKind = tipoGrade === 'calcado' ? 'uma numeração' : 'um tamanho';
+
+  return [
+    'Você quer ver todos os tamanhos disponíveis ou procura algum tamanho específico?',
+    '',
+    `Você pode responder “todos” ou informar ${categoryKind}, como ${exampleText}.`,
+  ].join('\n');
+}
+
+function getPendingAudience(value: string | null): CatalogAudience | null {
+  if (value === 'Feminino' || value === 'Masculino' || value === 'Infantil') {
+    return value;
+  }
+
+  return null;
+}
+
+async function sendSizeReminderIfNeeded(to: string, conversationState: string) {
+  if (conversationState !== 'awaiting_size_preference') {
+    return;
+  }
+
+  await sendWhatsAppTextMessage({
+    body: SIZE_PREFERENCE_REMINDER_MESSAGE,
+    to,
+  });
+}
+
 function buildIdleCategoryHint() {
   const preferred = ['Botas', 'Camisas', 'Calças'];
   const preferredReal = preferred.filter((name) => departamentosProduto.includes(name as (typeof departamentosProduto)[number]));
@@ -382,36 +500,83 @@ async function sendSelectedProductDetails(to: string, productId: number) {
     .filter((line) => line !== null)
     .join('\n');
 
-  await sendWhatsAppImageMessage({
-    caption: lines,
-    imageUrl: product.imagemPrincipal,
-    to,
-  });
+  try {
+    await sendWhatsAppImageMessage({
+      caption: lines,
+      imageUrl: product.imagemPrincipal,
+      to,
+    });
+    console.info('[whatsapp-product] Foto detalhada enviada');
+  } catch (error) {
+    const sanitized = sanitizeError(error);
+    console.warn('[whatsapp-media] Falha ao enviar imagem detalhada', {
+      ...sanitized,
+    });
+
+    await sendWhatsAppTextMessage({
+      body: lines,
+      to,
+    });
+  }
+
+  await delay(PRODUCT_DETAILS_FOLLOW_UP_DELAY_MS);
 
   await sendWhatsAppTextMessage({
     body: 'Esse produto te interessou ou gostaria de ver outra foto?',
     to,
   });
 
-  await sendWhatsAppTextMessage({
-    body: 'Se preferir, digite o nome de outra categoria para ver novas novidades.',
-    to,
-  });
+  console.info('[whatsapp-product] Pergunta de continuidade enviada');
 
   return product;
+}
+
+async function askSizePreference({
+  to,
+  audience,
+  department,
+}: {
+  to: string;
+  audience: CatalogAudience | null;
+  department: string | null;
+}) {
+  const availableSizes = await getAvailableSizesForCategory(department, audience);
+
+  console.info('[whatsapp-size] Categoria exige tamanho');
+
+  await updateWhatsAppSession(to, {
+    activeGalleryId: null,
+    awaitingProductPosition: false,
+    conversationState: 'awaiting_size_preference',
+    lastCategory: normalizeCategorySessionValue(department, audience),
+    pendingCategory: audience,
+    pendingDepartment: department,
+    photoSelectionExpiresAt: null,
+    presentedProducts: [],
+    requestedSize: null,
+  });
+
+  console.info('[whatsapp-size] Aguardando preferência de tamanho');
+
+  await sendWhatsAppTextMessage({
+    body: buildSizePreferenceQuestion(department, audience, availableSizes),
+    to,
+  });
 }
 
 async function sendCategoryGalleryFlow({
   to,
   audience,
   department,
+  requestedSize,
 }: {
   to: string;
   audience: WhatsAppIntentResult['audience'];
   department: WhatsAppIntentResult['department'];
+  requestedSize?: string | null;
 }) {
   const featuredProducts = Array.from(
-    new Map((await getFeaturedProductsByDepartment(department, audience)).map((product) => [product.id, product])).values(),
+    new Map((await getFeaturedProductsByDepartment(department, audience, { size: requestedSize })).map((product) => [product.id, product])).values(),
   ) as FeaturedCatalogProduct[];
 
   console.info(`[whatsapp-catalog] Destaques encontrados: ${featuredProducts.length}`);
@@ -422,8 +587,11 @@ async function sendCategoryGalleryFlow({
       awaitingProductPosition: false,
       conversationState: 'idle',
       lastCategory: normalizeCategorySessionValue(department, audience),
+      pendingCategory: null,
+      pendingDepartment: null,
       photoSelectionExpiresAt: null,
       presentedProducts: [],
+      requestedSize: null,
     });
 
     await sendWhatsAppTextMessage({ body: NO_HIGHLIGHTS_MESSAGE, to });
@@ -431,13 +599,23 @@ async function sendCategoryGalleryFlow({
     return;
   }
 
-  await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_MESSAGE, to });
+  await sendWhatsAppTextMessage({
+    body: requestedSize
+      ? CATEGORY_PRE_GALLERY_SIZE_MESSAGE.replace('{size}', requestedSize)
+      : categoryRequiresSizeSelection(department, audience)
+        ? CATEGORY_PRE_GALLERY_ALL_SIZES_MESSAGE
+        : CATEGORY_PRE_GALLERY_MESSAGE,
+    to,
+  });
   await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_SITE_MESSAGE, to });
 
   const activeGalleryId = randomUUID();
   const startedGallery = await startGallerySessionIfAvailable(to, {
     activeGalleryId,
     lastCategory: normalizeCategorySessionValue(department, audience),
+    pendingCategory: null,
+    pendingDepartment: null,
+    requestedSize: requestedSize ?? null,
   });
 
   if (!startedGallery) {
@@ -496,8 +674,11 @@ async function sendCategoryGalleryFlow({
         activeGalleryId: null,
         awaitingProductPosition: false,
         conversationState: 'idle',
+        pendingCategory: null,
+        pendingDepartment: null,
         photoSelectionExpiresAt: null,
         presentedProducts: [],
+        requestedSize: null,
       });
 
       await sendWhatsAppTextMessage({ body: GALLERY_LOAD_FAILED_MESSAGE, to });
@@ -637,8 +818,11 @@ export async function POST(request: Request) {
               activeGalleryId: null,
               awaitingProductPosition: false,
               conversationState: 'idle',
+              pendingCategory: null,
+              pendingDepartment: null,
               photoSelectionExpiresAt: null,
               presentedProducts: [],
+              requestedSize: null,
             });
           }
 
@@ -658,8 +842,11 @@ export async function POST(request: Request) {
               activeGalleryId: null,
               awaitingProductPosition: false,
               conversationState: 'idle',
+              pendingCategory: null,
+              pendingDepartment: null,
               photoSelectionExpiresAt: null,
               presentedProducts: [],
+              requestedSize: null,
             });
 
             await sendWhatsAppTextMessage({
@@ -670,11 +857,29 @@ export async function POST(request: Request) {
           }
 
           if (intentResult.intent === 'change_category' || intentResult.intent === 'request_category') {
+            if (!intentResult.department && !intentResult.audience) {
+              await sendWhatsAppTextMessage({
+                body: buildIdleCategoryHint(),
+                to: message.from,
+              });
+              continue;
+            }
+
             console.info('[whatsapp-flow] Categoria alterada');
+            if (categoryRequiresSizeSelection(intentResult.department, intentResult.audience)) {
+              await askSizePreference({
+                to: message.from,
+                audience: intentResult.audience,
+                department: intentResult.department,
+              });
+              continue;
+            }
+
             await sendCategoryGalleryFlow({
               to: message.from,
               audience: intentResult.audience,
               department: intentResult.department,
+              requestedSize: null,
             });
             continue;
           }
@@ -685,26 +890,117 @@ export async function POST(request: Request) {
 
           if (intentResult.intent === 'store_hours') {
             await sendWhatsAppTextMessage({ body: STORE_INFO.hours, to: message.from });
+            await sendSizeReminderIfNeeded(message.from, currentSession.conversationState);
             continue;
           }
 
           if (intentResult.intent === 'store_address') {
             await sendWhatsAppTextMessage({ body: STORE_INFO.address, to: message.from });
+            await sendSizeReminderIfNeeded(message.from, currentSession.conversationState);
             continue;
           }
 
           if (intentResult.intent === 'store_instagram') {
             await sendWhatsAppTextMessage({ body: STORE_INFO.instagram, to: message.from });
+            await sendSizeReminderIfNeeded(message.from, currentSession.conversationState);
             continue;
           }
 
           if (intentResult.intent === 'store_website') {
             await sendWhatsAppTextMessage({ body: STORE_INFO.siteNotice, to: message.from });
+            await sendSizeReminderIfNeeded(message.from, currentSession.conversationState);
             continue;
           }
 
           if (intentResult.intent === 'delivery_question' || intentResult.intent === 'purchase_question') {
             await sendWhatsAppTextMessage({ body: STORE_DELIVERY_PURCHASE_MESSAGE, to: message.from });
+            await sendSizeReminderIfNeeded(message.from, currentSession.conversationState);
+            continue;
+          }
+
+          if (currentSession.conversationState === 'awaiting_size_preference') {
+            const pendingDepartment = currentSession.pendingDepartment;
+            const pendingAudience = getPendingAudience(currentSession.pendingCategory);
+
+            if (!pendingDepartment && !pendingAudience) {
+              await updateWhatsAppSession(message.from, {
+                conversationState: 'idle',
+                pendingCategory: null,
+                pendingDepartment: null,
+                requestedSize: null,
+              });
+              await sendWhatsAppTextMessage({ body: buildIdleCategoryHint(), to: message.from });
+              continue;
+            }
+
+            const availableSizes = await getAvailableSizesForCategory(pendingDepartment, pendingAudience);
+            const recognizedSizes = getRecognizedSizesForCategory(pendingDepartment, pendingAudience, availableSizes);
+
+            if (isAllSizesRequest(customerText)) {
+              console.info('[whatsapp-size] Todos os tamanhos selecionados');
+              await sendCategoryGalleryFlow({
+                to: message.from,
+                audience: pendingAudience,
+                department: pendingDepartment,
+                requestedSize: null,
+              });
+              continue;
+            }
+
+            const requestedSize = extractRequestedSize(customerText, recognizedSizes);
+            if (requestedSize) {
+              console.info('[whatsapp-size] Tamanho específico identificado');
+
+              const productsForSize = await getFeaturedProductsByDepartment(pendingDepartment, pendingAudience, { size: requestedSize });
+              console.info(`[whatsapp-size] Produtos encontrados para o tamanho: ${productsForSize.length}`);
+
+              if (!productsForSize.length) {
+                console.info('[whatsapp-size] Nenhum produto para o tamanho');
+                await updateWhatsAppSession(message.from, {
+                  conversationState: 'awaiting_size_preference',
+                  pendingCategory: pendingAudience,
+                  pendingDepartment,
+                  requestedSize,
+                });
+                await sendWhatsAppTextMessage({
+                  body: `Não encontrei novidades em destaque dessa categoria no tamanho ${requestedSize} agora. 🤎`,
+                  to: message.from,
+                });
+                await sendWhatsAppTextMessage({ body: SIZE_PREFERENCE_RETRY_MESSAGE, to: message.from });
+                continue;
+              }
+
+              await sendCategoryGalleryFlow({
+                to: message.from,
+                audience: pendingAudience,
+                department: pendingDepartment,
+                requestedSize,
+              });
+              continue;
+            }
+
+            if (looksLikeSizeAttempt(customerText)) {
+              await sendWhatsAppTextMessage({
+                body: `${INVALID_SIZE_MESSAGE}${formatShortSizeList(availableSizes)}`,
+                to: message.from,
+              });
+              continue;
+            }
+
+            if (intentResult.intent === 'greeting' || intentResult.intent === 'general_question') {
+              const aiReply = await generateWhatsAppReply(customerText);
+              if (aiReply?.trim()) {
+                await sendWhatsAppTextMessage({ body: aiReply.trim(), to: message.from });
+              }
+
+              await sendWhatsAppTextMessage({ body: SIZE_PREFERENCE_REMINDER_MESSAGE, to: message.from });
+              continue;
+            }
+
+            await sendWhatsAppTextMessage({
+              body: buildSizePreferenceQuestion(pendingDepartment, pendingAudience, availableSizes),
+              to: message.from,
+            });
             continue;
           }
 
@@ -741,7 +1037,8 @@ export async function POST(request: Request) {
             }
 
             console.info('[whatsapp-flow] Produto selecionado');
-            const product = await sendSelectedProductDetails(message.from, selected.productId);
+            const recipient = message.from;
+            const product = await enqueueWhatsAppSend(recipient, () => sendSelectedProductDetails(recipient, selected.productId));
 
             if (!product) {
               continue;

@@ -1,8 +1,16 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { WhatsAppSendMessageError, sendWhatsAppTextMessage } from '@/lib/whatsapp/send-message';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const AUTO_REPLY_TEXT = 'Olá! Você está falando com a Pastoril Moda Country. 🤎\n\nRecebemos sua mensagem e nosso atendimento automático está em fase de testes.';
+const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
+
+// This in-memory dedupe is only a best-effort layer; serverless instances may restart
+// and will not persist this state. Persistent dedupe will be implemented later.
+const processedMessageIds = new Map<string, number>();
 
 type WebhookEventType = 'mensagem' | 'status' | 'desconhecido';
 
@@ -43,6 +51,9 @@ interface WhatsAppContact {
 interface WhatsAppMessage {
   id?: string;
   from?: string;
+  text?: {
+    body?: string;
+  };
   timestamp?: string;
   type?: string;
 }
@@ -57,6 +68,47 @@ interface WhatsAppStatus {
 interface ClassifiedWebhookEvent {
   eventCount: number;
   type: WebhookEventType;
+}
+
+function normalizeDigits(value: string | undefined) {
+  return (value ?? '').replace(/\D/g, '');
+}
+
+function maskPhone(value: string | undefined) {
+  const digits = normalizeDigits(value);
+
+  if (!digits) return 'indefinido';
+  if (digits.length <= 4) return `***${digits.slice(-2)}`;
+
+  return `${digits.slice(0, 2)}***${digits.slice(-2)}`;
+}
+
+function isDuplicateMessageId(messageId: string) {
+  const now = Date.now();
+
+  for (const [id, expiresAt] of processedMessageIds.entries()) {
+    if (expiresAt <= now) {
+      processedMessageIds.delete(id);
+    }
+  }
+
+  const existingExpiry = processedMessageIds.get(messageId);
+
+  if (existingExpiry && existingExpiry > now) {
+    return true;
+  }
+
+  processedMessageIds.set(messageId, now + MESSAGE_ID_TTL_MS);
+  return false;
+}
+
+function isSelfMessage(from: string | undefined, metadata: WhatsAppMetadata | undefined) {
+  const fromDigits = normalizeDigits(from);
+  const displayPhoneDigits = normalizeDigits(metadata?.display_phone_number);
+
+  if (!fromDigits || !displayPhoneDigits) return false;
+
+  return fromDigits === displayPhoneDigits;
 }
 
 function getRequiredEnv(name: 'WHATSAPP_VERIFY_TOKEN' | 'META_APP_SECRET') {
@@ -165,6 +217,66 @@ export async function POST(request: Request) {
   console.info('[whatsapp-webhook] Webhook WhatsApp recebido');
   console.info(`[whatsapp-webhook] Tipo: ${classifiedEvent.type}`);
   console.info(`[whatsapp-webhook] Quantidade de eventos: ${classifiedEvent.eventCount}`);
+
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      const value = change.value;
+      const messages = value?.messages;
+      const statuses = value?.statuses;
+
+      if ((!messages || messages.length === 0) && Array.isArray(statuses) && statuses.length > 0) {
+        console.info('[whatsapp-webhook] Evento de status ignorado');
+        continue;
+      }
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        continue;
+      }
+
+      for (const message of messages) {
+        if (!message.id) {
+          continue;
+        }
+
+        if (isDuplicateMessageId(message.id)) {
+          continue;
+        }
+
+        if (!message.from) {
+          continue;
+        }
+
+        if (isSelfMessage(message.from, value?.metadata)) {
+          continue;
+        }
+
+        if (message.type !== 'text') {
+          console.info(`[whatsapp-webhook] Tipo nao suportado: ${message.type ?? 'desconhecido'}`);
+          continue;
+        }
+
+        console.info('[whatsapp-webhook] Mensagem de texto recebida');
+
+        try {
+          await sendWhatsAppTextMessage({
+            body: AUTO_REPLY_TEXT,
+            to: message.from,
+          });
+
+          console.info('[whatsapp-webhook] Resposta automatica enviada');
+        } catch (error) {
+          if (error instanceof WhatsAppSendMessageError) {
+            console.error(
+              `[whatsapp-webhook] Falha ao enviar resposta automatica: status=${error.status ?? 'n/a'} metaCode=${error.metaErrorCode ?? 'n/a'} to=${maskPhone(message.from)}`,
+            );
+            continue;
+          }
+
+          console.error(`[whatsapp-webhook] Falha ao enviar resposta automatica: erro_interno to=${maskPhone(message.from)}`);
+        }
+      }
+    }
+  }
 
   return NextResponse.json({ received: true }, { status: 200 });
 }

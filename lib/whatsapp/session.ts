@@ -55,7 +55,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
     .maybeSingle();
 
   if (error) {
-    throw new Error('Falha ao consultar sessao do WhatsApp.');
+    throw error;
   }
 
   const nowIso = new Date().toISOString();
@@ -76,7 +76,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
       .single();
 
     if (insertError) {
-      throw new Error('Falha ao criar sessao do WhatsApp.');
+      throw insertError;
     }
 
     return mapSession(inserted, true);
@@ -101,7 +101,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
       .single();
 
     if (resetError) {
-      throw new Error('Falha ao renovar sessao do WhatsApp.');
+      throw resetError;
     }
 
     return mapSession(resetSession, true);
@@ -115,7 +115,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
     .single();
 
   if (touchError) {
-    throw new Error('Falha ao atualizar sessao do WhatsApp.');
+    throw touchError;
   }
 
   return mapSession(touched, false);
@@ -167,6 +167,6 @@ export async function updateWhatsAppSession(phone: string, input: UpdateWhatsApp
     .eq('phone', normalizedPhone);
 
   if (error) {
-    throw new Error('Falha ao atualizar estado da sessao do WhatsApp.');
+    throw error;
   }
 }

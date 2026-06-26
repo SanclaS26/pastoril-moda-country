@@ -97,6 +97,118 @@ interface ClassifiedWebhookEvent {
   type: WebhookEventType;
 }
 
+type SanitizedError = {
+  code: string | null;
+  details: string | null;
+  hint: string | null;
+  message: string | null;
+  name: string | null;
+  status: number | null;
+};
+
+type CategoryFlowStage =
+  | 'start'
+  | 'identify_category'
+  | 'load_conversation'
+  | 'search_featured_products'
+  | 'validate_products'
+  | 'send_product_images'
+  | 'persist_presented_products'
+  | 'send_selection_prompt'
+  | 'load_selected_product'
+  | 'send_product_details';
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function truncateDiagnostic(value: string | null) {
+  if (!value) return null;
+  return value.slice(0, 300);
+}
+
+function asDiagnosticString(value: unknown) {
+  if (typeof value === 'string') {
+    return truncateDiagnostic(value);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return truncateDiagnostic(String(value));
+  }
+
+  return null;
+}
+
+function asDiagnosticStatus(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return Math.trunc(parsed);
+    }
+  }
+
+  return null;
+}
+
+function readCandidateValue(candidates: Record<string, unknown>[], keys: string[]) {
+  for (const candidate of candidates) {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(candidate, key)) {
+        const value = candidate[key];
+        if (value !== undefined && value !== null) {
+          return value;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function sanitizeError(error: unknown): SanitizedError {
+  const candidates: Record<string, unknown>[] = [];
+
+  if (isRecord(error)) {
+    candidates.push(error);
+
+    if (isRecord(error.cause)) {
+      candidates.push(error.cause);
+    }
+
+    if (isRecord(error.error)) {
+      candidates.push(error.error);
+    }
+  }
+
+  const nameFromError = error instanceof Error ? truncateDiagnostic(error.name) : null;
+  const messageFromError = error instanceof Error ? truncateDiagnostic(error.message) : null;
+
+  const name = nameFromError ?? asDiagnosticString(readCandidateValue(candidates, ['name', 'type']));
+  const message =
+    messageFromError ??
+    asDiagnosticString(readCandidateValue(candidates, ['message', 'error_description'])) ??
+    (typeof error === 'string' ? truncateDiagnostic(error) : null);
+  const code = asDiagnosticString(readCandidateValue(candidates, ['code', 'metaErrorCode', 'type']));
+  const status =
+    asDiagnosticStatus(readCandidateValue(candidates, ['status', 'statusCode', 'responseStatus'])) ??
+    (isRecord(error) && isRecord(error.response) ? asDiagnosticStatus(error.response.status) : null);
+  const details = asDiagnosticString(readCandidateValue(candidates, ['details', 'stack', 'responseText']));
+  const hint = asDiagnosticString(readCandidateValue(candidates, ['hint']));
+
+  return {
+    code,
+    details,
+    hint,
+    message,
+    name,
+    status,
+  };
+}
+
 function formatCurrency(value: number) {
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
 }
@@ -133,8 +245,15 @@ function extractValidPresentedProducts(presentedProducts: WhatsAppPresentedProdu
     .sort((a, b) => a.position - b.position);
 }
 
-async function sendCategoryFeaturedProducts(to: string, department: string) {
+async function sendCategoryFeaturedProducts(
+  to: string,
+  department: string,
+  updateStage: (stage: CategoryFlowStage) => void,
+) {
+  updateStage('search_featured_products');
   const featuredProducts = (await getFeaturedProductsByDepartment(department)).slice(0, MAX_FEATURED_IMAGES);
+
+  updateStage('validate_products');
   const uniqueProducts = Array.from(new Map(featuredProducts.map((product) => [product.id, product])).values());
 
   if (!uniqueProducts.length) {
@@ -151,6 +270,7 @@ async function sendCategoryFeaturedProducts(to: string, department: string) {
 
   for (const product of uniqueProducts) {
     try {
+      updateStage('send_product_images');
       await sendWhatsAppImageMessage({
         caption: `Foto ${currentPosition}`,
         imageUrl: product.imagemPrincipal,
@@ -181,6 +301,7 @@ async function sendCategoryFeaturedProducts(to: string, department: string) {
     return [];
   }
 
+  updateStage('send_selection_prompt');
   await sendWhatsAppTextMessage({
     body: PHOTO_SELECTION_PROMPT,
     to,
@@ -189,7 +310,12 @@ async function sendCategoryFeaturedProducts(to: string, department: string) {
   return presentedProducts;
 }
 
-async function sendProductDetailsById(to: string, productId: number) {
+async function sendProductDetailsById(
+  to: string,
+  productId: number,
+  updateStage: (stage: CategoryFlowStage) => void,
+) {
+  updateStage('load_selected_product');
   const product = await getProductById(productId);
 
   if (!product) {
@@ -218,6 +344,7 @@ async function sendProductDetailsById(to: string, productId: number) {
     .filter(Boolean)
     .join('\n');
 
+  updateStage('send_product_details');
   await sendWhatsAppImageMessage({
     caption: detailMessage,
     imageUrl: product.imagemPrincipal,
@@ -416,7 +543,10 @@ export async function POST(request: Request) {
 
         console.info('[whatsapp-webhook] Mensagem de texto recebida');
 
+        let stage: CategoryFlowStage = 'start';
+
         try {
+          stage = 'load_conversation';
           const session = await getOrCreateWhatsAppSession(message.from);
 
           if (session.isNewSession) {
@@ -435,11 +565,15 @@ export async function POST(request: Request) {
             await updateWhatsAppSession(message.from, { siteNoticeSent: true });
           }
 
+          stage = 'identify_category';
           const requestedDepartment = detectDepartmentFromMessage(customerText);
 
           if (requestedDepartment) {
-            const presentedProducts = await sendCategoryFeaturedProducts(message.from, requestedDepartment);
+            const presentedProducts = await sendCategoryFeaturedProducts(message.from, requestedDepartment, (nextStage) => {
+              stage = nextStage;
+            });
 
+            stage = 'persist_presented_products';
             if (presentedProducts.length > 0) {
               await updateWhatsAppSession(message.from, {
                 awaitingProductPosition: true,
@@ -483,12 +617,15 @@ export async function POST(request: Request) {
               continue;
             }
 
-            const product = await sendProductDetailsById(message.from, selected.productId);
+            const product = await sendProductDetailsById(message.from, selected.productId, (nextStage) => {
+              stage = nextStage;
+            });
 
             if (!product) {
               continue;
             }
 
+            stage = 'persist_presented_products';
             await updateWhatsAppSession(message.from, {
               awaitingProductPosition: true,
               presentedProducts,
@@ -526,8 +663,13 @@ export async function POST(request: Request) {
           });
 
           console.info('[whatsapp-webhook] Fluxo inicial de categorias enviado');
-        } catch {
-          console.warn('[whatsapp-webhook] Falha no fluxo de atendimento por categoria/foto');
+        } catch (error: unknown) {
+          const sanitized = sanitizeError(error);
+
+          console.warn('[whatsapp-webhook] Falha no fluxo de atendimento por categoria/foto', {
+            stage,
+            ...sanitized,
+          });
 
           try {
             await sendWhatsAppTextMessage({

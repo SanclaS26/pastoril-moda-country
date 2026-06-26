@@ -192,7 +192,7 @@ export async function getFeaturedProductsByDepartment(department: string) {
     .limit(FEATURED_PRODUCTS_LIMIT);
 
   if (productsError) {
-    throw new Error('Falha ao consultar produtos em destaque por categoria.');
+    throw productsError;
   }
 
   const productRows = (products ?? []) as ProdutoRow[];
@@ -207,7 +207,7 @@ export async function getFeaturedProductsByDepartment(department: string) {
     .gt('quantidade', 0);
 
   if (stockError) {
-    throw new Error('Falha ao consultar estoque dos destaques por categoria.');
+    throw stockError;
   }
 
   return mapProductsWithStock(productRows, (stockRows ?? []) as StockRow[]);
@@ -233,7 +233,7 @@ export async function getProductByCode(productCode: string) {
     .maybeSingle<ProdutoRow>();
 
   if (productError) {
-    throw new Error('Falha ao consultar produto por codigo.');
+    throw productError;
   }
 
   if (!product) {
@@ -249,7 +249,7 @@ export async function getProductByCode(productCode: string) {
     productError = fallback.error;
 
     if (productError) {
-      throw new Error('Falha ao consultar produto por codigo.');
+      throw productError;
     }
   }
 
@@ -265,7 +265,7 @@ export async function getProductByCode(productCode: string) {
     .order('id', { ascending: true });
 
   if (stockError) {
-    throw new Error('Falha ao consultar estoque do produto por codigo.');
+    throw stockError;
   }
 
   const mapped = mapProductsWithStock([product], (stockRows ?? []) as StockRow[]);
@@ -287,7 +287,7 @@ export async function getProductById(productId: number) {
     .maybeSingle<ProdutoRow>();
 
   if (productError) {
-    throw new Error('Falha ao consultar produto por id.');
+    throw productError;
   }
 
   if (!product || !product.imagem_principal) {
@@ -302,7 +302,7 @@ export async function getProductById(productId: number) {
     .order('id', { ascending: true });
 
   if (stockError) {
-    throw new Error('Falha ao consultar estoque do produto por id.');
+    throw stockError;
   }
 
   const mapped = mapProductsWithStock([product], (stockRows ?? []) as StockRow[]);

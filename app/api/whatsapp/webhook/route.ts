@@ -1,41 +1,52 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { departamentosProduto } from '@/config/grades-tamanho';
 import { generateWhatsAppReply } from '@/lib/ai/generate-whatsapp-reply';
-import { getPublicSiteUrl } from '@/lib/public-site-url';
+import { getFeaturedProductsByDepartment, getProductById } from '@/lib/whatsapp/catalog/category-flow';
+import { routeWhatsAppIntent, type WhatsAppIntentResult } from '@/lib/whatsapp/intent-router';
+import { enqueueWhatsAppSend } from '@/lib/whatsapp/send-queue';
 import {
-  detectDepartmentFromMessage,
-  extractProductPositionFromMessage,
-  getFeaturedProductsByDepartment,
-  getProductById,
-  type CatalogAudience,
-} from '@/lib/whatsapp/catalog/category-flow';
-import { getOrCreateWhatsAppSession, startGallerySessionIfAvailable, updateWhatsAppSession } from '@/lib/whatsapp/session';
+  finalizeGallerySession,
+  getOrCreateWhatsAppSession,
+  isGallerySessionActive,
+  persistGalleryProgress,
+  startGallerySessionIfAvailable,
+  updateWhatsAppSession,
+} from '@/lib/whatsapp/session';
 import { WhatsAppSendMessageError, sendWhatsAppImageMessage, sendWhatsAppTextMessage } from '@/lib/whatsapp/send-message';
+import {
+  STORE_DELIVERY_PURCHASE_MESSAGE,
+  STORE_GALLERY_CONTEXT_REMINDER,
+  STORE_GENERAL_HELP_MESSAGE,
+  STORE_INFO,
+} from '@/lib/whatsapp/store-config';
 import type { WhatsAppPresentedProduct } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
-const SITE_URL = getPublicSiteUrl();
+const IMAGE_SEND_DELAY_MS = 700;
+const FINAL_PROMPT_DELAY_MS = 1000;
+const PHOTO_SELECTION_TIMEOUT_MINUTES = 30;
 
 const INTRO_MESSAGE =
   'Olá! Seja bem-vindo(a) à Pastoril Moda Country. 🤎\n\nPosso ajudar você a conhecer nossas novidades e encontrar produtos disponíveis.';
-const SITE_INTRO_MESSAGE = `Você também pode conhecer nossa vitrine pelo site:\n\n${SITE_URL}`;
+const SITE_INTRO_MESSAGE = `Você também pode conhecer nossa vitrine pelo site:\n\n${STORE_INFO.siteUrl}`;
 
 const CATEGORY_PRE_GALLERY_MESSAGE = 'Estas são as novidades em destaque dessa categoria. 🤎';
 const CATEGORY_PRE_GALLERY_SITE_MESSAGE =
-  `As fotos abaixo mostram as novidades selecionadas da categoria.\n\nPara ver mais produtos, acesse:\n${SITE_URL}`;
+  `As fotos abaixo mostram as novidades selecionadas da categoria.\n\nPara ver mais produtos, acesse:\n${STORE_INFO.siteUrl}`;
 
-const SELECTION_PROMPT_MESSAGE = 'Digite o número da foto que você quer saber mais detalhes.';
-const CHANGE_CATEGORY_PROMPT_MESSAGE = buildChangeCategoryPrompt();
+const SELECTION_PROMPT_MESSAGE =
+  'Digite o número da foto que você quer saber mais detalhes.\n\nOu digite o nome de outra categoria para ver novas opções.';
 
 const NO_HIGHLIGHTS_MESSAGE = 'Não encontrei novidades em destaque disponíveis nessa categoria agora. 🤎';
 const NO_HIGHLIGHTS_SITE_MESSAGE =
-  `Você pode escolher outra categoria ou ver todos os produtos no site:\n\n${SITE_URL}`;
+  `Você pode escolher outra categoria ou ver todos os produtos no site:\n\n${STORE_INFO.siteUrl}`;
 const GALLERY_LOAD_FAILED_MESSAGE =
-  `Não consegui carregar as fotos dessa categoria agora.\n\nVocê pode ver os produtos no site:\n${SITE_URL}`;
+  `Não consegui carregar as fotos dessa categoria agora.\n\nVocê pode ver os produtos no site:\n${STORE_INFO.siteUrl}`;
 
 const HUMAN_HANDOFF_MESSAGE = 'Vou encaminhar seu atendimento para a equipe da Pastoril continuar por aqui. 🤎';
 const PRODUCT_NOT_FOUND_REPLY =
@@ -44,18 +55,6 @@ const FALLBACK_MESSAGE =
   'Não consegui concluir o atendimento automático agora. Nossa equipe pode continuar por aqui com você. 🤎';
 
 type WebhookEventType = 'mensagem' | 'status' | 'desconhecido';
-
-type CategoryFlowStage =
-  | 'start'
-  | 'identify_category'
-  | 'load_conversation'
-  | 'search_featured_products'
-  | 'validate_products'
-  | 'send_product_images'
-  | 'persist_presented_products'
-  | 'send_selection_prompt'
-  | 'load_selected_product'
-  | 'send_product_details';
 
 type SanitizedError = {
   code: string | null;
@@ -286,56 +285,6 @@ function classifyEvent(payload: WhatsAppWebhookPayload): ClassifiedWebhookEvent 
   return { eventCount, type };
 }
 
-function isHumanHandoffIntent(text: string) {
-  const normalized = text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
-
-  return [
-    'fechar compra',
-    'quero comprar',
-    'reservar',
-    'reserva',
-    'negociar',
-    'desconto',
-    'troca',
-    'cancelamento',
-    'cancelar',
-    'pedido',
-    'falar com atendente',
-    'falar com pessoa',
-    'atendimento humano',
-  ].some((token) => normalized.includes(token));
-}
-
-function buildCategoryExamples() {
-  const preferred = ['Botas', 'Camisas', 'Calças'];
-  const preferredReal = preferred.filter((name) =>
-    departamentosProduto.includes(name as (typeof departamentosProduto)[number]),
-  );
-
-  const extraReal = departamentosProduto
-    .filter((name) => !preferredReal.includes(name))
-    .slice(0, 4);
-
-  return Array.from(new Set([...preferredReal, ...extraReal, 'Masculino', 'Feminino', 'Infantil']));
-}
-
-function buildChangeCategoryPrompt() {
-  return `Ou digite o nome de outra categoria para ver novas opções.\n\nExemplos de categorias:\n${buildCategoryExamples().join('\n')}`;
-}
-
-function buildIdleCategoryHint() {
-  return `Posso mostrar as novidades em destaque por categoria. Você pode pedir ${buildCategoryExamples()
-    .map((item) => item.toLowerCase())
-    .join(', ')}. 🤎`;
-}
-
-function normalizeCategorySessionValue(department: string | null, audience: CatalogAudience | null) {
-  return department ?? audience ?? null;
-}
-
 function formatCurrency(value: number) {
   return `R$ ${value.toFixed(2).replace('.', ',')}`;
 }
@@ -364,74 +313,45 @@ function extractValidPresentedProducts(presentedProducts: WhatsAppPresentedProdu
     .sort((a, b) => a.position - b.position);
 }
 
-function isIdleSmalltalk(text: string) {
-  const normalized = text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-
-  return ['ola', 'oi', 'bom dia', 'boa tarde', 'boa noite', 'quem e voce', 'como funciona'].some((term) =>
-    normalized.includes(term),
-  );
+function normalizeCategorySessionValue(department: string | null, audience: string | null) {
+  return department ?? audience ?? null;
 }
 
-async function sendCategoryGallery(
-  department: string | null,
-  audience: CatalogAudience | null,
-  updateStage: (stage: CategoryFlowStage) => void,
-) {
-  updateStage('search_featured_products');
-  const featuredProducts = await getFeaturedProductsByDepartment(department, audience);
+function buildIdleCategoryHint() {
+  const preferred = ['Botas', 'Camisas', 'Calças'];
+  const preferredReal = preferred.filter((name) => departamentosProduto.includes(name as (typeof departamentosProduto)[number]));
+  const extras = departamentosProduto.filter((name) => !preferredReal.includes(name)).slice(0, 4);
+  const categories = [...preferredReal, ...extras, 'Masculino', 'Feminino', 'Infantil'];
 
-  console.info(`[whatsapp-catalog] Destaques encontrados: ${featuredProducts.length}`);
-
-  updateStage('validate_products');
-  return Array.from(new Map(featuredProducts.map((product) => [product.id, product])).values());
+  return `Posso mostrar as novidades em destaque por categoria. Você pode pedir ${Array.from(new Set(categories))
+    .map((value) => value.toLowerCase())
+    .join(', ')}. 🤎`;
 }
 
-async function sendCategoryGalleryImages(
-  to: string,
-  products: FeaturedCatalogProduct[],
-  updateStage: (stage: CategoryFlowStage) => void,
-) {
-  console.info('[whatsapp-media] Galeria iniciada');
+function delay(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
-  const sentProducts: WhatsAppPresentedProduct[] = [];
+function getPhotoSelectionExpiresAtIso() {
+  return new Date(Date.now() + PHOTO_SELECTION_TIMEOUT_MINUTES * 60 * 1000).toISOString();
+}
 
-  for (const product of products) {
-    const position = sentProducts.length + 1;
-
-    try {
-      updateStage('send_product_images');
-      await sendWhatsAppImageMessage({
-        caption: `Foto ${position}`,
-        imageUrl: product.imagemPrincipal,
-        to,
-      });
-
-      sentProducts.push({
-        position,
-        productId: product.id,
-      });
-
-      console.info(`[whatsapp-media] Foto enviada: ${position}`);
-    } catch (error) {
-      const sanitized = sanitizeError(error);
-      console.warn('[whatsapp-media] Falha ao enviar imagem da galeria', {
-        stage: 'send_product_images',
-        ...sanitized,
-      });
-    }
+function isPhotoSelectionExpired(expiresAt: string | null) {
+  if (!expiresAt) {
+    return true;
   }
 
-  console.info('[whatsapp-media] Galeria concluida');
+  const timestamp = new Date(expiresAt).getTime();
+  if (!Number.isFinite(timestamp)) {
+    return true;
+  }
 
-  return sentProducts;
+  return Date.now() > timestamp;
 }
 
-async function sendSelectedProductDetails(to: string, productId: number, updateStage: (stage: CategoryFlowStage) => void) {
-  updateStage('load_selected_product');
+async function sendSelectedProductDetails(to: string, productId: number) {
   const product = await getProductById(productId);
 
   if (!product) {
@@ -455,14 +375,13 @@ async function sendSelectedProductDetails(to: string, productId: number, updateS
     `Tamanhos disponíveis: ${formatSizes(product.estoqueDisponivel)}`,
     '',
     'Ver no site:',
-    `${SITE_URL}/produto/${product.id}`,
+    `${STORE_INFO.siteUrl}/produto/${product.id}`,
     '',
     'A disponibilidade pode mudar até a confirmação da venda.',
   ]
     .filter((line) => line !== null)
     .join('\n');
 
-  updateStage('send_product_details');
   await sendWhatsAppImageMessage({
     caption: lines,
     imageUrl: product.imagemPrincipal,
@@ -480,6 +399,129 @@ async function sendSelectedProductDetails(to: string, productId: number, updateS
   });
 
   return product;
+}
+
+async function sendCategoryGalleryFlow({
+  to,
+  audience,
+  department,
+}: {
+  to: string;
+  audience: WhatsAppIntentResult['audience'];
+  department: WhatsAppIntentResult['department'];
+}) {
+  const featuredProducts = Array.from(
+    new Map((await getFeaturedProductsByDepartment(department, audience)).map((product) => [product.id, product])).values(),
+  ) as FeaturedCatalogProduct[];
+
+  console.info(`[whatsapp-catalog] Destaques encontrados: ${featuredProducts.length}`);
+
+  if (featuredProducts.length === 0) {
+    await updateWhatsAppSession(to, {
+      activeGalleryId: null,
+      awaitingProductPosition: false,
+      conversationState: 'idle',
+      lastCategory: normalizeCategorySessionValue(department, audience),
+      photoSelectionExpiresAt: null,
+      presentedProducts: [],
+    });
+
+    await sendWhatsAppTextMessage({ body: NO_HIGHLIGHTS_MESSAGE, to });
+    await sendWhatsAppTextMessage({ body: NO_HIGHLIGHTS_SITE_MESSAGE, to });
+    return;
+  }
+
+  await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_MESSAGE, to });
+  await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_SITE_MESSAGE, to });
+
+  const activeGalleryId = randomUUID();
+  const startedGallery = await startGallerySessionIfAvailable(to, {
+    activeGalleryId,
+    lastCategory: normalizeCategorySessionValue(department, audience),
+  });
+
+  if (!startedGallery) {
+    return;
+  }
+
+  console.info('[whatsapp-gallery] Galeria enfileirada');
+
+  await enqueueWhatsAppSend(to, async () => {
+    console.info('[whatsapp-gallery] Galeria iniciada');
+
+    const sentProducts: WhatsAppPresentedProduct[] = [];
+
+    for (const product of featuredProducts) {
+      const stillActive = await isGallerySessionActive(to, activeGalleryId);
+      if (!stillActive) {
+        console.info('[whatsapp-gallery] Galeria substituída');
+        return;
+      }
+
+      const position = sentProducts.length + 1;
+
+      try {
+        await sendWhatsAppImageMessage({
+          caption: `Foto ${position}`,
+          imageUrl: product.imagemPrincipal,
+          to,
+        });
+
+        sentProducts.push({ position, productId: product.id });
+        console.info(`[whatsapp-gallery] Foto aceita: ${position}`);
+
+        const progressSaved = await persistGalleryProgress(to, activeGalleryId, sentProducts);
+        if (!progressSaved) {
+          console.info('[whatsapp-gallery] Galeria substituída');
+          return;
+        }
+      } catch (error) {
+        const sanitized = sanitizeError(error);
+        console.warn('[whatsapp-media] Falha ao enviar imagem da galeria', {
+          ...sanitized,
+        });
+      }
+
+      await delay(IMAGE_SEND_DELAY_MS);
+    }
+
+    if (sentProducts.length === 0) {
+      const stillActive = await isGallerySessionActive(to, activeGalleryId);
+      if (!stillActive) {
+        console.info('[whatsapp-gallery] Galeria substituída');
+        return;
+      }
+
+      await updateWhatsAppSession(to, {
+        activeGalleryId: null,
+        awaitingProductPosition: false,
+        conversationState: 'idle',
+        photoSelectionExpiresAt: null,
+        presentedProducts: [],
+      });
+
+      await sendWhatsAppTextMessage({ body: GALLERY_LOAD_FAILED_MESSAGE, to });
+      return;
+    }
+
+    const finalized = await finalizeGallerySession(to, {
+      activeGalleryId,
+      photoSelectionExpiresAt: getPhotoSelectionExpiresAtIso(),
+      presentedProducts: sentProducts,
+    });
+
+    if (!finalized) {
+      console.info('[whatsapp-gallery] Galeria substituída');
+      return;
+    }
+
+    await delay(FINAL_PROMPT_DELAY_MS);
+
+    await sendWhatsAppTextMessage({ body: SELECTION_PROMPT_MESSAGE, to });
+
+    console.info('[whatsapp-gallery] Galeria concluída');
+    console.info('[whatsapp-gallery] Pergunta final enviada');
+  });
 }
 
 export async function GET(request: Request) {
@@ -554,15 +596,11 @@ export async function POST(request: Request) {
       }
 
       for (const message of messages) {
-        if (!message.id) {
+        if (!message.id || !message.from) {
           continue;
         }
 
         if (isDuplicateMessageId(message.id)) {
-          continue;
-        }
-
-        if (!message.from) {
           continue;
         }
 
@@ -580,12 +618,7 @@ export async function POST(request: Request) {
           continue;
         }
 
-        console.info('[whatsapp-webhook] Mensagem de texto recebida');
-
-        let stage: CategoryFlowStage = 'start';
-
         try {
-          stage = 'load_conversation';
           const session = await getOrCreateWhatsAppSession(message.from);
 
           if (session.isNewSession) {
@@ -599,134 +632,116 @@ export async function POST(request: Request) {
             console.info('[whatsapp-flow] Site informado');
           }
 
-          if (isHumanHandoffIntent(customerText)) {
+          if (session.awaitingProductPosition && isPhotoSelectionExpired(session.photoSelectionExpiresAt)) {
+            await updateWhatsAppSession(message.from, {
+              activeGalleryId: null,
+              awaitingProductPosition: false,
+              conversationState: 'idle',
+              photoSelectionExpiresAt: null,
+              presentedProducts: [],
+            });
+          }
+
+          const currentSession = await getOrCreateWhatsAppSession(message.from);
+          const intentResult = routeWhatsAppIntent({
+            message: customerText,
+            session: currentSession,
+          });
+
+          if (intentResult.intent === 'human_service') {
             await sendWhatsAppTextMessage({ body: HUMAN_HANDOFF_MESSAGE, to: message.from });
             continue;
           }
 
-          stage = 'identify_category';
-          const detected = detectDepartmentFromMessage(customerText);
-          const hasCategoryRequest = Boolean(detected.department || detected.audience);
-
-          if (hasCategoryRequest) {
-            console.info('[whatsapp-flow] Categoria alterada');
-
-            const featuredProducts = await sendCategoryGallery(
-              detected.department,
-              detected.audience,
-              (nextStage) => {
-                stage = nextStage;
-              },
-            );
-
-            if (featuredProducts.length === 0) {
-              stage = 'persist_presented_products';
-              await updateWhatsAppSession(message.from, {
-                awaitingProductPosition: false,
-                conversationState: 'idle',
-                lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
-                presentedProducts: [],
-              });
-
-              await sendWhatsAppTextMessage({
-                body: NO_HIGHLIGHTS_MESSAGE,
-                to: message.from,
-              });
-
-              await sendWhatsAppTextMessage({
-                body: NO_HIGHLIGHTS_SITE_MESSAGE,
-                to: message.from,
-              });
-
-              continue;
-            }
-
-            await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_MESSAGE, to: message.from });
-            await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_SITE_MESSAGE, to: message.from });
-
-            stage = 'persist_presented_products';
-            const startedGallery = await startGallerySessionIfAvailable(message.from, {
-              lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
-            });
-
-            if (!startedGallery) {
-              continue;
-            }
-
-            const sentProducts = await sendCategoryGalleryImages(
-              message.from,
-              featuredProducts,
-              (nextStage) => {
-                stage = nextStage;
-              },
-            );
-
-            stage = 'persist_presented_products';
-            if (sentProducts.length === 0) {
-              await updateWhatsAppSession(message.from, {
-                awaitingProductPosition: false,
-                conversationState: 'idle',
-                lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
-                presentedProducts: [],
-              });
-
-              await sendWhatsAppTextMessage({
-                body: GALLERY_LOAD_FAILED_MESSAGE,
-                to: message.from,
-              });
-
-              continue;
-            }
-
+          if (intentResult.intent === 'cancel_gallery') {
             await updateWhatsAppSession(message.from, {
-              awaitingProductPosition: true,
-              conversationState: 'awaiting_photo_number',
-              lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
-              presentedProducts: sentProducts,
+              activeGalleryId: null,
+              awaitingProductPosition: false,
+              conversationState: 'idle',
+              photoSelectionExpiresAt: null,
+              presentedProducts: [],
             });
 
-            console.info('[whatsapp-flow] Mapeamento salvo');
-            console.info('[whatsapp-flow] Aguardando número da foto');
-
-            stage = 'send_selection_prompt';
-            await sendWhatsAppTextMessage({ body: SELECTION_PROMPT_MESSAGE, to: message.from });
-            await sendWhatsAppTextMessage({ body: CHANGE_CATEGORY_PROMPT_MESSAGE, to: message.from });
-
+            await sendWhatsAppTextMessage({
+              body: 'Perfeito, encerrei esta galeria. Se quiser, posso te mostrar outra categoria. 🤎',
+              to: message.from,
+            });
             continue;
           }
 
-          if (session.conversationState === 'sending_gallery') {
+          if (intentResult.intent === 'change_category' || intentResult.intent === 'request_category') {
+            console.info('[whatsapp-flow] Categoria alterada');
+            await sendCategoryGalleryFlow({
+              to: message.from,
+              audience: intentResult.audience,
+              department: intentResult.department,
+            });
             continue;
           }
 
-          if (session.awaitingProductPosition) {
-            const presentedProducts = extractValidPresentedProducts(session.presentedProducts);
+          if (currentSession.conversationState === 'sending_gallery') {
+            continue;
+          }
+
+          if (intentResult.intent === 'store_hours') {
+            await sendWhatsAppTextMessage({ body: STORE_INFO.hours, to: message.from });
+            continue;
+          }
+
+          if (intentResult.intent === 'store_address') {
+            await sendWhatsAppTextMessage({ body: STORE_INFO.address, to: message.from });
+            continue;
+          }
+
+          if (intentResult.intent === 'store_instagram') {
+            await sendWhatsAppTextMessage({ body: STORE_INFO.instagram, to: message.from });
+            continue;
+          }
+
+          if (intentResult.intent === 'store_website') {
+            await sendWhatsAppTextMessage({ body: STORE_INFO.siteNotice, to: message.from });
+            continue;
+          }
+
+          if (intentResult.intent === 'delivery_question' || intentResult.intent === 'purchase_question') {
+            await sendWhatsAppTextMessage({ body: STORE_DELIVERY_PURCHASE_MESSAGE, to: message.from });
+            continue;
+          }
+
+          if (intentResult.intent === 'product_question') {
+            const aiReply = await generateWhatsAppReply(customerText);
+            if (aiReply?.trim()) {
+              await sendWhatsAppTextMessage({ body: aiReply.trim(), to: message.from });
+            }
+
+            await sendWhatsAppTextMessage({ body: STORE_GALLERY_CONTEXT_REMINDER, to: message.from });
+            continue;
+          }
+
+          if (intentResult.intent === 'select_photo') {
+            const presentedProducts = extractValidPresentedProducts(currentSession.presentedProducts);
             const availableCount = presentedProducts.length;
-            const selectedPosition = extractProductPositionFromMessage(customerText);
 
-            if (!selectedPosition || selectedPosition <= 0 || availableCount === 0) {
+            if (!currentSession.awaitingProductPosition || isPhotoSelectionExpired(currentSession.photoSelectionExpiresAt) || availableCount === 0) {
               await sendWhatsAppTextMessage({
-                body: `Não encontrei essa foto. Digite um número entre 1 e ${Math.max(availableCount, 1)}.`,
+                body: buildIdleCategoryHint(),
                 to: message.from,
               });
-              await sendWhatsAppTextMessage({ body: CHANGE_CATEGORY_PROMPT_MESSAGE, to: message.from });
               continue;
             }
 
-            const selected = presentedProducts.find((item) => item.position === selectedPosition);
+            const selected = presentedProducts.find((item) => item.position === intentResult.selectedPhotoPosition);
+
             if (!selected) {
               await sendWhatsAppTextMessage({
                 body: `Não encontrei essa foto. Digite um número entre 1 e ${availableCount}.`,
                 to: message.from,
               });
-              await sendWhatsAppTextMessage({ body: CHANGE_CATEGORY_PROMPT_MESSAGE, to: message.from });
               continue;
             }
 
             console.info('[whatsapp-flow] Produto selecionado');
-            const product = await sendSelectedProductDetails(message.from, selected.productId, (nextStage) => {
-              stage = nextStage;
-            });
+            const product = await sendSelectedProductDetails(message.from, selected.productId);
 
             if (!product) {
               continue;
@@ -735,15 +750,16 @@ export async function POST(request: Request) {
             await updateWhatsAppSession(message.from, {
               awaitingProductPosition: true,
               conversationState: 'awaiting_photo_number',
+              photoSelectionExpiresAt: getPhotoSelectionExpiresAtIso(),
               presentedProducts,
             });
 
             continue;
           }
 
-          if (isIdleSmalltalk(customerText)) {
+          if (intentResult.intent === 'greeting') {
             await sendWhatsAppTextMessage({
-              body: buildIdleCategoryHint(),
+              body: STORE_GENERAL_HELP_MESSAGE,
               to: message.from,
             });
             continue;
@@ -754,15 +770,13 @@ export async function POST(request: Request) {
             await sendWhatsAppTextMessage({ body: aiReply.trim(), to: message.from });
           }
 
-          const categoriesPreview = departamentosProduto.slice(0, 8).join(', ');
           await sendWhatsAppTextMessage({
-            body: `Posso mostrar as novidades em destaque por categoria.\n\nCategorias reais no catálogo: ${categoriesPreview}.`,
+            body: buildIdleCategoryHint(),
             to: message.from,
           });
         } catch (error: unknown) {
           const sanitized = sanitizeError(error);
           console.warn('[whatsapp-webhook] Falha no fluxo de atendimento por categoria/foto', {
-            stage,
             ...sanitized,
           });
 

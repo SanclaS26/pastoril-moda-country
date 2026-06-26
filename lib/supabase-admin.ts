@@ -197,6 +197,8 @@ export type WhatsAppAtendimentoSessaoRow = {
   phone: string;
   session_started_at: string;
   last_interaction_at: string;
+  active_gallery_id: string | null;
+  photo_selection_expires_at: string | null;
   site_notice_sent: boolean;
   awaiting_product_position: boolean;
   conversation_state: WhatsAppConversationState;
@@ -210,6 +212,8 @@ export type WhatsAppAtendimentoSessaoInsert = {
   phone: string;
   session_started_at?: string;
   last_interaction_at?: string;
+  active_gallery_id?: string | null;
+  photo_selection_expires_at?: string | null;
   site_notice_sent?: boolean;
   awaiting_product_position?: boolean;
   conversation_state?: WhatsAppConversationState;

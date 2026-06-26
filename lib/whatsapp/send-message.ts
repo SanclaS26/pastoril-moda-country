@@ -5,6 +5,12 @@ interface SendWhatsAppTextMessageInput {
   to: string;
 }
 
+interface SendWhatsAppImageMessageInput {
+  caption?: string;
+  imageUrl: string;
+  to: string;
+}
+
 interface MetaErrorPayload {
   error?: {
     code?: number;
@@ -34,22 +40,13 @@ function getRequiredEnv(name: 'WHATSAPP_ACCESS_TOKEN' | 'WHATSAPP_PHONE_NUMBER_I
   return value;
 }
 
-export async function sendWhatsAppTextMessage({ body, to }: SendWhatsAppTextMessageInput) {
+async function sendMetaWhatsAppMessage(payload: Record<string, unknown>) {
   const accessToken = getRequiredEnv('WHATSAPP_ACCESS_TOKEN');
   const phoneNumberId = getRequiredEnv('WHATSAPP_PHONE_NUMBER_ID');
   const endpoint = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
 
   const response = await fetch(endpoint, {
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      recipient_type: 'individual',
-      text: {
-        body,
-        preview_url: false,
-      },
-      to,
-      type: 'text',
-    }),
+    body: JSON.stringify(payload),
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
@@ -72,4 +69,30 @@ export async function sendWhatsAppTextMessage({ body, to }: SendWhatsAppTextMess
       status: response.status,
     });
   }
+}
+
+export async function sendWhatsAppTextMessage({ body, to }: SendWhatsAppTextMessageInput) {
+  await sendMetaWhatsAppMessage({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    text: {
+      body,
+      preview_url: false,
+    },
+    to,
+    type: 'text',
+  });
+}
+
+export async function sendWhatsAppImageMessage({ caption, imageUrl, to }: SendWhatsAppImageMessageInput) {
+  await sendMetaWhatsAppMessage({
+    image: {
+      caption: caption?.trim() ? caption.trim().slice(0, 1024) : undefined,
+      link: imageUrl,
+    },
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'image',
+  });
 }

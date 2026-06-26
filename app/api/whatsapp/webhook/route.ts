@@ -1,15 +1,39 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { WhatsAppSendMessageError, sendWhatsAppTextMessage } from '@/lib/whatsapp/send-message';
+import { departamentosProduto } from '@/config/grades-tamanho';
 import { WhatsAppAIError, generateWhatsAppReply } from '@/lib/ai/generate-whatsapp-reply';
+import { detectDepartmentFromMessage, extractProductPositionFromMessage, getFeaturedProductsByDepartment, getProductById } from '@/lib/whatsapp/catalog/category-flow';
+import { getOrCreateWhatsAppSession, updateWhatsAppSession } from '@/lib/whatsapp/session';
+import { WhatsAppSendMessageError, sendWhatsAppImageMessage, sendWhatsAppTextMessage } from '@/lib/whatsapp/send-message';
+import type { WhatsAppPresentedProduct } from '@/lib/supabase-admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const OPENAI_FALLBACK_REPLY =
-  'Olá! Recebemos sua mensagem. Nosso atendimento automático está temporariamente indisponível, mas a equipe da Pastoril poderá continuar o atendimento por aqui. 🤎';
-const CATALOG_FALLBACK_REPLY = 'Não consegui consultar o catálogo agora. A equipe da Pastoril poderá confirmar para você por aqui. 🤎';
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
+const MAX_FEATURED_IMAGES = 20;
+
+const SITE_URL = (process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'https://pastorilmodacountry.com.br').trim();
+
+const WELCOME_MESSAGE =
+  'Oi! Seja bem-vinda a Pastoril Moda Country. Posso te mostrar os destaques por categoria e voce escolhe pela numeracao das fotos.';
+
+const SITE_NOTICE_MESSAGE =
+  `Voce tambem pode acompanhar novidades no nosso site: ${SITE_URL}`;
+
+const DEFAULT_CATEGORY_PROMPT =
+  'Me diga a categoria que voce quer ver primeiro. Exemplo: botas, camisas, cintos ou bolsas.';
+
+const CATEGORY_NOT_FOUND_PROMPT =
+  'Nao identifiquei a categoria. Me diga uma categoria, como botas, camisas, cintos, bolsas ou vestidos.';
+
+const PHOTO_SELECTION_PROMPT = 'Digite o numero da foto que voce quer saber mais detalhes.';
+
+const PRODUCT_NOT_FOUND_PROMPT =
+  'Esse produto nao esta mais disponivel neste momento. Digite outro numero da lista para ver mais detalhes.';
+
+const CATEGORY_WITHOUT_PRODUCTS_PROMPT =
+  'No momento nao encontrei destaques disponiveis nessa categoria. Se quiser, te mostro outra categoria.';
 
 // This in-memory dedupe is only a best-effort layer; serverless instances may restart
 // and will not persist this state. Persistent dedupe will be implemented later.
@@ -71,6 +95,141 @@ interface WhatsAppStatus {
 interface ClassifiedWebhookEvent {
   eventCount: number;
   type: WebhookEventType;
+}
+
+function formatCurrency(value: number) {
+  return `R$ ${value.toFixed(2).replace('.', ',')}`;
+}
+
+function formatCategoryExamples() {
+  return departamentosProduto.slice(0, 8).join(', ').toLowerCase();
+}
+
+function normalizeBaseSiteUrl(url: string) {
+  return url.replace(/\/+$/, '');
+}
+
+function formatSizes(stock: Array<{ quantidade: number; tamanho: string }>) {
+  const sizes = Array.from(new Set(stock.map((item) => item.tamanho).filter(Boolean)));
+
+  if (!sizes.length) {
+    return 'Nao informado';
+  }
+
+  if (sizes.length === 1) {
+    return sizes[0];
+  }
+
+  if (sizes.length === 2) {
+    return `${sizes[0]} e ${sizes[1]}`;
+  }
+
+  return `${sizes.slice(0, -1).join(', ')} e ${sizes[sizes.length - 1]}`;
+}
+
+function extractValidPresentedProducts(presentedProducts: WhatsAppPresentedProduct[]) {
+  return presentedProducts
+    .filter((item) => Number.isInteger(item.position) && item.position > 0 && Number.isInteger(item.productId) && item.productId > 0)
+    .sort((a, b) => a.position - b.position);
+}
+
+async function sendCategoryFeaturedProducts(to: string, department: string) {
+  const featuredProducts = (await getFeaturedProductsByDepartment(department)).slice(0, MAX_FEATURED_IMAGES);
+  const uniqueProducts = Array.from(new Map(featuredProducts.map((product) => [product.id, product])).values());
+
+  if (!uniqueProducts.length) {
+    await sendWhatsAppTextMessage({
+      body: CATEGORY_WITHOUT_PRODUCTS_PROMPT,
+      to,
+    });
+
+    return [] as WhatsAppPresentedProduct[];
+  }
+
+  const presentedProducts: WhatsAppPresentedProduct[] = [];
+  let currentPosition = 1;
+
+  for (const product of uniqueProducts) {
+    try {
+      await sendWhatsAppImageMessage({
+        caption: `Foto ${currentPosition}`,
+        imageUrl: product.imagemPrincipal,
+        to,
+      });
+
+      presentedProducts.push({
+        position: currentPosition,
+        productId: product.id,
+      });
+
+      currentPosition += 1;
+    } catch (error) {
+      if (error instanceof WhatsAppSendMessageError) {
+        console.warn('[whatsapp-webhook] Falha ao enviar imagem de produto por categoria');
+      } else {
+        console.warn('[whatsapp-webhook] Erro interno ao enviar imagem de produto por categoria');
+      }
+    }
+  }
+
+  if (!presentedProducts.length) {
+    await sendWhatsAppTextMessage({
+      body: 'Nao consegui enviar fotos dessa categoria agora. Me pede outra categoria para tentar novamente.',
+      to,
+    });
+
+    return [];
+  }
+
+  await sendWhatsAppTextMessage({
+    body: PHOTO_SELECTION_PROMPT,
+    to,
+  });
+
+  return presentedProducts;
+}
+
+async function sendProductDetailsById(to: string, productId: number) {
+  const product = await getProductById(productId);
+
+  if (!product) {
+    await sendWhatsAppTextMessage({
+      body: PRODUCT_NOT_FOUND_PROMPT,
+      to,
+    });
+
+    return null;
+  }
+
+  const productPublicUrl = `${normalizeBaseSiteUrl(SITE_URL)}/produto/${product.id}`;
+
+  const activePrice = product.emPromocao && product.precoPromocional !== null ? product.precoPromocional : product.preco;
+  const hasPromotion = product.emPromocao && product.precoPromocional !== null;
+
+  const detailMessage = [
+    `${product.nome}`,
+    hasPromotion ? `De: ${formatCurrency(product.preco)}` : null,
+    hasPromotion ? `Por: ${formatCurrency(activePrice)}` : `Preco: ${formatCurrency(activePrice)}`,
+    `Tamanhos disponiveis: ${formatSizes(product.estoqueDisponivel)}`,
+    `Ver no site: ${productPublicUrl}`,
+    '',
+    'A disponibilidade pode mudar ate a confirmacao da venda.',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  await sendWhatsAppImageMessage({
+    caption: detailMessage,
+    imageUrl: product.imagemPrincipal,
+    to,
+  });
+
+  await sendWhatsAppTextMessage({
+    body: 'Esse produto te interessou ou gostaria de ver outra foto?',
+    to,
+  });
+
+  return product;
 }
 
 function normalizeDigits(value: string | undefined) {
@@ -257,34 +416,134 @@ export async function POST(request: Request) {
 
         console.info('[whatsapp-webhook] Mensagem de texto recebida');
 
-        let replyText = OPENAI_FALLBACK_REPLY;
-
         try {
-          replyText = await generateWhatsAppReply(customerText);
-        } catch (error) {
-          if (error instanceof WhatsAppAIError && error.code === 'catalog_unavailable') {
-            replyText = CATALOG_FALLBACK_REPLY;
+          const session = await getOrCreateWhatsAppSession(message.from);
+
+          if (session.isNewSession) {
+            await sendWhatsAppTextMessage({
+              body: WELCOME_MESSAGE,
+              to: message.from,
+            });
           }
 
-          console.warn('[whatsapp-ai] Fallback utilizado');
-        }
+          if (!session.siteNoticeSent) {
+            await sendWhatsAppTextMessage({
+              body: SITE_NOTICE_MESSAGE,
+              to: message.from,
+            });
 
-        try {
-          await sendWhatsAppTextMessage({
-            body: replyText,
-            to: message.from,
-          });
+            await updateWhatsAppSession(message.from, { siteNoticeSent: true });
+          }
 
-          console.info('[whatsapp-webhook] Resposta automatica enviada');
-        } catch (error) {
-          if (error instanceof WhatsAppSendMessageError) {
-            console.error(
-              `[whatsapp-webhook] Falha ao enviar resposta automatica: status=${error.status ?? 'n/a'} metaCode=${error.metaErrorCode ?? 'n/a'}`,
-            );
+          const requestedDepartment = detectDepartmentFromMessage(customerText);
+
+          if (requestedDepartment) {
+            const presentedProducts = await sendCategoryFeaturedProducts(message.from, requestedDepartment);
+
+            if (presentedProducts.length > 0) {
+              await updateWhatsAppSession(message.from, {
+                awaitingProductPosition: true,
+                lastCategory: requestedDepartment,
+                presentedProducts,
+              });
+            } else {
+              await updateWhatsAppSession(message.from, {
+                awaitingProductPosition: false,
+                lastCategory: requestedDepartment,
+                presentedProducts: [],
+              });
+            }
+
+            console.info('[whatsapp-webhook] Fluxo por categoria executado');
             continue;
           }
 
-          console.error('[whatsapp-webhook] Falha ao enviar resposta automatica: erro_interno');
+          if (session.awaitingProductPosition) {
+            const position = extractProductPositionFromMessage(customerText);
+            const presentedProducts = extractValidPresentedProducts(session.presentedProducts);
+            const availableCount = presentedProducts.length;
+
+            if (!Number.isInteger(position) || !position || position <= 0 || availableCount === 0) {
+              await sendWhatsAppTextMessage({
+                body: `Nao encontrei essa foto. Digite um numero entre 1 e ${Math.max(availableCount, 1)}.`,
+                to: message.from,
+              });
+
+              continue;
+            }
+
+            const selected = presentedProducts.find((item) => item.position === position);
+
+            if (!selected) {
+              await sendWhatsAppTextMessage({
+                body: `Nao encontrei essa foto. Digite um numero entre 1 e ${availableCount}.`,
+                to: message.from,
+              });
+
+              continue;
+            }
+
+            const product = await sendProductDetailsById(message.from, selected.productId);
+
+            if (!product) {
+              continue;
+            }
+
+            await updateWhatsAppSession(message.from, {
+              awaitingProductPosition: true,
+              presentedProducts,
+            });
+
+            console.info('[whatsapp-webhook] Detalhamento por posicao enviado');
+            continue;
+          }
+
+          const categoryExamples = formatCategoryExamples();
+
+          try {
+            const aiReply = await generateWhatsAppReply(customerText);
+
+            if (aiReply?.trim()) {
+              await sendWhatsAppTextMessage({
+                body: aiReply.trim(),
+                to: message.from,
+              });
+            }
+          } catch (error) {
+            if (error instanceof WhatsAppAIError) {
+              console.warn('[whatsapp-ai] Fallback utilizado no fluxo de categoria');
+            }
+          }
+
+          await sendWhatsAppTextMessage({
+            body: `${DEFAULT_CATEGORY_PROMPT}\nCategorias populares: ${categoryExamples}.`,
+            to: message.from,
+          });
+
+          await sendWhatsAppTextMessage({
+            body: CATEGORY_NOT_FOUND_PROMPT,
+            to: message.from,
+          });
+
+          console.info('[whatsapp-webhook] Fluxo inicial de categorias enviado');
+        } catch {
+          console.warn('[whatsapp-webhook] Falha no fluxo de atendimento por categoria/foto');
+
+          try {
+            await sendWhatsAppTextMessage({
+              body: 'Nao consegui concluir o atendimento automatico agora. Nossa equipe pode continuar por aqui com voce. 🤎',
+              to: message.from,
+            });
+          } catch (sendError) {
+            if (sendError instanceof WhatsAppSendMessageError) {
+              console.error(
+                `[whatsapp-webhook] Falha ao enviar resposta automatica: status=${sendError.status ?? 'n/a'} metaCode=${sendError.metaErrorCode ?? 'n/a'}`,
+              );
+              continue;
+            }
+
+            console.error('[whatsapp-webhook] Falha ao enviar resposta automatica: erro_interno');
+          }
         }
       }
     }

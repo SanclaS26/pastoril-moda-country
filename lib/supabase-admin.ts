@@ -185,6 +185,36 @@ export type SiteVisitInsert = {
   visit_date?: string | null;
 };
 
+export type WhatsAppPresentedProduct = {
+  position: number;
+  productId: number;
+};
+
+export type WhatsAppAtendimentoSessaoRow = {
+  id: string;
+  phone: string;
+  session_started_at: string;
+  last_interaction_at: string;
+  site_notice_sent: boolean;
+  awaiting_product_position: boolean;
+  last_category: string | null;
+  presented_products: WhatsAppPresentedProduct[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type WhatsAppAtendimentoSessaoInsert = {
+  phone: string;
+  session_started_at?: string;
+  last_interaction_at?: string;
+  site_notice_sent?: boolean;
+  awaiting_product_position?: boolean;
+  last_category?: string | null;
+  presented_products?: WhatsAppPresentedProduct[];
+};
+
+export type WhatsAppAtendimentoSessaoUpdate = Partial<WhatsAppAtendimentoSessaoInsert>;
+
 export type ClienteRow = {
   id: number | string;
   auth_user_id: string;
@@ -322,6 +352,12 @@ type Database = {
         Row: SiteVisitRow;
         Insert: SiteVisitInsert;
         Update: never;
+        Relationships: [];
+      };
+      whatsapp_atendimento_sessoes: {
+        Row: WhatsAppAtendimentoSessaoRow;
+        Insert: WhatsAppAtendimentoSessaoInsert;
+        Update: WhatsAppAtendimentoSessaoUpdate;
         Relationships: [];
       };
       clientes: {

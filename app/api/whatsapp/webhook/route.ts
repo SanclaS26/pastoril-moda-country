@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 
 const OPENAI_FALLBACK_REPLY =
   'Olá! Recebemos sua mensagem. Nosso atendimento automático está temporariamente indisponível, mas a equipe da Pastoril poderá continuar o atendimento por aqui. 🤎';
+const CATALOG_FALLBACK_REPLY = 'Não consegui consultar o catálogo agora. A equipe da Pastoril poderá confirmar para você por aqui. 🤎';
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
 
 // This in-memory dedupe is only a best-effort layer; serverless instances may restart
@@ -261,11 +262,11 @@ export async function POST(request: Request) {
         try {
           replyText = await generateWhatsAppReply(customerText);
         } catch (error) {
-          if (error instanceof WhatsAppAIError) {
-            console.warn('[whatsapp-ai] Fallback utilizado');
-          } else {
-            console.warn('[whatsapp-ai] Fallback utilizado');
+          if (error instanceof WhatsAppAIError && error.code === 'catalog_unavailable') {
+            replyText = CATALOG_FALLBACK_REPLY;
           }
+
+          console.warn('[whatsapp-ai] Fallback utilizado');
         }
 
         try {

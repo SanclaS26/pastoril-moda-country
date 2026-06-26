@@ -1,11 +1,13 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { WhatsAppSendMessageError, sendWhatsAppTextMessage } from '@/lib/whatsapp/send-message';
+import { WhatsAppAIError, generateWhatsAppReply } from '@/lib/ai/generate-whatsapp-reply';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const AUTO_REPLY_TEXT = 'Olá! Você está falando com a Pastoril Moda Country. 🤎\n\nRecebemos sua mensagem e nosso atendimento automático está em fase de testes.';
+const OPENAI_FALLBACK_REPLY =
+  'Olá! Recebemos sua mensagem. Nosso atendimento automático está temporariamente indisponível, mas a equipe da Pastoril poderá continuar o atendimento por aqui. 🤎';
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
 
 // This in-memory dedupe is only a best-effort layer; serverless instances may restart
@@ -72,15 +74,6 @@ interface ClassifiedWebhookEvent {
 
 function normalizeDigits(value: string | undefined) {
   return (value ?? '').replace(/\D/g, '');
-}
-
-function maskPhone(value: string | undefined) {
-  const digits = normalizeDigits(value);
-
-  if (!digits) return 'indefinido';
-  if (digits.length <= 4) return `***${digits.slice(-2)}`;
-
-  return `${digits.slice(0, 2)}***${digits.slice(-2)}`;
 }
 
 function isDuplicateMessageId(messageId: string) {
@@ -255,11 +248,29 @@ export async function POST(request: Request) {
           continue;
         }
 
+        const customerText = message.text?.body?.trim();
+
+        if (!customerText) {
+          continue;
+        }
+
         console.info('[whatsapp-webhook] Mensagem de texto recebida');
+
+        let replyText = OPENAI_FALLBACK_REPLY;
+
+        try {
+          replyText = await generateWhatsAppReply(customerText);
+        } catch (error) {
+          if (error instanceof WhatsAppAIError) {
+            console.warn('[whatsapp-ai] Fallback utilizado');
+          } else {
+            console.warn('[whatsapp-ai] Fallback utilizado');
+          }
+        }
 
         try {
           await sendWhatsAppTextMessage({
-            body: AUTO_REPLY_TEXT,
+            body: replyText,
             to: message.from,
           });
 
@@ -267,12 +278,12 @@ export async function POST(request: Request) {
         } catch (error) {
           if (error instanceof WhatsAppSendMessageError) {
             console.error(
-              `[whatsapp-webhook] Falha ao enviar resposta automatica: status=${error.status ?? 'n/a'} metaCode=${error.metaErrorCode ?? 'n/a'} to=${maskPhone(message.from)}`,
+              `[whatsapp-webhook] Falha ao enviar resposta automatica: status=${error.status ?? 'n/a'} metaCode=${error.metaErrorCode ?? 'n/a'}`,
             );
             continue;
           }
 
-          console.error(`[whatsapp-webhook] Falha ao enviar resposta automatica: erro_interno to=${maskPhone(message.from)}`);
+          console.error('[whatsapp-webhook] Falha ao enviar resposta automatica: erro_interno');
         }
       }
     }

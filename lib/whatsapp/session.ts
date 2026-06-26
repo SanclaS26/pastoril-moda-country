@@ -25,6 +25,10 @@ export type UpdateWhatsAppSessionInput = {
   siteNoticeSent?: boolean;
 };
 
+export type StartGallerySessionInput = {
+  lastCategory?: string | null;
+};
+
 function normalizePhone(phone: string) {
   return phone.replace(/\D/g, '');
 }
@@ -184,4 +188,44 @@ export async function updateWhatsAppSession(phone: string, input: UpdateWhatsApp
   if (error) {
     throw error;
   }
+}
+
+export async function startGallerySessionIfAvailable(phone: string, input?: StartGallerySessionInput) {
+  const normalizedPhone = normalizePhone(phone);
+
+  if (!normalizedPhone) {
+    throw new Error('Telefone invalido para atualizar sessao WhatsApp.');
+  }
+
+  const supabaseAdmin = getSupabaseAdmin();
+
+  const updates: {
+    awaiting_product_position: boolean;
+    conversation_state: WhatsAppConversationState;
+    last_category?: string | null;
+    last_interaction_at: string;
+    presented_products: WhatsAppPresentedProduct[];
+  } = {
+    awaiting_product_position: false,
+    conversation_state: 'sending_gallery',
+    last_interaction_at: new Date().toISOString(),
+    presented_products: [],
+  };
+
+  if (Object.prototype.hasOwnProperty.call(input ?? {}, 'lastCategory')) {
+    updates.last_category = input?.lastCategory ?? null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('whatsapp_atendimento_sessoes')
+    .update(updates)
+    .eq('phone', normalizedPhone)
+    .neq('conversation_state', 'sending_gallery')
+    .select('id');
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) && data.length > 0;
 }

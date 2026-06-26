@@ -1,9 +1,16 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { departamentosProduto } from '@/config/grades-tamanho';
-import { WhatsAppAIError, generateWhatsAppReply } from '@/lib/ai/generate-whatsapp-reply';
-import { detectDepartmentFromMessage, extractProductPositionFromMessage, getFeaturedProductsByDepartment, getProductById } from '@/lib/whatsapp/catalog/category-flow';
-import { getOrCreateWhatsAppSession, updateWhatsAppSession } from '@/lib/whatsapp/session';
+import { generateWhatsAppReply } from '@/lib/ai/generate-whatsapp-reply';
+import { getPublicSiteUrl } from '@/lib/public-site-url';
+import {
+  detectDepartmentFromMessage,
+  extractProductPositionFromMessage,
+  getFeaturedProductsByDepartment,
+  getProductById,
+  type CatalogAudience,
+} from '@/lib/whatsapp/catalog/category-flow';
+import { getOrCreateWhatsAppSession, startGallerySessionIfAvailable, updateWhatsAppSession } from '@/lib/whatsapp/session';
 import { WhatsAppSendMessageError, sendWhatsAppImageMessage, sendWhatsAppTextMessage } from '@/lib/whatsapp/send-message';
 import type { WhatsAppPresentedProduct } from '@/lib/supabase-admin';
 
@@ -11,34 +18,53 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
+const SITE_URL = getPublicSiteUrl();
 
-const SITE_URL = 'https://pastoril-moda-country.vercel.app';
+const INTRO_MESSAGE =
+  'Olá! Seja bem-vindo(a) à Pastoril Moda Country. 🤎\n\nPosso ajudar você a conhecer nossas novidades e encontrar produtos disponíveis.';
+const SITE_INTRO_MESSAGE = `Você também pode conhecer nossa vitrine pelo site:\n\n${SITE_URL}`;
 
-const WELCOME_MESSAGE =
-  'Oi! Seja bem-vinda a Pastoril Moda Country. Posso te mostrar os destaques por categoria e voce escolhe pela numeracao das fotos.';
+const CATEGORY_PRE_GALLERY_MESSAGE = 'Estas são as novidades em destaque dessa categoria. 🤎';
+const CATEGORY_PRE_GALLERY_SITE_MESSAGE =
+  `As fotos abaixo mostram as novidades selecionadas da categoria.\n\nPara ver mais produtos, acesse:\n${SITE_URL}`;
 
-const SITE_NOTICE_MESSAGE =
-  `Voce tambem pode acompanhar novidades no nosso site: ${SITE_URL}`;
+const SELECTION_PROMPT_MESSAGE = 'Digite o número da foto que você quer saber mais detalhes.';
+const CHANGE_CATEGORY_PROMPT_MESSAGE = buildChangeCategoryPrompt();
 
-const DEFAULT_CATEGORY_PROMPT =
-  'Me diga a categoria que voce quer ver primeiro. Exemplo: botas, camisas, cintos ou bolsas.';
+const NO_HIGHLIGHTS_MESSAGE = 'Não encontrei novidades em destaque disponíveis nessa categoria agora. 🤎';
+const NO_HIGHLIGHTS_SITE_MESSAGE =
+  `Você pode escolher outra categoria ou ver todos os produtos no site:\n\n${SITE_URL}`;
+const GALLERY_LOAD_FAILED_MESSAGE =
+  `Não consegui carregar as fotos dessa categoria agora.\n\nVocê pode ver os produtos no site:\n${SITE_URL}`;
 
-const CATEGORY_NOT_FOUND_PROMPT =
-  'Nao identifiquei a categoria. Me diga uma categoria, como botas, camisas, cintos, bolsas ou vestidos.';
-
-const PHOTO_SELECTION_PROMPT = 'Digite o número da foto que você quer saber mais detalhes.';
-
-const PRODUCT_NOT_FOUND_PROMPT =
-  'Esse produto nao esta mais disponivel neste momento. Digite outro numero da lista para ver mais detalhes.';
-
-const GALLERY_LOAD_FAILED_SITE_PROMPT =
-  'Não consegui carregar as fotos dessa categoria agora. Você pode ver os produtos no site:\n\nhttps://pastoril-moda-country.vercel.app';
-
-// This in-memory dedupe is only a best-effort layer; serverless instances may restart
-// and will not persist this state. Persistent dedupe will be implemented later.
-const processedMessageIds = new Map<string, number>();
+const HUMAN_HANDOFF_MESSAGE = 'Vou encaminhar seu atendimento para a equipe da Pastoril continuar por aqui. 🤎';
+const PRODUCT_NOT_FOUND_REPLY =
+  'Esse produto não está mais disponível neste momento. Digite outro número da lista ou peça outra categoria.';
+const FALLBACK_MESSAGE =
+  'Não consegui concluir o atendimento automático agora. Nossa equipe pode continuar por aqui com você. 🤎';
 
 type WebhookEventType = 'mensagem' | 'status' | 'desconhecido';
+
+type CategoryFlowStage =
+  | 'start'
+  | 'identify_category'
+  | 'load_conversation'
+  | 'search_featured_products'
+  | 'validate_products'
+  | 'send_product_images'
+  | 'persist_presented_products'
+  | 'send_selection_prompt'
+  | 'load_selected_product'
+  | 'send_product_details';
+
+type SanitizedError = {
+  code: string | null;
+  details: string | null;
+  hint: string | null;
+  message: string | null;
+  name: string | null;
+  status: number | null;
+};
 
 interface WhatsAppWebhookPayload {
   object?: string;
@@ -57,21 +83,12 @@ interface WhatsAppChange {
 
 interface WhatsAppChangeValue {
   metadata?: WhatsAppMetadata;
-  contacts?: WhatsAppContact[];
   messages?: WhatsAppMessage[];
   statuses?: WhatsAppStatus[];
 }
 
 interface WhatsAppMetadata {
   display_phone_number?: string;
-  phone_number_id?: string;
-}
-
-interface WhatsAppContact {
-  profile?: {
-    name?: string;
-  };
-  wa_id?: string;
 }
 
 interface WhatsAppMessage {
@@ -80,15 +97,12 @@ interface WhatsAppMessage {
   text?: {
     body?: string;
   };
-  timestamp?: string;
   type?: string;
 }
 
 interface WhatsAppStatus {
   id?: string;
   status?: string;
-  timestamp?: string;
-  recipient_id?: string;
 }
 
 interface ClassifiedWebhookEvent {
@@ -96,26 +110,9 @@ interface ClassifiedWebhookEvent {
   type: WebhookEventType;
 }
 
-type SanitizedError = {
-  code: string | null;
-  details: string | null;
-  hint: string | null;
-  message: string | null;
-  name: string | null;
-  status: number | null;
-};
+type FeaturedCatalogProduct = Awaited<ReturnType<typeof getFeaturedProductsByDepartment>>[number];
 
-type CategoryFlowStage =
-  | 'start'
-  | 'identify_category'
-  | 'load_conversation'
-  | 'search_featured_products'
-  | 'validate_products'
-  | 'send_product_images'
-  | 'persist_presented_products'
-  | 'send_selection_prompt'
-  | 'load_selected_product'
-  | 'send_product_details';
+const processedMessageIds = new Map<string, number>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -208,135 +205,6 @@ function sanitizeError(error: unknown): SanitizedError {
   };
 }
 
-function formatCurrency(value: number) {
-  return `R$ ${value.toFixed(2).replace('.', ',')}`;
-}
-
-function formatCategoryExamples() {
-  return departamentosProduto.slice(0, 8).join(', ').toLowerCase();
-}
-
-function normalizeBaseSiteUrl(url: string) {
-  return url.replace(/\/+$/, '');
-}
-
-function formatSizes(stock: Array<{ quantidade: number; tamanho: string }>) {
-  const sizes = Array.from(new Set(stock.map((item) => item.tamanho).filter(Boolean)));
-
-  if (!sizes.length) {
-    return 'Nao informado';
-  }
-
-  if (sizes.length === 1) {
-    return sizes[0];
-  }
-
-  if (sizes.length === 2) {
-    return `${sizes[0]} e ${sizes[1]}`;
-  }
-
-  return `${sizes.slice(0, -1).join(', ')} e ${sizes[sizes.length - 1]}`;
-}
-
-function extractValidPresentedProducts(presentedProducts: WhatsAppPresentedProduct[]) {
-  return presentedProducts
-    .filter((item) => Number.isInteger(item.position) && item.position > 0 && Number.isInteger(item.productId) && item.productId > 0)
-    .sort((a, b) => a.position - b.position);
-}
-
-async function sendCategoryFeaturedProducts(
-  to: string,
-  department: string,
-  updateStage: (stage: CategoryFlowStage) => void,
-) {
-  updateStage('search_featured_products');
-  const featuredProducts = await getFeaturedProductsByDepartment(department);
-
-  updateStage('validate_products');
-  const uniqueProducts = Array.from(new Map(featuredProducts.map((product) => [product.id, product])).values());
-
-  if (!uniqueProducts.length) return [] as WhatsAppPresentedProduct[];
-
-  const presentedProducts: WhatsAppPresentedProduct[] = [];
-  let currentPosition = 1;
-
-  for (const product of uniqueProducts) {
-    try {
-      updateStage('send_product_images');
-      await sendWhatsAppImageMessage({
-        caption: `Foto ${currentPosition}`,
-        imageUrl: product.imagemPrincipal,
-        to,
-      });
-
-      presentedProducts.push({
-        position: currentPosition,
-        productId: product.id,
-      });
-
-      currentPosition += 1;
-    } catch (error) {
-      const sanitized = sanitizeError(error);
-      console.warn('[whatsapp-webhook] Falha ao enviar imagem de produto por categoria', {
-        stage: 'send_product_images',
-        productId: product.id,
-        ...sanitized,
-      });
-    }
-  }
-
-  return presentedProducts;
-}
-
-async function sendProductDetailsById(
-  to: string,
-  productId: number,
-  updateStage: (stage: CategoryFlowStage) => void,
-) {
-  updateStage('load_selected_product');
-  const product = await getProductById(productId);
-
-  if (!product) {
-    await sendWhatsAppTextMessage({
-      body: PRODUCT_NOT_FOUND_PROMPT,
-      to,
-    });
-
-    return null;
-  }
-
-  const productPublicUrl = `${normalizeBaseSiteUrl(SITE_URL)}/produto/${product.id}`;
-
-  const activePrice = product.emPromocao && product.precoPromocional !== null ? product.precoPromocional : product.preco;
-  const hasPromotion = product.emPromocao && product.precoPromocional !== null;
-
-  const detailMessage = [
-    `${product.nome}`,
-    hasPromotion ? `De: ${formatCurrency(product.preco)}` : null,
-    hasPromotion ? `Por: ${formatCurrency(activePrice)}` : `Preco: ${formatCurrency(activePrice)}`,
-    `Tamanhos disponiveis: ${formatSizes(product.estoqueDisponivel)}`,
-    `Ver no site: ${productPublicUrl}`,
-    '',
-    'A disponibilidade pode mudar ate a confirmacao da venda.',
-  ]
-    .filter(Boolean)
-    .join('\n');
-
-  updateStage('send_product_details');
-  await sendWhatsAppImageMessage({
-    caption: detailMessage,
-    imageUrl: product.imagemPrincipal,
-    to,
-  });
-
-  await sendWhatsAppTextMessage({
-    body: 'Esse produto te interessou ou gostaria de ver outra foto?',
-    to,
-  });
-
-  return product;
-}
-
 function normalizeDigits(value: string | undefined) {
   return (value ?? '').replace(/\D/g, '');
 }
@@ -351,7 +219,6 @@ function isDuplicateMessageId(messageId: string) {
   }
 
   const existingExpiry = processedMessageIds.get(messageId);
-
   if (existingExpiry && existingExpiry > now) {
     return true;
   }
@@ -365,7 +232,6 @@ function isSelfMessage(from: string | undefined, metadata: WhatsAppMetadata | un
   const displayPhoneDigits = normalizeDigits(metadata?.display_phone_number);
 
   if (!fromDigits || !displayPhoneDigits) return false;
-
   return fromDigits === displayPhoneDigits;
 }
 
@@ -418,6 +284,202 @@ function classifyEvent(payload: WhatsAppWebhookPayload): ClassifiedWebhookEvent 
   const type: WebhookEventType = messageCount > 0 ? 'mensagem' : statusCount > 0 ? 'status' : 'desconhecido';
 
   return { eventCount, type };
+}
+
+function isHumanHandoffIntent(text: string) {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
+  return [
+    'fechar compra',
+    'quero comprar',
+    'reservar',
+    'reserva',
+    'negociar',
+    'desconto',
+    'troca',
+    'cancelamento',
+    'cancelar',
+    'pedido',
+    'falar com atendente',
+    'falar com pessoa',
+    'atendimento humano',
+  ].some((token) => normalized.includes(token));
+}
+
+function buildCategoryExamples() {
+  const preferred = ['Botas', 'Camisas', 'Calças'];
+  const preferredReal = preferred.filter((name) =>
+    departamentosProduto.includes(name as (typeof departamentosProduto)[number]),
+  );
+
+  const extraReal = departamentosProduto
+    .filter((name) => !preferredReal.includes(name))
+    .slice(0, 4);
+
+  return Array.from(new Set([...preferredReal, ...extraReal, 'Masculino', 'Feminino', 'Infantil']));
+}
+
+function buildChangeCategoryPrompt() {
+  return `Ou digite o nome de outra categoria para ver novas opções.\n\nExemplos de categorias:\n${buildCategoryExamples().join('\n')}`;
+}
+
+function buildIdleCategoryHint() {
+  return `Posso mostrar as novidades em destaque por categoria. Você pode pedir ${buildCategoryExamples()
+    .map((item) => item.toLowerCase())
+    .join(', ')}. 🤎`;
+}
+
+function normalizeCategorySessionValue(department: string | null, audience: CatalogAudience | null) {
+  return department ?? audience ?? null;
+}
+
+function formatCurrency(value: number) {
+  return `R$ ${value.toFixed(2).replace('.', ',')}`;
+}
+
+function formatSizes(stock: Array<{ quantidade: number; tamanho: string }>) {
+  const sizes = Array.from(new Set(stock.map((item) => item.tamanho).filter(Boolean)));
+
+  if (!sizes.length) {
+    return 'Não informado';
+  }
+
+  if (sizes.length === 1) {
+    return sizes[0];
+  }
+
+  if (sizes.length === 2) {
+    return `${sizes[0]} e ${sizes[1]}`;
+  }
+
+  return `${sizes.slice(0, -1).join(', ')} e ${sizes[sizes.length - 1]}`;
+}
+
+function extractValidPresentedProducts(presentedProducts: WhatsAppPresentedProduct[]) {
+  return presentedProducts
+    .filter((item) => Number.isInteger(item.position) && item.position > 0 && Number.isInteger(item.productId) && item.productId > 0)
+    .sort((a, b) => a.position - b.position);
+}
+
+function isIdleSmalltalk(text: string) {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+
+  return ['ola', 'oi', 'bom dia', 'boa tarde', 'boa noite', 'quem e voce', 'como funciona'].some((term) =>
+    normalized.includes(term),
+  );
+}
+
+async function sendCategoryGallery(
+  department: string | null,
+  audience: CatalogAudience | null,
+  updateStage: (stage: CategoryFlowStage) => void,
+) {
+  updateStage('search_featured_products');
+  const featuredProducts = await getFeaturedProductsByDepartment(department, audience);
+
+  console.info(`[whatsapp-catalog] Destaques encontrados: ${featuredProducts.length}`);
+
+  updateStage('validate_products');
+  return Array.from(new Map(featuredProducts.map((product) => [product.id, product])).values());
+}
+
+async function sendCategoryGalleryImages(
+  to: string,
+  products: FeaturedCatalogProduct[],
+  updateStage: (stage: CategoryFlowStage) => void,
+) {
+  console.info('[whatsapp-media] Galeria iniciada');
+
+  const sentProducts: WhatsAppPresentedProduct[] = [];
+
+  for (const product of products) {
+    const position = sentProducts.length + 1;
+
+    try {
+      updateStage('send_product_images');
+      await sendWhatsAppImageMessage({
+        caption: `Foto ${position}`,
+        imageUrl: product.imagemPrincipal,
+        to,
+      });
+
+      sentProducts.push({
+        position,
+        productId: product.id,
+      });
+
+      console.info(`[whatsapp-media] Foto enviada: ${position}`);
+    } catch (error) {
+      const sanitized = sanitizeError(error);
+      console.warn('[whatsapp-media] Falha ao enviar imagem da galeria', {
+        stage: 'send_product_images',
+        ...sanitized,
+      });
+    }
+  }
+
+  console.info('[whatsapp-media] Galeria concluida');
+
+  return sentProducts;
+}
+
+async function sendSelectedProductDetails(to: string, productId: number, updateStage: (stage: CategoryFlowStage) => void) {
+  updateStage('load_selected_product');
+  const product = await getProductById(productId);
+
+  if (!product) {
+    await sendWhatsAppTextMessage({
+      body: PRODUCT_NOT_FOUND_REPLY,
+      to,
+    });
+
+    return null;
+  }
+
+  const activePrice = product.emPromocao && product.precoPromocional !== null ? product.precoPromocional : product.preco;
+  const hasPromotion = product.emPromocao && product.precoPromocional !== null;
+
+  const lines = [
+    product.nome,
+    '',
+    hasPromotion ? `De: ${formatCurrency(product.preco)}` : `Preço: ${formatCurrency(activePrice)}`,
+    hasPromotion ? `Por: ${formatCurrency(activePrice)}` : null,
+    '',
+    `Tamanhos disponíveis: ${formatSizes(product.estoqueDisponivel)}`,
+    '',
+    'Ver no site:',
+    `${SITE_URL}/produto/${product.id}`,
+    '',
+    'A disponibilidade pode mudar até a confirmação da venda.',
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
+
+  updateStage('send_product_details');
+  await sendWhatsAppImageMessage({
+    caption: lines,
+    imageUrl: product.imagemPrincipal,
+    to,
+  });
+
+  await sendWhatsAppTextMessage({
+    body: 'Esse produto te interessou ou gostaria de ver outra foto?',
+    to,
+  });
+
+  await sendWhatsAppTextMessage({
+    body: 'Se preferir, digite o nome de outra categoria para ver novas novidades.',
+    to,
+  });
+
+  return product;
 }
 
 export async function GET(request: Request) {
@@ -514,7 +576,6 @@ export async function POST(request: Request) {
         }
 
         const customerText = message.text?.body?.trim();
-
         if (!customerText) {
           continue;
         }
@@ -528,92 +589,142 @@ export async function POST(request: Request) {
           const session = await getOrCreateWhatsAppSession(message.from);
 
           if (session.isNewSession) {
-            await sendWhatsAppTextMessage({
-              body: WELCOME_MESSAGE,
-              to: message.from,
-            });
+            console.info('[whatsapp-flow] Nova sessão');
+            await sendWhatsAppTextMessage({ body: INTRO_MESSAGE, to: message.from });
           }
 
           if (!session.siteNoticeSent) {
-            await sendWhatsAppTextMessage({
-              body: SITE_NOTICE_MESSAGE,
-              to: message.from,
-            });
-
+            await sendWhatsAppTextMessage({ body: SITE_INTRO_MESSAGE, to: message.from });
             await updateWhatsAppSession(message.from, { siteNoticeSent: true });
+            console.info('[whatsapp-flow] Site informado');
+          }
+
+          if (isHumanHandoffIntent(customerText)) {
+            await sendWhatsAppTextMessage({ body: HUMAN_HANDOFF_MESSAGE, to: message.from });
+            continue;
           }
 
           stage = 'identify_category';
-          const requestedDepartment = detectDepartmentFromMessage(customerText);
+          const detected = detectDepartmentFromMessage(customerText);
+          const hasCategoryRequest = Boolean(detected.department || detected.audience);
 
-          if (requestedDepartment) {
-            stage = 'persist_presented_products';
-            await updateWhatsAppSession(message.from, {
-              conversationState: 'sending_gallery',
-            });
+          if (hasCategoryRequest) {
+            console.info('[whatsapp-flow] Categoria alterada');
 
-            const presentedProducts = await sendCategoryFeaturedProducts(message.from, requestedDepartment, (nextStage) => {
-              stage = nextStage;
-            });
+            const featuredProducts = await sendCategoryGallery(
+              detected.department,
+              detected.audience,
+              (nextStage) => {
+                stage = nextStage;
+              },
+            );
 
-            stage = 'persist_presented_products';
-            if (presentedProducts.length > 0) {
-              await updateWhatsAppSession(message.from, {
-                awaitingProductPosition: true,
-                conversationState: 'awaiting_photo_number',
-                lastCategory: requestedDepartment,
-                presentedProducts,
-              });
-
-              stage = 'send_selection_prompt';
-              await sendWhatsAppTextMessage({
-                body: PHOTO_SELECTION_PROMPT,
-                to: message.from,
-              });
-            } else {
+            if (featuredProducts.length === 0) {
+              stage = 'persist_presented_products';
               await updateWhatsAppSession(message.from, {
                 awaitingProductPosition: false,
                 conversationState: 'idle',
-                lastCategory: requestedDepartment,
+                lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
                 presentedProducts: [],
               });
 
               await sendWhatsAppTextMessage({
-                body: GALLERY_LOAD_FAILED_SITE_PROMPT,
+                body: NO_HIGHLIGHTS_MESSAGE,
                 to: message.from,
               });
+
+              await sendWhatsAppTextMessage({
+                body: NO_HIGHLIGHTS_SITE_MESSAGE,
+                to: message.from,
+              });
+
+              continue;
             }
 
-            console.info('[whatsapp-webhook] Fluxo por categoria executado');
+            await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_MESSAGE, to: message.from });
+            await sendWhatsAppTextMessage({ body: CATEGORY_PRE_GALLERY_SITE_MESSAGE, to: message.from });
+
+            stage = 'persist_presented_products';
+            const startedGallery = await startGallerySessionIfAvailable(message.from, {
+              lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
+            });
+
+            if (!startedGallery) {
+              continue;
+            }
+
+            const sentProducts = await sendCategoryGalleryImages(
+              message.from,
+              featuredProducts,
+              (nextStage) => {
+                stage = nextStage;
+              },
+            );
+
+            stage = 'persist_presented_products';
+            if (sentProducts.length === 0) {
+              await updateWhatsAppSession(message.from, {
+                awaitingProductPosition: false,
+                conversationState: 'idle',
+                lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
+                presentedProducts: [],
+              });
+
+              await sendWhatsAppTextMessage({
+                body: GALLERY_LOAD_FAILED_MESSAGE,
+                to: message.from,
+              });
+
+              continue;
+            }
+
+            await updateWhatsAppSession(message.from, {
+              awaitingProductPosition: true,
+              conversationState: 'awaiting_photo_number',
+              lastCategory: normalizeCategorySessionValue(detected.department, detected.audience),
+              presentedProducts: sentProducts,
+            });
+
+            console.info('[whatsapp-flow] Mapeamento salvo');
+            console.info('[whatsapp-flow] Aguardando número da foto');
+
+            stage = 'send_selection_prompt';
+            await sendWhatsAppTextMessage({ body: SELECTION_PROMPT_MESSAGE, to: message.from });
+            await sendWhatsAppTextMessage({ body: CHANGE_CATEGORY_PROMPT_MESSAGE, to: message.from });
+
+            continue;
+          }
+
+          if (session.conversationState === 'sending_gallery') {
             continue;
           }
 
           if (session.awaitingProductPosition) {
-            const position = extractProductPositionFromMessage(customerText);
             const presentedProducts = extractValidPresentedProducts(session.presentedProducts);
             const availableCount = presentedProducts.length;
+            const selectedPosition = extractProductPositionFromMessage(customerText);
 
-            if (!Number.isInteger(position) || !position || position <= 0 || availableCount === 0) {
+            if (!selectedPosition || selectedPosition <= 0 || availableCount === 0) {
               await sendWhatsAppTextMessage({
-                body: `Nao encontrei essa foto. Digite um numero entre 1 e ${Math.max(availableCount, 1)}.`,
+                body: `Não encontrei essa foto. Digite um número entre 1 e ${Math.max(availableCount, 1)}.`,
                 to: message.from,
               });
-
+              await sendWhatsAppTextMessage({ body: CHANGE_CATEGORY_PROMPT_MESSAGE, to: message.from });
               continue;
             }
 
-            const selected = presentedProducts.find((item) => item.position === position);
-
+            const selected = presentedProducts.find((item) => item.position === selectedPosition);
             if (!selected) {
               await sendWhatsAppTextMessage({
-                body: `Nao encontrei essa foto. Digite um numero entre 1 e ${availableCount}.`,
+                body: `Não encontrei essa foto. Digite um número entre 1 e ${availableCount}.`,
                 to: message.from,
               });
-
+              await sendWhatsAppTextMessage({ body: CHANGE_CATEGORY_PROMPT_MESSAGE, to: message.from });
               continue;
             }
 
-            const product = await sendProductDetailsById(message.from, selected.productId, (nextStage) => {
+            console.info('[whatsapp-flow] Produto selecionado');
+            const product = await sendSelectedProductDetails(message.from, selected.productId, (nextStage) => {
               stage = nextStage;
             });
 
@@ -621,58 +732,42 @@ export async function POST(request: Request) {
               continue;
             }
 
-            stage = 'persist_presented_products';
             await updateWhatsAppSession(message.from, {
               awaitingProductPosition: true,
               conversationState: 'awaiting_photo_number',
               presentedProducts,
             });
 
-            console.info('[whatsapp-webhook] Detalhamento por posicao enviado');
             continue;
           }
 
-          const categoryExamples = formatCategoryExamples();
-
-          try {
-            const aiReply = await generateWhatsAppReply(customerText);
-
-            if (aiReply?.trim()) {
-              await sendWhatsAppTextMessage({
-                body: aiReply.trim(),
-                to: message.from,
-              });
-            }
-          } catch (error) {
-            if (error instanceof WhatsAppAIError) {
-              console.warn('[whatsapp-ai] Fallback utilizado no fluxo de categoria');
-            }
+          if (isIdleSmalltalk(customerText)) {
+            await sendWhatsAppTextMessage({
+              body: buildIdleCategoryHint(),
+              to: message.from,
+            });
+            continue;
           }
 
+          const aiReply = await generateWhatsAppReply(customerText);
+          if (aiReply?.trim()) {
+            await sendWhatsAppTextMessage({ body: aiReply.trim(), to: message.from });
+          }
+
+          const categoriesPreview = departamentosProduto.slice(0, 8).join(', ');
           await sendWhatsAppTextMessage({
-            body: `${DEFAULT_CATEGORY_PROMPT}\nCategorias populares: ${categoryExamples}.`,
+            body: `Posso mostrar as novidades em destaque por categoria.\n\nCategorias reais no catálogo: ${categoriesPreview}.`,
             to: message.from,
           });
-
-          await sendWhatsAppTextMessage({
-            body: CATEGORY_NOT_FOUND_PROMPT,
-            to: message.from,
-          });
-
-          console.info('[whatsapp-webhook] Fluxo inicial de categorias enviado');
         } catch (error: unknown) {
           const sanitized = sanitizeError(error);
-
           console.warn('[whatsapp-webhook] Falha no fluxo de atendimento por categoria/foto', {
             stage,
             ...sanitized,
           });
 
           try {
-            await sendWhatsAppTextMessage({
-              body: 'Nao consegui concluir o atendimento automatico agora. Nossa equipe pode continuar por aqui com voce. 🤎',
-              to: message.from,
-            });
+            await sendWhatsAppTextMessage({ body: FALLBACK_MESSAGE, to: message.from });
           } catch (sendError) {
             if (sendError instanceof WhatsAppSendMessageError) {
               console.error(

@@ -20,6 +20,8 @@ const DEPARTMENT_ALIASES: Record<string, string> = {
   calcados: 'Botas',
   calca: 'Calças',
   calcas: 'Calças',
+  camiseta: 'Camisas',
+  camisetas: 'Camisas',
   camisa: 'Camisas',
   camisas: 'Camisas',
   cinto: 'Cintos',
@@ -28,6 +30,7 @@ const DEPARTMENT_ALIASES: Record<string, string> = {
   chapeus: 'Chapéus',
   fivela: 'Fivelas',
   fivelas: 'Fivelas',
+  jeans: 'Calças',
   lenco: 'Lenços',
   lencos: 'Lenços',
   saia: 'Saias',
@@ -35,6 +38,7 @@ const DEPARTMENT_ALIASES: Record<string, string> = {
   sandalia: 'Sandálias',
   sandalias: 'Sandálias',
   tenis: 'Tênis',
+  texana: 'Botas',
   vestido: 'Vestidos',
   vestidos: 'Vestidos',
 };
@@ -59,6 +63,13 @@ type StockRow = {
   produto_id: number;
   quantidade: number;
   tamanho: string;
+};
+
+export type CatalogAudience = 'Feminino' | 'Masculino' | 'Infantil';
+
+export type DepartmentDetection = {
+  audience: CatalogAudience | null;
+  department: string | null;
 };
 
 export type WhatsAppCatalogProduct = {
@@ -91,19 +102,40 @@ function normalizeText(value: string) {
 
 function mapDepartmentAliases() {
   const map = new Map<string, string>();
+  const validDepartments = new Set(departamentosProduto);
 
   for (const department of departamentosProduto) {
     map.set(normalizeText(department), department);
   }
 
   for (const [alias, department] of Object.entries(DEPARTMENT_ALIASES)) {
-    map.set(normalizeText(alias), department);
+    if (validDepartments.has(department as (typeof departamentosProduto)[number])) {
+      map.set(normalizeText(alias), department);
+    }
   }
 
   return map;
 }
 
 const DEPARTMENT_ALIAS_MAP = mapDepartmentAliases();
+
+function detectAudience(normalized: string): CatalogAudience | null {
+  const tokens = normalized.split(' ').filter(Boolean);
+
+  if (tokens.some((token) => ['infantil', 'crianca', 'criancas'].includes(token))) {
+    return 'Infantil';
+  }
+
+  if (tokens.some((token) => ['masculino', 'homem', 'homens', 'masculina'].includes(token))) {
+    return 'Masculino';
+  }
+
+  if (tokens.some((token) => ['feminino', 'mulher', 'mulheres', 'feminina'].includes(token))) {
+    return 'Feminino';
+  }
+
+  return null;
+}
 
 function isValidPublicImageUrl(imageUrl: string | null) {
   if (!imageUrl) return false;
@@ -161,9 +193,10 @@ function mapProductsWithStock(products: ProdutoRow[], stockRows: StockRow[]) {
     .filter((product) => product.estoqueDisponivel.length > 0);
 }
 
-export function detectDepartmentFromMessage(text: string) {
+export function detectDepartmentFromMessage(text: string): DepartmentDetection {
   const normalized = normalizeText(text);
   const tokens = normalized.split(' ').filter(Boolean);
+  const audience = detectAudience(normalized);
 
   for (const size of [3, 2, 1]) {
     for (let index = 0; index + size <= tokens.length; index += 1) {
@@ -171,12 +204,18 @@ export function detectDepartmentFromMessage(text: string) {
       const matched = DEPARTMENT_ALIAS_MAP.get(candidate);
 
       if (matched) {
-        return matched;
+        return {
+          audience,
+          department: matched,
+        };
       }
     }
   }
 
-  return null;
+  return {
+    audience,
+    department: null,
+  };
 }
 
 export function extractProductPositionFromMessage(text: string) {
@@ -199,7 +238,7 @@ export function extractProductPositionFromMessage(text: string) {
   return parsed;
 }
 
-export async function getFeaturedProductsByDepartment(department: string) {
+export async function getFeaturedProductsByDepartment(department: string | null, audience: CatalogAudience | null = null) {
   const supabaseAdmin = getSupabaseAdmin();
 
   const allProducts: ProdutoRow[] = [];
@@ -208,14 +247,23 @@ export async function getFeaturedProductsByDepartment(department: string) {
   while (true) {
     const pageEnd = pageStart + FEATURED_PRODUCTS_PAGE_SIZE - 1;
 
-    const { data: products, error: productsError } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('produtos')
       .select('id, codigo_produto, nome, descricao, preco, preco_promocional, em_promocao, imagem_principal, categoria, departamento, publico, destaque, ativo')
       .eq('ativo', true)
       .eq('destaque', true)
-      .eq('departamento', department)
       .order('id', { ascending: false })
       .range(pageStart, pageEnd);
+
+    if (department) {
+      query = query.eq('departamento', department);
+    }
+
+    if (audience) {
+      query = query.eq('publico', audience);
+    }
+
+    const { data: products, error: productsError } = await query;
 
     if (productsError) {
       throw productsError;
@@ -251,65 +299,6 @@ export async function getFeaturedProductsByDepartment(department: string) {
   }
 
   return mapProductsWithStock(dedupedProducts, (stockRows ?? []) as StockRow[]);
-}
-
-export async function getProductByCode(productCode: string) {
-  const supabaseAdmin = getSupabaseAdmin();
-
-  const normalizedCode = productCode
-    .normalize('NFKC')
-    .trim()
-    .toUpperCase();
-
-  if (!normalizedCode) {
-    return null;
-  }
-
-  let { data: product, error: productError } = await supabaseAdmin
-    .from('produtos')
-    .select('id, codigo_produto, nome, descricao, preco, preco_promocional, em_promocao, imagem_principal, categoria, departamento, publico, destaque, ativo')
-    .eq('ativo', true)
-    .eq('codigo_produto', normalizedCode)
-    .maybeSingle<ProdutoRow>();
-
-  if (productError) {
-    throw productError;
-  }
-
-  if (!product) {
-    const fallback = await supabaseAdmin
-      .from('produtos')
-      .select('id, codigo_produto, nome, descricao, preco, preco_promocional, em_promocao, imagem_principal, categoria, departamento, publico, destaque, ativo')
-      .eq('ativo', true)
-      .ilike('codigo_produto', normalizedCode)
-      .limit(1)
-      .maybeSingle<ProdutoRow>();
-
-    product = fallback.data ?? null;
-    productError = fallback.error;
-
-    if (productError) {
-      throw productError;
-    }
-  }
-
-  if (!product || !product.imagem_principal) {
-    return null;
-  }
-
-  const { data: stockRows, error: stockError } = await supabaseAdmin
-    .from('estoque_produtos')
-    .select('produto_id, tamanho, quantidade')
-    .eq('produto_id', product.id)
-    .gt('quantidade', 0)
-    .order('id', { ascending: true });
-
-  if (stockError) {
-    throw stockError;
-  }
-
-  const mapped = mapProductsWithStock([product], (stockRows ?? []) as StockRow[]);
-  return mapped[0] ?? null;
 }
 
 export async function getProductById(productId: number) {

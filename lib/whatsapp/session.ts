@@ -1,9 +1,15 @@
-import { getSupabaseAdmin, type WhatsAppAtendimentoSessaoRow, type WhatsAppPresentedProduct } from '@/lib/supabase-admin';
+import {
+  getSupabaseAdmin,
+  type WhatsAppAtendimentoSessaoRow,
+  type WhatsAppConversationState,
+  type WhatsAppPresentedProduct,
+} from '@/lib/supabase-admin';
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type WhatsAppSessionState = {
   awaitingProductPosition: boolean;
+  conversationState: WhatsAppConversationState;
   isNewSession: boolean;
   lastCategory: string | null;
   phone: string;
@@ -13,6 +19,7 @@ export type WhatsAppSessionState = {
 
 export type UpdateWhatsAppSessionInput = {
   awaitingProductPosition?: boolean;
+  conversationState?: WhatsAppConversationState;
   lastCategory?: string | null;
   presentedProducts?: WhatsAppPresentedProduct[];
   siteNoticeSent?: boolean;
@@ -31,6 +38,7 @@ function mapSession(row: WhatsAppAtendimentoSessaoRow, isNewSession: boolean): W
 
   return {
     awaitingProductPosition: row.awaiting_product_position,
+    conversationState: row.conversation_state,
     isNewSession,
     lastCategory: row.last_category,
     phone: row.phone,
@@ -50,7 +58,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
 
   const { data, error } = await supabaseAdmin
     .from('whatsapp_atendimento_sessoes')
-    .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, last_category, presented_products, created_at, updated_at')
+    .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
     .eq('phone', normalizedPhone)
     .maybeSingle();
 
@@ -65,6 +73,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
       .from('whatsapp_atendimento_sessoes')
       .insert({
         awaiting_product_position: false,
+        conversation_state: 'idle',
         last_category: null,
         last_interaction_at: nowIso,
         phone: normalizedPhone,
@@ -72,7 +81,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
         session_started_at: nowIso,
         site_notice_sent: false,
       })
-      .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, last_category, presented_products, created_at, updated_at')
+      .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
       .single();
 
     if (insertError) {
@@ -90,6 +99,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
       .from('whatsapp_atendimento_sessoes')
       .update({
         awaiting_product_position: false,
+        conversation_state: 'idle',
         last_category: null,
         last_interaction_at: nowIso,
         presented_products: [],
@@ -97,7 +107,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
         site_notice_sent: false,
       })
       .eq('id', data.id)
-      .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, last_category, presented_products, created_at, updated_at')
+      .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
       .single();
 
     if (resetError) {
@@ -111,7 +121,7 @@ export async function getOrCreateWhatsAppSession(phone: string): Promise<WhatsAp
     .from('whatsapp_atendimento_sessoes')
     .update({ last_interaction_at: nowIso })
     .eq('id', data.id)
-    .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, last_category, presented_products, created_at, updated_at')
+    .select('id, phone, session_started_at, last_interaction_at, site_notice_sent, awaiting_product_position, conversation_state, last_category, presented_products, created_at, updated_at')
     .single();
 
   if (touchError) {
@@ -130,6 +140,7 @@ export async function updateWhatsAppSession(phone: string, input: UpdateWhatsApp
 
   const updates: {
     awaiting_product_position?: boolean;
+    conversation_state?: WhatsAppConversationState;
     last_category?: string | null;
     last_interaction_at: string;
     presented_products?: WhatsAppPresentedProduct[];
@@ -140,6 +151,10 @@ export async function updateWhatsAppSession(phone: string, input: UpdateWhatsApp
 
   if (typeof input.awaitingProductPosition === 'boolean') {
     updates.awaiting_product_position = input.awaitingProductPosition;
+  }
+
+  if (input.conversationState) {
+    updates.conversation_state = input.conversationState;
   }
 
   if (Object.prototype.hasOwnProperty.call(input, 'lastCategory')) {

@@ -190,6 +190,8 @@ export type WhatsAppPresentedProduct = {
   productId: number;
 };
 
+export type WhatsAppConversationState = 'idle' | 'sending_gallery' | 'awaiting_photo_number';
+
 export type WhatsAppAtendimentoSessaoRow = {
   id: string;
   phone: string;
@@ -197,6 +199,7 @@ export type WhatsAppAtendimentoSessaoRow = {
   last_interaction_at: string;
   site_notice_sent: boolean;
   awaiting_product_position: boolean;
+  conversation_state: WhatsAppConversationState;
   last_category: string | null;
   presented_products: WhatsAppPresentedProduct[];
   created_at: string;
@@ -209,6 +212,7 @@ export type WhatsAppAtendimentoSessaoInsert = {
   last_interaction_at?: string;
   site_notice_sent?: boolean;
   awaiting_product_position?: boolean;
+  conversation_state?: WhatsAppConversationState;
   last_category?: string | null;
   presented_products?: WhatsAppPresentedProduct[];
 };

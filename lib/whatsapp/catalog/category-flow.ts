@@ -1,7 +1,7 @@
 import { departamentosProduto } from '@/config/grades-tamanho';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const FEATURED_PRODUCTS_LIMIT = 24;
+const FEATURED_PRODUCTS_PAGE_SIZE = 200;
 
 const DEPARTMENT_ALIASES: Record<string, string> = {
   acessorio: 'Bolsas',
@@ -105,6 +105,26 @@ function mapDepartmentAliases() {
 
 const DEPARTMENT_ALIAS_MAP = mapDepartmentAliases();
 
+function isValidPublicImageUrl(imageUrl: string | null) {
+  if (!imageUrl) return false;
+
+  try {
+    const parsed = new URL(imageUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return false;
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function mapProductsWithStock(products: ProdutoRow[], stockRows: StockRow[]) {
   const stockByProduct = new Map<number, Array<{ quantidade: number; tamanho: string }>>();
 
@@ -119,7 +139,7 @@ function mapProductsWithStock(products: ProdutoRow[], stockRows: StockRow[]) {
   }
 
   return products
-    .filter((product) => Boolean(product.imagem_principal))
+    .filter((product) => isValidPublicImageUrl(product.imagem_principal))
     .map((product) => {
       const estoqueDisponivel = stockByProduct.get(product.id) ?? [];
 
@@ -182,35 +202,55 @@ export function extractProductPositionFromMessage(text: string) {
 export async function getFeaturedProductsByDepartment(department: string) {
   const supabaseAdmin = getSupabaseAdmin();
 
-  const { data: products, error: productsError } = await supabaseAdmin
-    .from('produtos')
-    .select('id, codigo_produto, nome, descricao, preco, preco_promocional, em_promocao, imagem_principal, categoria, departamento, publico, destaque, ativo')
-    .eq('ativo', true)
-    .eq('destaque', true)
-    .eq('departamento', department)
-    .order('id', { ascending: false })
-    .limit(FEATURED_PRODUCTS_LIMIT);
+  const allProducts: ProdutoRow[] = [];
+  let pageStart = 0;
 
-  if (productsError) {
-    throw productsError;
+  while (true) {
+    const pageEnd = pageStart + FEATURED_PRODUCTS_PAGE_SIZE - 1;
+
+    const { data: products, error: productsError } = await supabaseAdmin
+      .from('produtos')
+      .select('id, codigo_produto, nome, descricao, preco, preco_promocional, em_promocao, imagem_principal, categoria, departamento, publico, destaque, ativo')
+      .eq('ativo', true)
+      .eq('destaque', true)
+      .eq('departamento', department)
+      .order('id', { ascending: false })
+      .range(pageStart, pageEnd);
+
+    if (productsError) {
+      throw productsError;
+    }
+
+    const pageProducts = (products ?? []) as ProdutoRow[];
+    if (!pageProducts.length) {
+      break;
+    }
+
+    allProducts.push(...pageProducts);
+
+    if (pageProducts.length < FEATURED_PRODUCTS_PAGE_SIZE) {
+      break;
+    }
+
+    pageStart += FEATURED_PRODUCTS_PAGE_SIZE;
   }
 
-  const productRows = (products ?? []) as ProdutoRow[];
-  if (!productRows.length) {
+  const dedupedProducts = Array.from(new Map(allProducts.map((product) => [product.id, product])).values());
+  if (!dedupedProducts.length) {
     return [];
   }
 
   const { data: stockRows, error: stockError } = await supabaseAdmin
     .from('estoque_produtos')
     .select('produto_id, tamanho, quantidade')
-    .in('produto_id', productRows.map((product) => product.id))
+    .in('produto_id', dedupedProducts.map((product) => product.id))
     .gt('quantidade', 0);
 
   if (stockError) {
     throw stockError;
   }
 
-  return mapProductsWithStock(productRows, (stockRows ?? []) as StockRow[]);
+  return mapProductsWithStock(dedupedProducts, (stockRows ?? []) as StockRow[]);
 }
 
 export async function getProductByCode(productCode: string) {

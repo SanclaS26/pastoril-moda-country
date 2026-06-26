@@ -11,9 +11,8 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const MESSAGE_ID_TTL_MS = 2 * 60 * 1000;
-const MAX_FEATURED_IMAGES = 20;
 
-const SITE_URL = (process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? 'https://pastorilmodacountry.com.br').trim();
+const SITE_URL = 'https://pastoril-moda-country.vercel.app';
 
 const WELCOME_MESSAGE =
   'Oi! Seja bem-vinda a Pastoril Moda Country. Posso te mostrar os destaques por categoria e voce escolhe pela numeracao das fotos.';
@@ -27,13 +26,13 @@ const DEFAULT_CATEGORY_PROMPT =
 const CATEGORY_NOT_FOUND_PROMPT =
   'Nao identifiquei a categoria. Me diga uma categoria, como botas, camisas, cintos, bolsas ou vestidos.';
 
-const PHOTO_SELECTION_PROMPT = 'Digite o numero da foto que voce quer saber mais detalhes.';
+const PHOTO_SELECTION_PROMPT = 'Digite o número da foto que você quer saber mais detalhes.';
 
 const PRODUCT_NOT_FOUND_PROMPT =
   'Esse produto nao esta mais disponivel neste momento. Digite outro numero da lista para ver mais detalhes.';
 
-const CATEGORY_WITHOUT_PRODUCTS_PROMPT =
-  'No momento nao encontrei destaques disponiveis nessa categoria. Se quiser, te mostro outra categoria.';
+const GALLERY_LOAD_FAILED_SITE_PROMPT =
+  'Não consegui carregar as fotos dessa categoria agora. Você pode ver os produtos no site:\n\nhttps://pastoril-moda-country.vercel.app';
 
 // This in-memory dedupe is only a best-effort layer; serverless instances may restart
 // and will not persist this state. Persistent dedupe will be implemented later.
@@ -251,19 +250,12 @@ async function sendCategoryFeaturedProducts(
   updateStage: (stage: CategoryFlowStage) => void,
 ) {
   updateStage('search_featured_products');
-  const featuredProducts = (await getFeaturedProductsByDepartment(department)).slice(0, MAX_FEATURED_IMAGES);
+  const featuredProducts = await getFeaturedProductsByDepartment(department);
 
   updateStage('validate_products');
   const uniqueProducts = Array.from(new Map(featuredProducts.map((product) => [product.id, product])).values());
 
-  if (!uniqueProducts.length) {
-    await sendWhatsAppTextMessage({
-      body: CATEGORY_WITHOUT_PRODUCTS_PROMPT,
-      to,
-    });
-
-    return [] as WhatsAppPresentedProduct[];
-  }
+  if (!uniqueProducts.length) return [] as WhatsAppPresentedProduct[];
 
   const presentedProducts: WhatsAppPresentedProduct[] = [];
   let currentPosition = 1;
@@ -284,28 +276,14 @@ async function sendCategoryFeaturedProducts(
 
       currentPosition += 1;
     } catch (error) {
-      if (error instanceof WhatsAppSendMessageError) {
-        console.warn('[whatsapp-webhook] Falha ao enviar imagem de produto por categoria');
-      } else {
-        console.warn('[whatsapp-webhook] Erro interno ao enviar imagem de produto por categoria');
-      }
+      const sanitized = sanitizeError(error);
+      console.warn('[whatsapp-webhook] Falha ao enviar imagem de produto por categoria', {
+        stage: 'send_product_images',
+        productId: product.id,
+        ...sanitized,
+      });
     }
   }
-
-  if (!presentedProducts.length) {
-    await sendWhatsAppTextMessage({
-      body: 'Nao consegui enviar fotos dessa categoria agora. Me pede outra categoria para tentar novamente.',
-      to,
-    });
-
-    return [];
-  }
-
-  updateStage('send_selection_prompt');
-  await sendWhatsAppTextMessage({
-    body: PHOTO_SELECTION_PROMPT,
-    to,
-  });
 
   return presentedProducts;
 }
@@ -569,6 +547,11 @@ export async function POST(request: Request) {
           const requestedDepartment = detectDepartmentFromMessage(customerText);
 
           if (requestedDepartment) {
+            stage = 'persist_presented_products';
+            await updateWhatsAppSession(message.from, {
+              conversationState: 'sending_gallery',
+            });
+
             const presentedProducts = await sendCategoryFeaturedProducts(message.from, requestedDepartment, (nextStage) => {
               stage = nextStage;
             });
@@ -577,14 +560,27 @@ export async function POST(request: Request) {
             if (presentedProducts.length > 0) {
               await updateWhatsAppSession(message.from, {
                 awaitingProductPosition: true,
+                conversationState: 'awaiting_photo_number',
                 lastCategory: requestedDepartment,
                 presentedProducts,
+              });
+
+              stage = 'send_selection_prompt';
+              await sendWhatsAppTextMessage({
+                body: PHOTO_SELECTION_PROMPT,
+                to: message.from,
               });
             } else {
               await updateWhatsAppSession(message.from, {
                 awaitingProductPosition: false,
+                conversationState: 'idle',
                 lastCategory: requestedDepartment,
                 presentedProducts: [],
+              });
+
+              await sendWhatsAppTextMessage({
+                body: GALLERY_LOAD_FAILED_SITE_PROMPT,
+                to: message.from,
               });
             }
 
@@ -628,6 +624,7 @@ export async function POST(request: Request) {
             stage = 'persist_presented_products';
             await updateWhatsAppSession(message.from, {
               awaitingProductPosition: true,
+              conversationState: 'awaiting_photo_number',
               presentedProducts,
             });
 

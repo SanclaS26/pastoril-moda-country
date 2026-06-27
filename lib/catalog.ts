@@ -24,6 +24,7 @@ export type Product = {
   ativo?: boolean;
   destaque?: boolean;
   estoque: StockItem[];
+  tipo_grade?: 'roupas' | 'calcados' | 'chapeus_bones' | 'cintos' | 'unico';
   imagens?: { id: number; url: string; ordem: number; principal: boolean; tipo_midia: 'imagem' | 'video' }[];
 };
 
@@ -37,6 +38,7 @@ export function getProductPrice(product: Product) {
 }
 
 export function productUsesVisibleSize(product: Product) {
+  if (product.tipo_grade) return product.tipo_grade !== 'unico';
   return !isGradeSemSeletor(getTipoGradeTamanho(product.departamento, product.publico));
 }
 

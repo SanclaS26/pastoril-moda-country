@@ -156,11 +156,15 @@ export type CategoriaRow = {
   id: number;
   departamento_id: number | null;
   nome: string;
+  slug: string;
   ativo: boolean;
   ordem: number | null;
   created_at?: string;
   updated_at?: string;
+  tipo_grade: CategoriaTipoGrade;
 };
+
+export type CategoriaTipoGrade = 'roupas' | 'calcados' | 'chapeus_bones' | 'cintos' | 'unico';
 
 export type MarcaRow = {
   id: number;
@@ -380,7 +384,7 @@ type Database = {
       };
       categorias: {
         Row: CategoriaRow;
-        Insert: Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>;
+        Insert: Omit<CategoriaRow, 'id' | 'slug' | 'created_at' | 'updated_at'> & { slug?: string };
         Update: Partial<Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>>;
         Relationships: [];
       };

@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import ConfirmDialog from './ConfirmDialog';
 
-type Item = { id: number; nome: string; ativo: boolean };
+type Item = { id: number; nome: string; ativo: boolean; tipo_grade?: string };
 type Props = { endpoint: 'categorias' | 'marcas'; itemLabel: string };
 
 async function token() {
@@ -16,6 +16,7 @@ async function token() {
 export default function CatalogManager({ endpoint, itemLabel }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState('');
+  const [gradeType, setGradeType] = useState('unico');
   const [editing, setEditing] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
   const [message, setMessage] = useState('');
@@ -46,11 +47,11 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
       const response = await fetch(`/api/admin/${endpoint}${editing ? `/${editing.id}` : ''}`, {
         method: editing ? 'PATCH' : 'POST',
         headers: { Authorization: `Bearer ${await token()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome: name }),
+        body: JSON.stringify({ nome: name, ...(endpoint === 'categorias' ? { tipo_grade: gradeType } : {}) }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
-      setName(''); setEditing(null); setMessage(`${itemLabel} salva com sucesso.`);
+      setName(''); setGradeType('unico'); setEditing(null); setMessage(`${itemLabel} salva com sucesso.`);
       await load();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Erro ao salvar.'); }
   };
@@ -81,8 +82,15 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
   return <>
     <form onSubmit={save} className="mb-6 flex flex-col gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-5 sm:flex-row">
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Nome da ${itemLabel.toLowerCase()}`} required className="flex-1 rounded-lg border border-[#D9CEC2] px-4 py-3 outline-none focus:border-[#C8722C]" />
+      {endpoint === 'categorias' && <select value={gradeType} onChange={(event) => setGradeType(event.target.value)} className="rounded-lg border border-[#D9CEC2] bg-white px-4 py-3 outline-none focus:border-[#C8722C]" aria-label="Tipo de grade">
+        <option value="roupas">Roupas</option>
+        <option value="calcados">Calçados</option>
+        <option value="chapeus_bones">Chapéus e bonés</option>
+        <option value="cintos">Cintos</option>
+        <option value="unico">Tamanho único</option>
+      </select>}
       <button className="rounded-lg bg-[#C8722C] px-6 py-3 font-bold text-white">{editing ? 'Salvar alteração' : `Cadastrar ${itemLabel.toLowerCase()}`}</button>
-      {editing && <button type="button" onClick={() => { setEditing(null); setName(''); }} className="rounded-lg border px-5 py-3">Cancelar</button>}
+      {editing && <button type="button" onClick={() => { setEditing(null); setName(''); setGradeType('unico'); }} className="rounded-lg border px-5 py-3">Cancelar</button>}
     </form>
     {message && <p className="mb-4 rounded-lg bg-[#F7F0E7] px-4 py-3 text-sm">{message}</p>}
     <div className="overflow-hidden rounded-2xl border border-[#E7E0D8] bg-white">
@@ -90,8 +98,9 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
         <div className="divide-y divide-[#E7E0D8]">{items.map((item) =>
           <div key={item.id} className="flex flex-wrap items-center gap-3 p-4">
             <span className="min-w-0 flex-1 font-semibold">{item.nome}</span>
+            {item.tipo_grade && <span className="rounded-full bg-[#F7F0E7] px-3 py-1 text-xs font-semibold text-[#6E625A]">{item.tipo_grade.replace('_', ' ')}</span>}
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.ativo ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>{item.ativo ? 'Ativa' : 'Inativa'}</span>
-            <button onClick={() => { setEditing(item); setName(item.nome); }} className="text-sm font-bold text-[#C8722C]">Editar</button>
+            <button onClick={() => { setEditing(item); setName(item.nome); setGradeType(item.tipo_grade ?? 'unico'); }} className="text-sm font-bold text-[#C8722C]">Editar</button>
             <button onClick={() => void toggle(item)} className="text-sm font-bold">{item.ativo ? 'Inativar' : 'Ativar'}</button>
             <button onClick={() => setDeleting(item)} className="text-sm font-bold text-red-700">Excluir</button>
           </div>)}</div>}

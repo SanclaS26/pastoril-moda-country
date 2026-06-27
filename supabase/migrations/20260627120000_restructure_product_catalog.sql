@@ -11,27 +11,175 @@ alter table public.categorias
 
 alter table public.categorias
   add column if not exists created_at timestamptz not null default now(),
-  add column if not exists updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default now(),
+  add column if not exists tipo_grade text not null default 'unico',
+  add column if not exists slug text;
+
+-- O schema legado da Pastoril exige slug em categorias. A funcao abaixo nao
+-- depende da extensao unaccent e pode ser usada tanto no seed quanto em novos
+-- cadastros feitos pelas rotas administrativas.
+create or replace function public.catalog_slug(p_value text)
+returns text
+language sql
+immutable
+strict
+set search_path = public, pg_temp
+as $$
+  select coalesce(
+    nullif(
+      trim(both '-' from regexp_replace(
+        translate(
+          lower(btrim(p_value)),
+          'áàâãäéèêëíìîïóòôõöúùûüçñ',
+          'aaaaaeeeeiiiiooooouuuucn'
+        ),
+        '[^a-z0-9]+',
+        '-',
+        'g'
+      )),
+      ''
+    ),
+    'categoria'
+  );
+$$;
+
+create or replace function public.set_categoria_slug()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+declare
+  v_base text;
+  v_candidate text;
+  v_suffix integer := 2;
+  v_payload jsonb;
+begin
+  if new.nome is null or btrim(new.nome) = '' then
+    raise exception 'O nome da categoria e obrigatorio.';
+  end if;
+
+  if new.slug is null
+    or btrim(new.slug) = ''
+    or (
+      tg_op = 'UPDATE'
+      and new.nome is distinct from old.nome
+      and new.slug is not distinct from old.slug
+    )
+  then
+    v_base := public.catalog_slug(new.nome);
+  else
+    v_base := public.catalog_slug(new.slug);
+  end if;
+
+  v_candidate := v_base;
+  while exists (
+    select 1
+    from public.categorias c
+    where lower(c.slug) = lower(v_candidate)
+      and c.id is distinct from new.id
+  ) loop
+    v_candidate := v_base || '-' || v_suffix::text;
+    v_suffix := v_suffix + 1;
+  end loop;
+
+  new.slug := v_candidate;
+
+  -- Algumas versoes do schema legado possuem codigo/code obrigatorio. O uso
+  -- de jsonb permite preencher essas colunas quando existirem sem tornar a
+  -- migration incompatível com bancos que nao as possuem.
+  v_payload := to_jsonb(new);
+  if v_payload ? 'codigo'
+    and nullif(btrim(v_payload->>'codigo'), '') is null
+  then
+    v_payload := jsonb_set(
+      v_payload,
+      '{codigo}',
+      to_jsonb('CAT-' || upper(replace(v_candidate, '-', '_'))),
+      true
+    );
+  end if;
+  if v_payload ? 'code'
+    and nullif(btrim(v_payload->>'code'), '') is null
+  then
+    v_payload := jsonb_set(
+      v_payload,
+      '{code}',
+      to_jsonb('CAT-' || upper(replace(v_candidate, '-', '_'))),
+      true
+    );
+  end if;
+  new := jsonb_populate_record(new, v_payload);
+
+  return new;
+end;
+$$;
+
+drop trigger if exists categorias_set_slug on public.categorias;
+create trigger categorias_set_slug
+before insert or update of nome, slug on public.categorias
+for each row execute function public.set_categoria_slug();
+
+-- Corrige bancos parcialmente atualizados que ja possuem categorias sem slug.
+-- O trigger garante sufixos numericos caso existam nomes repetidos.
+update public.categorias
+set slug = null
+where slug is null or btrim(slug) = '';
+
+alter table public.categorias
+  alter column slug set not null;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.categorias'::regclass
+      and conname = 'categorias_tipo_grade_check'
+  ) then
+    alter table public.categorias
+      add constraint categorias_tipo_grade_check
+      check (tipo_grade in ('roupas', 'calcados', 'chapeus_bones', 'cintos', 'unico'));
+  end if;
+end;
+$$;
 
 create unique index if not exists categorias_nome_unique
   on public.categorias (lower(nome));
 
 -- Evita ON CONFLICT com indice por expressao. Este bloco tambem funciona caso
 -- a migration seja retomada depois de uma execucao interrompida.
-insert into public.categorias (nome, ativo, ordem)
-select seed.nome, true, seed.ordem
+insert into public.categorias (nome, slug, ativo, ordem, tipo_grade)
+select seed.nome, seed.slug, true, seed.ordem, seed.tipo_grade
 from (
   values
-    ('Camisas', 10), ('Camisetas', 20), ('Calças', 30), ('Botas', 40),
-    ('Botinas', 50), ('Chapéus', 60), ('Bonés', 70), ('Cintos', 80),
-    ('Bolsas', 90), ('Vestidos', 100), ('Saias', 110),
-    ('Acessórios', 120), ('Outros', 130)
-) as seed(nome, ordem)
+    ('Camisas', 'camisas', 10, 'roupas'),
+    ('Camisetas', 'camisetas', 20, 'roupas'),
+    ('Calças', 'calcas', 30, 'roupas'),
+    ('Botas', 'botas', 40, 'calcados'),
+    ('Botinas', 'botinas', 50, 'calcados'),
+    ('Chapéus', 'chapeus', 60, 'chapeus_bones'),
+    ('Bonés', 'bones', 70, 'chapeus_bones'),
+    ('Cintos', 'cintos', 80, 'cintos'),
+    ('Bolsas', 'bolsas', 90, 'unico'),
+    ('Vestidos', 'vestidos', 100, 'roupas'),
+    ('Saias', 'saias', 110, 'roupas'),
+    ('Acessórios', 'acessorios', 120, 'unico'),
+    ('Outros', 'outros', 130, 'unico')
+) as seed(nome, slug, ordem, tipo_grade)
 where not exists (
   select 1
   from public.categorias c
   where lower(c.nome) = lower(seed.nome)
 );
+
+update public.categorias
+set tipo_grade = case
+  when lower(nome) in ('camisas', 'camisetas', 'calças', 'calcas', 'vestidos', 'saias') then 'roupas'
+  when lower(nome) in ('botas', 'botinas') then 'calcados'
+  when lower(nome) in ('chapéus', 'chapeus', 'bonés', 'bones') then 'chapeus_bones'
+  when lower(nome) = 'cintos' then 'cintos'
+  else 'unico'
+end
+where tipo_grade = 'unico';
 
 create table if not exists public.marcas (
   id bigint generated by default as identity primary key,

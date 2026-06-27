@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { validarEstoqueParaGrade } from '@/config/grades-tamanho';
+import { validarEstoquePorCategoria, type CategoriaTipoGrade } from '@/config/grades-tamanho';
 import { requireActiveAdmin } from '@/lib/admin-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
@@ -47,7 +47,7 @@ export async function PATCH(request: Request, { params }: Context) {
     const promocional = promoRaw ? Number(promoRaw.replace(',', '.')) : null;
     if (!Number.isFinite(preco) || preco < 0) throw new Error('Preço inválido.');
     if (emPromocao && (promocional === null || promocional >= preco)) throw new Error('O preço promocional deve ser menor que o preço normal.');
-    const { data: category } = await auth.supabaseAdmin.from('categorias').select('id,nome').eq('id', categoriaId).eq('ativo', true).maybeSingle();
+    const { data: category } = await auth.supabaseAdmin.from('categorias').select('id,nome,tipo_grade').eq('id', categoriaId).eq('ativo', true).maybeSingle();
     if (!category) throw new Error('Categoria inválida ou inativa.');
     let brandId = Number(data.get('marca_id')) || null;
     if (!brandId) {
@@ -58,8 +58,7 @@ export async function PATCH(request: Request, { params }: Context) {
     if (!brand) throw new Error('Marca inválida.');
     let stocks: Stock[];
     try { stocks = JSON.parse(value(data, 'estoques')); } catch { throw new Error('Estoque inválido.'); }
-    stocks = validarEstoqueParaGrade(stocks, category.nome, publico);
-    if (!stocks.length) throw new Error('Adicione ao menos um tamanho e estoque.');
+    stocks = validarEstoquePorCategoria(stocks, category.tipo_grade as CategoriaTipoGrade);
     let order: GalleryToken[];
     try { order = JSON.parse(value(data, 'gallery_order')); } catch { throw new Error('Ordem da galeria inválida.'); }
     if (!Array.isArray(order) || !order.length || order.length > 10) throw new Error('A galeria deve conter de 1 a 10 fotos.');

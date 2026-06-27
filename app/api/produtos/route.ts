@@ -21,20 +21,30 @@ export async function GET() {
       return NextResponse.json({ products: [] });
     }
 
-    const { data: stock, error: stockError } = await supabaseAdmin
-      .from('estoque_produtos')
-      .select('*')
-      .in('produto_id', products.map((product) => product.id))
-      .gt('quantidade', 0)
-      .order('id', { ascending: true });
+    const categoryIds = [...new Set(products.flatMap((product) => product.categoria_id ? [product.categoria_id] : []))];
+    const [{ data: stock, error: stockError }, { data: categories, error: categoryError }] = await Promise.all([
+      supabaseAdmin
+        .from('estoque_produtos')
+        .select('*')
+        .in('produto_id', products.map((product) => product.id))
+        .gt('quantidade', 0)
+        .order('id', { ascending: true }),
+      categoryIds.length
+        ? supabaseAdmin.from('categorias').select('id, tipo_grade').in('id', categoryIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
 
     if (stockError) {
       return NextResponse.json({ error: `Erro ao listar estoque: ${stockError.message}` }, { status: 500 });
+    }
+    if (categoryError) {
+      return NextResponse.json({ error: `Erro ao listar categorias: ${categoryError.message}` }, { status: 500 });
     }
 
     return NextResponse.json({
       products: products.map((product) => ({
         ...product,
+        tipo_grade: (categories ?? []).find((category) => category.id === product.categoria_id)?.tipo_grade,
         estoque: (stock ?? []).filter((item) => item.produto_id === product.id),
       })),
     });

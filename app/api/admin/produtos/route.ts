@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { validarEstoqueParaGrade } from '@/config/grades-tamanho';
+import { validarEstoquePorCategoria, type CategoriaTipoGrade } from '@/config/grades-tamanho';
 import { requireActiveAdmin } from '@/lib/admin-auth';
 import type { EstoqueProdutoInsert, ProdutoInsert } from '@/lib/supabase-admin';
 
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     const precoPromocional = price(data, 'preco_promocional', false);
     if (emPromocao && (precoPromocional === null || precoPromocional >= preco)) throw new Error('O preço promocional deve ser menor que o preço normal.');
     const gallery = files(data);
-    const { data: category } = await auth.supabaseAdmin.from('categorias').select('id,nome').eq('id', categoriaId).eq('ativo', true).maybeSingle();
+    const { data: category } = await auth.supabaseAdmin.from('categorias').select('id,nome,tipo_grade').eq('id', categoriaId).eq('ativo', true).maybeSingle();
     if (!category) throw new Error('Categoria inválida ou inativa.');
     let marcaId = Number(data.get('marca_id')) || null;
     if (!marcaId) {
@@ -99,8 +99,7 @@ export async function POST(request: Request) {
     }
     const { data: brand } = marcaId ? await auth.supabaseAdmin.from('marcas').select('id,nome').eq('id', marcaId).eq('ativo', true).maybeSingle() : { data: null };
     if (!brand) throw new Error('Marca inválida e a marca padrão não foi encontrada.');
-    const normalizedStock = validarEstoqueParaGrade(stock(data), category.nome, publico);
-    if (!normalizedStock.length) throw new Error('Adicione ao menos um tamanho e estoque.');
+    const normalizedStock = validarEstoquePorCategoria(stock(data), category.tipo_grade as CategoriaTipoGrade);
     const codigo = `P${Date.now().toString(36).toUpperCase()}${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
     const payload: ProdutoInsert = {
       codigo_produto: codigo, nome, publico, categoria_id: category.id, categoria: category.nome,

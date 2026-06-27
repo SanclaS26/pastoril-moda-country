@@ -56,9 +56,18 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: `Erro ao buscar galeria: ${imagesError.message}` }, { status: 500 });
     }
 
+    const { data: category, error: categoryError } = product.categoria_id
+      ? await supabaseAdmin.from('categorias').select('tipo_grade').eq('id', product.categoria_id).maybeSingle()
+      : { data: null, error: null };
+
+    if (categoryError) {
+      return NextResponse.json({ error: `Erro ao buscar categoria: ${categoryError.message}` }, { status: 500 });
+    }
+
     return NextResponse.json({
       product: {
         ...product,
+        tipo_grade: category?.tipo_grade,
         estoque: stock ?? [],
         imagens: images ?? [],
       },

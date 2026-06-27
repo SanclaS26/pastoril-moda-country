@@ -1,5 +1,51 @@
 export const TAMANHO_UNICO = 'Único';
 
+export type CategoriaTipoGrade = 'roupas' | 'calcados' | 'chapeus_bones' | 'cintos' | 'unico';
+
+export const gradesPorCategoria: Record<CategoriaTipoGrade, string[]> = {
+  roupas: ['PP', 'P', 'M', 'G', 'GG', 'XG'],
+  calcados: Array.from({ length: 14 }, (_, index) => String(index + 33)),
+  chapeus_bones: ['P', 'M', 'G', TAMANHO_UNICO],
+  cintos: ['80', '85', '90', '95', '100', '105', '110', '115', '120'],
+  unico: [TAMANHO_UNICO],
+};
+
+export function getOpcoesTamanhoPorCategoria(tipoGrade: CategoriaTipoGrade) {
+  return gradesPorCategoria[tipoGrade];
+}
+
+export function normalizarEstoquePorCategoria<T extends EstoqueGradeInput>(
+  estoque: T[],
+  tipoGrade: CategoriaTipoGrade,
+) {
+  const atual = new Map(estoque.map((item) => [item.tamanho, item]));
+  return gradesPorCategoria[tipoGrade].map((tamanho) => ({
+    ...atual.get(tamanho),
+    tamanho,
+    quantidade: Math.max(0, Number(atual.get(tamanho)?.quantidade) || 0),
+  })) as T[];
+}
+
+export function validarEstoquePorCategoria(
+  estoque: EstoqueGradeInput[],
+  tipoGrade: CategoriaTipoGrade,
+) {
+  const permitidos = gradesPorCategoria[tipoGrade];
+  const recebidos = new Map<string, EstoqueGradeInput>();
+
+  for (const item of estoque) {
+    if (!permitidos.includes(item.tamanho) || recebidos.has(item.tamanho)) {
+      throw new Error('A grade de estoque não corresponde à categoria selecionada.');
+    }
+    if (!Number.isInteger(item.quantidade) || item.quantidade < 0) {
+      throw new Error('O estoque deve ser um número inteiro maior ou igual a zero.');
+    }
+    recebidos.set(item.tamanho, item);
+  }
+
+  return permitidos.map((tamanho) => recebidos.get(tamanho) ?? { tamanho, quantidade: 0 });
+}
+
 export type TipoGradeTamanho =
   | 'roupa_letras'
   | 'roupa_numeros'

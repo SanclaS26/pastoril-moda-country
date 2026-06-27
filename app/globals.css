@@ -219,7 +219,6 @@
 }
 
 .admin-table td .admin-text-muted,
-.admin-table td .text-[#6E625A],
 .admin-table td .text-slate-500,
 .admin-table td .text-slate-600 {
   color: var(--admin-muted) !important;
@@ -230,6 +229,138 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.admin-button {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.8rem;
+  border: 1px solid transparent;
+  padding: 0.75rem 1rem;
+  font-size: 0.825rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+
+.admin-button:focus-visible,
+.admin-table-action-secondary:focus-visible,
+.admin-table-action-danger:focus-visible,
+.admin-tab:focus-visible,
+.admin-input:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+}
+
+.admin-button:active,
+.admin-table-action-secondary:active,
+.admin-table-action-danger:active,
+.admin-tab:active {
+  transform: translateY(1px);
+}
+
+.admin-button:disabled,
+.admin-table-action-secondary:disabled,
+.admin-table-action-danger:disabled,
+.admin-tab:disabled,
+.admin-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.admin-button-primary {
+  border-color: color-mix(in srgb, var(--admin-accent) 38%, var(--admin-border));
+  background-color: var(--admin-accent);
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgb(200 114 44 / 18%);
+}
+
+.admin-button-primary:hover {
+  background-color: color-mix(in srgb, var(--admin-accent) 88%, black);
+  box-shadow: 0 10px 24px rgb(200 114 44 / 22%);
+}
+
+.admin-button-secondary {
+  border-color: var(--admin-border);
+  background-color: var(--admin-surface);
+  color: var(--admin-text);
+}
+
+.admin-button-secondary:hover {
+  background-color: var(--admin-row-hover);
+  border-color: color-mix(in srgb, var(--admin-border) 75%, var(--admin-accent));
+}
+
+.admin-button-ghost {
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--admin-text);
+}
+
+.admin-button-ghost:hover {
+  background-color: var(--admin-row-hover);
+}
+
+.admin-button-danger {
+  border-color: color-mix(in srgb, var(--admin-danger) 30%, var(--admin-border));
+  background-color: color-mix(in srgb, var(--admin-danger) 8%, transparent);
+  color: var(--admin-danger);
+}
+
+.admin-button-danger:hover {
+  background-color: color-mix(in srgb, var(--admin-danger) 12%, transparent);
+}
+
+.admin-tab-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 1rem;
+  background-color: var(--admin-surface);
+}
+
+.admin-tab {
+  display: inline-flex;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 0.85rem;
+  padding: 0.65rem 0.9rem;
+  font-size: 0.825rem;
+  font-weight: 800;
+  color: var(--admin-muted);
+  background-color: transparent;
+  cursor: pointer;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.admin-tab:hover {
+  background-color: var(--admin-row-hover);
+  color: var(--admin-text);
+}
+
+.admin-tab[aria-pressed="true"],
+.admin-tab.is-active {
+  background-color: var(--admin-accent);
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-border));
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgb(200 114 44 / 18%);
+}
+
+.admin-filter-bar {
+  border: 1px solid var(--admin-border);
+  border-radius: 1rem;
+  background-color: var(--admin-surface);
+}
+
+.admin-clickable {
+  cursor: pointer;
 }
 
 .admin-table-action-secondary {
@@ -244,11 +375,13 @@
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--admin-text);
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
 }
 
 .admin-table-action-secondary:hover {
   background-color: var(--admin-row-hover);
+  border-color: color-mix(in srgb, var(--admin-border) 72%, var(--admin-accent));
 }
 
 .admin-table-action-danger {
@@ -263,7 +396,8 @@
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--admin-danger);
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
 }
 
 .admin-table-action-danger:hover {

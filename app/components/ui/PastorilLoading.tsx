@@ -2,54 +2,55 @@ import Image from 'next/image';
 
 type PastorilLoadingProps = {
   className?: string;
-  layout?: 'contained' | 'fullscreen';
-  message?: string;
+  fullscreen?: boolean;
+  inline?: boolean;
+  label?: string;
+  size?: 'small' | 'medium';
   scope?: 'admin' | 'public';
 };
 
-export default function PastorilLoading({ className = '', layout = 'fullscreen', message = 'Carregando...', scope = 'public' }: PastorilLoadingProps) {
+export default function PastorilLoading({ className = '', fullscreen = true, inline = false, label = 'Carregando', size = 'small', scope = 'public' }: PastorilLoadingProps) {
   const isAdmin = scope === 'admin';
-  const shellClasses = layout === 'fullscreen'
-    ? 'min-h-[100svh] w-full px-6 py-10'
-    : 'min-h-[min(72svh,32rem)] w-full rounded-[28px] border border-[#E2D7CC] px-6 py-10 shadow-[0_10px_28px_rgba(74,45,26,0.045)] sm:px-8';
+  const shellClasses = inline
+    ? 'inline-flex w-auto items-center justify-center px-0 py-0'
+    : fullscreen
+      ? 'flex min-h-[100svh] w-full items-center justify-center px-4 py-6 sm:px-6'
+      : 'flex min-h-[min(48svh,24rem)] w-full items-center justify-center px-4 py-6 sm:px-6';
 
   const surfaceClasses = isAdmin
-    ? 'bg-[#F9F6F1] text-[#241C17]'
-    : 'bg-[radial-gradient(circle_at_top,rgba(255,250,244,0.98)_0%,rgba(247,240,231,0.96)_44%,rgba(239,231,219,0.98)_100%)] text-[#241C17]';
+    ? 'bg-[color:var(--admin-bg)] text-[color:var(--admin-text)]'
+    : 'bg-[color:var(--background)] text-[color:var(--text)]';
 
-  const glowClasses = isAdmin
-    ? 'bg-[radial-gradient(circle,rgba(200,114,44,0.18)_0%,rgba(200,114,44,0.06)_35%,transparent_72%)]'
-    : 'bg-[radial-gradient(circle,rgba(200,114,44,0.16)_0%,rgba(200,114,44,0.06)_35%,transparent_72%)]';
+  const logoSizeClasses = size === 'medium' ? 'h-14 w-14' : 'h-12 w-12';
+  const ringSizeClasses = size === 'medium' ? 'h-16 w-16' : 'h-[3.5rem] w-[3.5rem]';
 
   return (
     <div
       role="status"
+      aria-busy="true"
       aria-live="polite"
-      aria-label={message}
-      className={`relative isolate flex items-center justify-center overflow-hidden ${shellClasses} ${surfaceClasses} ${className}`.trim()}
+      aria-label={label}
+      className={`relative isolate ${shellClasses} ${surfaceClasses} ${className}`.trim()}
     >
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,transparent_54%,rgba(36,28,23,0.02)_100%)]" aria-hidden="true" />
-      <div className={`absolute left-1/2 top-1/2 h-[clamp(16rem,40vw,24rem)] w-[clamp(16rem,40vw,24rem)] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl ${glowClasses}`} aria-hidden="true" />
-      <div className="relative z-10 flex flex-col items-center gap-4 text-center">
-        <div className="relative flex items-center justify-center">
-          <span className="absolute inset-0 rounded-full border border-[#C9B5A5]/50 motion-reduce:animate-none motion-safe:animate-[spin_5.5s_linear_infinite]" aria-hidden="true" />
-          <span className="absolute inset-2 rounded-full border border-[#C8722C]/20 motion-reduce:animate-none motion-safe:animate-[spin_8s_linear_infinite_reverse]" aria-hidden="true" />
-          <span className="absolute inset-5 rounded-full bg-[#F7F0E7]/40 blur-xl motion-reduce:animate-none motion-safe:animate-[pastoril-loading-breathe_3.2s_ease-in-out_infinite]" aria-hidden="true" />
-          <Image
-            src="/brand/pastoril-logo-header.png"
-            alt="Pastoril Moda Country"
-            width={1536}
-            height={1024}
-            priority
-            sizes="(min-width: 640px) 280px, 220px"
-            className="relative z-10 h-auto w-[clamp(200px,26vw,280px)] object-contain motion-reduce:animate-none motion-safe:animate-[pastoril-loading-breathe_3.2s_ease-in-out_infinite]"
-          />
-        </div>
-
-        <div className="space-y-1">
-          <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${isAdmin ? 'text-[#8B7768]' : 'text-[#8B7768]'}`}>Pastoril Moda Country</p>
-          <p className={`text-sm ${isAdmin ? 'text-[#6E625A]' : 'text-[#6E625A]'}`}>{message}</p>
-        </div>
+      <div className="relative flex items-center justify-center">
+        <span
+          aria-hidden="true"
+          className={`absolute rounded-full border border-current/15 motion-reduce:animate-none motion-safe:animate-[spin_12s_linear_infinite] ${ringSizeClasses}`}
+        />
+        <span
+          aria-hidden="true"
+          className={`absolute rounded-full border border-current/8 motion-reduce:animate-none motion-safe:animate-[pastoril-loading-breathe_4.8s_ease-in-out_infinite] ${ringSizeClasses}`}
+        />
+        <Image
+          src="/brand/pastoril-logo-cropped.png"
+          alt=""
+          width={56}
+          height={56}
+          priority={fullscreen}
+          sizes="56px"
+          className={`relative z-10 object-contain motion-reduce:animate-none motion-safe:animate-[pastoril-loading-breathe_4.8s_ease-in-out_infinite] ${logoSizeClasses}`}
+        />
+        <span className="sr-only">{label}</span>
       </div>
     </div>
   );

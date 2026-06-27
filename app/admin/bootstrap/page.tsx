@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type BootstrapResponse = {
   error?: string;
@@ -160,7 +161,7 @@ export default function AdminBootstrapPage() {
               </div>
               <Link
                 href="/admin/login"
-                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[color:var(--admin-accent)] px-5 py-3 font-bold text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--admin-accent)]"
+                className="admin-button admin-button-primary mt-5 w-full"
               >
                 Ir para o login administrativo
               </Link>
@@ -287,9 +288,16 @@ export default function AdminBootstrapPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="min-h-12 w-full rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 font-bold text-white shadow-[0_10px_22px_rgba(200,114,44,0.2)] transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--admin-accent)] disabled:cursor-not-allowed disabled:opacity-55"
+                className="admin-button admin-button-primary min-h-12 w-full"
               >
-                {isLoading ? 'Criando administrador...' : 'Criar administrador'}
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner className="text-white" />
+                    <span>Criando administrador...</span>
+                  </>
+                ) : (
+                  'Criar administrador'
+                )}
               </button>
             </form>
           )}

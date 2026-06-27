@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { login } from '@/lib/useAuth';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -111,9 +112,16 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full rounded-xl bg-[color:var(--admin-accent)] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.22)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="admin-button admin-button-primary w-full"
             >
-              {isLoading ? 'Carregando...' : 'Entrar'}
+              {isLoading ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Entrando...</span>
+                </>
+              ) : (
+                'Entrar'
+              )}
             </button>
           </form>
         </section>

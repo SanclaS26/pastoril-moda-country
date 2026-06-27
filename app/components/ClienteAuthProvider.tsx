@@ -6,6 +6,7 @@ import type { Session } from '@supabase/supabase-js';
 import { signInClienteWithPhone } from '@/lib/cliente-login';
 import { formatCpf, formatPhone, normalizeClientePhone, normalizeCpf } from '@/lib/cliente-utils';
 import { clienteSupabase } from '@/lib/supabase-cliente';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type ClienteAuthContextValue = {
   clientePerfil: ClientePerfil | null;
@@ -781,7 +782,14 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                       disabled={profileSaving}
                       className="rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {profileSaving ? 'Salvando...' : 'Salvar dados'}
+                      {profileSaving ? (
+                        <>
+                          <LoadingSpinner className="text-white" />
+                          <span>Salvando...</span>
+                        </>
+                      ) : (
+                        'Salvar dados'
+                      )}
                     </button>
                   </div>
                 </form>
@@ -883,7 +891,14 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                     disabled={isRegistering}
                     className="rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-2"
                   >
-                    {isRegistering ? 'Criando cadastro...' : 'Criar cadastro'}
+                    {isRegistering ? (
+                      <>
+                        <LoadingSpinner className="text-white" />
+                        <span>Criando cadastro...</span>
+                      </>
+                    ) : (
+                      'Criar cadastro'
+                    )}
                   </button>
                 </form>
 
@@ -941,7 +956,14 @@ export function ClienteAuthProvider({ children }: { children: ReactNode }) {
                     disabled={isLoggingIn}
                     className="w-full rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isLoggingIn ? 'Entrando...' : 'Entrar'}
+                    {isLoggingIn ? (
+                      <>
+                        <LoadingSpinner className="text-white" />
+                        <span>Entrando...</span>
+                      </>
+                    ) : (
+                      'Entrar'
+                    )}
                   </button>
                 </form>
 

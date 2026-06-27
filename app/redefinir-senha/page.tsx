@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { clienteSupabase } from '@/lib/supabase-cliente';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 function isStrongPassword(value: string) {
   return value.length >= 8 && /[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value) && /[^A-Za-z0-9]/.test(value);
@@ -112,7 +113,14 @@ export default function RedefinirSenhaPage() {
             )}
 
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50">
-              {loading ? 'Salvando...' : 'Salvar nova senha'}
+              {loading ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                'Salvar nova senha'
+              )}
             </button>
           </form>
         )}

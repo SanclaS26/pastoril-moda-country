@@ -108,7 +108,7 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
             <option value="unico">Tamanho único</option>
           </select>
         )}
-        <button className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 font-bold text-white">
+        <button className="admin-button admin-button-primary">
           {editing ? 'Salvar alteração' : `Cadastrar ${itemLabel.toLowerCase()}`}
         </button>
         {editing && (
@@ -119,7 +119,7 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
               setName('');
               setGradeType('unico');
             }}
-            className="admin-table-action-secondary rounded-lg px-5 py-3"
+            className="admin-button admin-button-secondary"
           >
             Cancelar
           </button>

@@ -9,6 +9,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { formatAdminCurrency, normalizeAdminCurrency, parseAdminCurrency } from '@/lib/admin-currency';
 import { useProtectedRoute } from '@/lib/useAuth';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 import AdminCurrencyInput from '../components/AdminCurrencyInput';
 import AdminShell from '../components/AdminShell';
 
@@ -310,7 +311,14 @@ export default function ProdutosPage() {
               Cancelar
             </button>
             <button type="submit" disabled={saving || created} className="hidden rounded-lg bg-[color:var(--admin-accent)] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-60 sm:block">
-              {saving ? 'Salvando...' : 'Salvar produto'}
+              {saving ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                'Salvar produto'
+              )}
             </button>
             <button type="button" onClick={closeModal} className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--admin-surface-soft)] text-xl sm:hidden" aria-label="Fechar">×</button>
           </header>
@@ -418,7 +426,14 @@ export default function ProdutosPage() {
           {!created && <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[color:var(--admin-border)] bg-[color:var(--admin-surface)] px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
             <button type="button" onClick={closeModal} className="admin-table-action-secondary rounded-lg px-5 py-3 text-sm">Cancelar</button>
             <button type="submit" disabled={saving} className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-60">
-              {saving ? 'Salvando...' : 'Salvar produto'}
+              {saving ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                'Salvar produto'
+              )}
             </button>
           </footer>}
         </form>

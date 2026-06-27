@@ -74,7 +74,7 @@ export default function AdminWishlistsPage() {
   return (
     <AdminShell title="Listas de desejos" subtitle="Consulta dos produtos favoritados pelos clientes." active="wishlists">
       <div className="space-y-5">
-        <div className="admin-panel grid gap-3 p-4 md:grid-cols-[1fr_240px]">
+        <div className="admin-filter-bar grid gap-3 p-4 md:grid-cols-[1fr_240px]">
           <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar cliente, e-mail ou código" className="admin-input rounded-xl px-4 py-3 text-sm outline-none" />
           <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }} className="admin-input rounded-xl px-4 py-3 text-sm outline-none">
             <option value="count">Maior quantidade</option>

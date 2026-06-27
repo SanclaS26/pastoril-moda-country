@@ -6,6 +6,7 @@ import {
   getProductPrice,
   productUsesVisibleSize,
 } from '@/lib/catalog';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type PublicCartIconName = 'cart';
 
@@ -183,7 +184,14 @@ export function PublicCart({
               disabled={isSubmitting || cartItems.length === 0 || Boolean(whatsappFallbackUrl)}
               className="type-button block w-full rounded-lg bg-[var(--pastoril-caramel)] px-4 py-3 text-center text-white transition hover:bg-[var(--pastoril-brown)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSubmitting ? 'Registrando pedido...' : 'Enviar pedido pelo WhatsApp'}
+              {isSubmitting ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Registrando pedido...</span>
+                </>
+              ) : (
+                'Enviar pedido pelo WhatsApp'
+              )}
             </button>
             {whatsappFallbackUrl && (
               <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-center">

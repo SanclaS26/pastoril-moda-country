@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { clienteSupabase } from '@/lib/supabase-cliente';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 export default function AlterarSenhaPage() {
   const router = useRouter();
@@ -108,7 +109,14 @@ export default function AlterarSenhaPage() {
             )}
 
             <button type="submit" disabled={loading} className="w-full rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50">
-              {loading ? 'Alterando...' : 'Alterar senha'}
+              {loading ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Alterando...</span>
+                </>
+              ) : (
+                'Alterar senha'
+              )}
             </button>
           </form>
         )}

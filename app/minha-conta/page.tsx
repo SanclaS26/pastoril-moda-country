@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatCpf, formatPhone } from '@/lib/cliente-utils';
 import { clienteSupabase } from '@/lib/supabase-cliente';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type Cliente = {
   id: number | string;
@@ -245,7 +246,14 @@ export default function MinhaContaPage() {
                   disabled={saving}
                   className="rounded-xl bg-[#C8722C] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {saving ? 'Salvando...' : 'Salvar alteracoes'}
+                  {saving ? (
+                    <>
+                      <LoadingSpinner className="text-white" />
+                      <span>Salvando...</span>
+                    </>
+                  ) : (
+                    'Salvar alteracoes'
+                  )}
                 </button>
               </div>
             </form>

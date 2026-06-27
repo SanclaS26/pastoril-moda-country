@@ -313,8 +313,10 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
                   type="button"
                   onClick={() => changeTheme('light')}
                   aria-pressed={theme === 'light'}
-                  className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition ${
-                    theme === 'light' ? 'bg-[color:var(--admin-surface-soft)] text-[color:var(--admin-text)]' : 'text-[color:var(--admin-muted)] hover:text-[color:var(--admin-text)]'
+                  className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--admin-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--admin-surface)] ${
+                    theme === 'light'
+                      ? 'bg-[color:var(--admin-accent)] text-white shadow-[0_8px_18px_rgba(200,114,44,0.16)]'
+                      : 'bg-transparent text-[color:var(--admin-muted)] hover:bg-[color:var(--admin-row-hover)] hover:text-[color:var(--admin-text)]'
                   }`}
                 >
                   <Icon name="sun" className="h-4 w-4" />
@@ -324,8 +326,10 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
                   type="button"
                   onClick={() => changeTheme('dark')}
                   aria-pressed={theme === 'dark'}
-                  className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition ${
-                    theme === 'dark' ? 'bg-[color:var(--admin-text)] text-white' : 'text-[color:var(--admin-muted)] hover:text-[color:var(--admin-text)]'
+                  className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--admin-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--admin-surface)] ${
+                    theme === 'dark'
+                      ? 'bg-[color:var(--admin-accent)] text-white shadow-[0_8px_18px_rgba(200,114,44,0.16)]'
+                      : 'bg-transparent text-[color:var(--admin-muted)] hover:bg-[color:var(--admin-row-hover)] hover:text-[color:var(--admin-text)]'
                   }`}
                 >
                   <Icon name="moon" className="h-4 w-4" />

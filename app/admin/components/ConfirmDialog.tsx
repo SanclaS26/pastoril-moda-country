@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type ConfirmDialogProps = {
   cancelLabel?: string;
@@ -50,7 +51,14 @@ export default function ConfirmDialog({
             disabled={loading}
             className={`rounded-xl px-4 py-2.5 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-60 ${confirmClass}`}
           >
-            {loading ? 'Processando...' : confirmLabel}
+            {loading ? (
+              <>
+                <LoadingSpinner className="text-current" />
+                <span>Processando...</span>
+              </>
+            ) : (
+              confirmLabel
+            )}
           </button>
         </div>
       </section>

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signInClienteWithPhone } from '@/lib/cliente-login';
 import { formatCpf, formatPhone, normalizeClientePhone } from '@/lib/cliente-utils';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 export default function ClienteCadastroPage() {
   const router = useRouter();
@@ -183,7 +184,14 @@ export default function ClienteCadastroPage() {
             disabled={isLoading}
             className="sm:col-span-2 rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isLoading ? 'Criando cadastro...' : 'Criar cadastro'}
+                    {isLoading ? (
+                      <>
+                        <LoadingSpinner className="text-white" />
+                        <span>Criando cadastro...</span>
+                      </>
+                    ) : (
+                      'Criar cadastro'
+                    )}
           </button>
         </form>
 

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 import {
   adminBannerDesktopListPreviewClass,
   adminBannerDesktopPreviewClass,
@@ -389,12 +390,15 @@ export default function AdminBannersPage() {
               </label>
             </div>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="mt-5 w-full rounded-lg bg-[color:var(--admin-accent)] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.2)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {saving ? 'Salvando...' : 'Salvar'}
+            <button type="submit" disabled={saving} className="admin-button admin-button-primary mt-5 w-full">
+              {saving ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                'Salvar'
+              )}
             </button>
           </form>
 
@@ -471,7 +475,12 @@ export default function AdminBannersPage() {
                           disabled={(banner.principal && banner.ativo) || Boolean(currentAction)}
                           className="admin-table-action-secondary rounded-lg px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {currentAction === 'toggle' ? 'Alterando...' : banner.ativo ? 'Inativar' : 'Ativar'}
+                          {currentAction === 'toggle' ? (
+                            <>
+                              <LoadingSpinner className="text-current" />
+                              <span>Alterando...</span>
+                            </>
+                          ) : banner.ativo ? 'Inativar' : 'Ativar'}
                         </button>
                         <button
                           type="button"
@@ -479,7 +488,14 @@ export default function AdminBannersPage() {
                           disabled={(banner.principal && banner.ativo) || Boolean(currentAction)}
                           className="rounded-lg bg-[color:var(--admin-text)] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {currentAction === 'principal' ? 'Definindo...' : 'Definir principal'}
+                          {currentAction === 'principal' ? (
+                            <>
+                              <LoadingSpinner className="text-white" />
+                              <span>Definindo...</span>
+                            </>
+                          ) : (
+                            'Definir principal'
+                          )}
                         </button>
                         <button
                           type="button"
@@ -487,7 +503,14 @@ export default function AdminBannersPage() {
                           disabled={Boolean(currentAction)}
                           className="rounded-lg border border-rose-200 px-4 py-2 text-sm font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {currentAction === 'delete' ? 'Excluindo...' : 'Excluir'}
+                          {currentAction === 'delete' ? (
+                            <>
+                              <LoadingSpinner className="text-current" />
+                              <span>Excluindo...</span>
+                            </>
+                          ) : (
+                            'Excluir'
+                          )}
                         </button>
                       </div>
                     </article>

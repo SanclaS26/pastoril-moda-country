@@ -4,6 +4,7 @@ import { FormEvent, type ReactNode, useEffect, useState } from 'react';
 import AdminShell from '@/app/admin/components/AdminShell';
 import { supabase } from '@/lib/supabase';
 import { useProtectedRoute } from '@/lib/useAuth';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type EnvironmentValue = 'Producao' | 'Homologacao' | 'Sandbox';
 type AuthType = 'API Key' | 'Bearer Token' | 'OAuth 2.0' | 'Usuario e senha' | 'Ainda nao definido';
@@ -272,17 +273,20 @@ export default function AdminErpIntegrationPage() {
 
         <Section title="Ações">
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <button
-              type="submit"
-              disabled={loading || saving}
-              className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? 'Salvando...' : 'Salvar configuração'}
+            <button type="submit" disabled={loading || saving} className="admin-button admin-button-primary">
+              {saving ? (
+                <>
+                  <LoadingSpinner className="text-white" />
+                  <span>Salvando...</span>
+                </>
+              ) : (
+                'Salvar configuração'
+              )}
             </button>
-            <button type="button" disabled title="Disponível após a implementação da API" className="admin-table-action-secondary rounded-lg px-6 py-3 text-sm opacity-60">
+            <button type="button" disabled title="Disponível após a implementação da API" className="admin-button admin-button-secondary opacity-60">
               Testar conexão
             </button>
-            <button type="button" disabled title="Disponível após a implementação da API" className="admin-table-action-secondary rounded-lg px-6 py-3 text-sm opacity-60">
+            <button type="button" disabled title="Disponível após a implementação da API" className="admin-button admin-button-secondary opacity-60">
               Sincronizar agora
             </button>
           </div>

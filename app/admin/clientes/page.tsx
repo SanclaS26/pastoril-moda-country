@@ -5,6 +5,7 @@ import AdminShell from '@/app/admin/components/AdminShell';
 import { formatCpf, formatPhone } from '@/lib/cliente-utils';
 import { supabase } from '@/lib/supabase';
 import { useProtectedRoute } from '@/lib/useAuth';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 type Cliente = {
   id: number | string;
@@ -171,7 +172,7 @@ export default function AdminClientesPage() {
       active="clientes"
     >
       <div className="space-y-5">
-        <div className="admin-panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="admin-filter-bar flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-bold text-[color:var(--admin-text)]">Clientes cadastrados</p>
             <p className="mt-1 text-2xl font-black text-[color:var(--admin-text)]">{loading ? '...' : totalClientes}</p>
@@ -410,11 +411,7 @@ export default function AdminClientesPage() {
                   {temporaryPassword}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={copyTemporaryPassword}
-                    className="rounded-xl bg-[color:var(--admin-accent)] px-4 py-3 text-sm font-bold text-white transition hover:opacity-90"
-                  >
+                  <button type="button" onClick={copyTemporaryPassword} className="admin-button admin-button-primary w-full sm:w-auto">
                     Copiar senha
                   </button>
                   <button
@@ -439,13 +436,15 @@ export default function AdminClientesPage() {
                 >
                   Cancelar
                 </button>
-                <button
-                  type="button"
-                  onClick={handleResetPassword}
-                  disabled={resetting}
-                  className="rounded-xl bg-[color:var(--admin-accent)] px-4 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {resetting ? 'Gerando...' : 'Gerar senha temporaria'}
+                <button type="button" onClick={handleResetPassword} disabled={resetting} className="admin-button admin-button-primary">
+                  {resetting ? (
+                    <>
+                      <LoadingSpinner className="text-white" />
+                      <span>Gerando...</span>
+                    </>
+                  ) : (
+                    'Gerar senha temporaria'
+                  )}
                 </button>
               </div>
             )}
@@ -491,13 +490,15 @@ export default function AdminClientesPage() {
               >
                 Cancelar
               </button>
-              <button
-                type="button"
-                onClick={handleDeleteCliente}
-                disabled={deleting}
-                  className="rounded-xl bg-rose-700 px-4 py-3 text-sm font-bold text-white transition hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-700/90"
-              >
-                {deleting ? 'Excluindo...' : 'Excluir cliente'}
+              <button type="button" onClick={handleDeleteCliente} disabled={deleting} className="admin-button admin-button-danger">
+                {deleting ? (
+                  <>
+                    <LoadingSpinner className="text-current" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : (
+                  'Excluir cliente'
+                )}
               </button>
             </div>
           </section>

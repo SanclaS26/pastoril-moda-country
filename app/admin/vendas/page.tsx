@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import AdminShell from '@/app/admin/components/AdminShell';
 import AdminCurrencyInput from '@/app/admin/components/AdminCurrencyInput';
 import ConfirmDialog from '@/app/admin/components/ConfirmDialog';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 import { formatAdminCurrency, parseAdminCurrency } from '@/lib/admin-currency';
 import { formatCpf, formatPhone } from '@/lib/cliente-utils';
 import { formatCurrency } from '@/lib/catalog';
@@ -476,7 +477,7 @@ export default function AdminVendasPage() {
           )}
         </div>
 
-        <section className={`admin-panel grid gap-3 p-4 ${isOpenCarts ? 'md:grid-cols-4' : 'md:grid-cols-6'}`}>
+        <section className={`admin-filter-bar grid gap-3 p-4 ${isOpenCarts ? 'md:grid-cols-4' : 'md:grid-cols-6'}`}>
           <input value={search} onChange={(event) => setSearch(event.target.value)} className="admin-input rounded-xl px-4 py-3 text-sm outline-none" placeholder="Codigo, nome, CPF ou celular" />
           <select value={deletedFilter} onChange={(event) => setDeletedFilter(event.target.value as DeletedFilter)} className="admin-input rounded-xl px-4 py-3 text-sm outline-none">
             <option value="ativas">Ativas</option>
@@ -490,7 +491,7 @@ export default function AdminVendasPage() {
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
         {!isOpenCarts && (
-          <div className="admin-panel grid grid-cols-3 gap-2 p-2">
+          <div className="admin-tab-group grid grid-cols-3 gap-2 p-2">
             {[
               { label: 'Abertas', value: 'em_aberto' as const },
               { label: 'Concluidas', value: 'concluida' as const },
@@ -501,7 +502,7 @@ export default function AdminVendasPage() {
                 type="button"
                 onClick={() => setStatus(option.value)}
                 aria-pressed={status === option.value}
-                className={`rounded-xl px-3 py-2.5 text-sm font-bold transition ${status === option.value ? 'bg-[color:var(--admin-text)] text-white shadow-sm' : 'text-[color:var(--admin-text)] hover:bg-[color:var(--admin-surface-soft)]'}`}
+                className="admin-tab"
               >
                 {option.label}
               </button>
@@ -654,7 +655,14 @@ export default function AdminVendasPage() {
                 <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
                   <input value={productCode} onChange={(event) => setProductCode(event.target.value)} className="admin-input rounded-lg px-3 py-2 text-sm outline-none" placeholder="Codigo do produto" />
                   <button type="button" disabled={productSearchLoading} onClick={() => void searchProductByCode()} className="admin-table-action-secondary rounded-lg px-4 py-2 text-sm disabled:opacity-60">
-                    {productSearchLoading ? 'Buscando...' : 'Buscar'}
+                    {productSearchLoading ? (
+                      <>
+                        <LoadingSpinner className="text-current" />
+                        <span>Buscando...</span>
+                      </>
+                    ) : (
+                      'Buscar'
+                    )}
                   </button>
                 </div>
                 {productSearch && (
@@ -720,7 +728,7 @@ export default function AdminVendasPage() {
               <button disabled={saving} onClick={() => updateVenda()} className="admin-table-action-secondary rounded-lg px-4 py-3 text-sm disabled:opacity-50">Salvar ajustes</button>
               <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'em_aberto')} className="admin-table-action-secondary rounded-lg px-4 py-3 text-sm disabled:opacity-50">Reabrir</button>
               <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'cancelada')} className="admin-table-action-danger rounded-lg px-4 py-3 text-sm disabled:opacity-50">Cancelar</button>
-              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'concluida')} className="rounded-lg bg-[color:var(--admin-accent)] px-4 py-3 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50">Concluir venda</button>
+              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'concluida')} className="admin-button admin-button-primary">Concluir venda</button>
             </div>
           </section>
         </div>

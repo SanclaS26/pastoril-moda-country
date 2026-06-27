@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useProtectedRoute } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 import AdminShell, { type AdminNavKey } from './components/AdminShell';
 import AdminDashboard from './components/AdminDashboard';
 
@@ -154,7 +155,7 @@ export default function AdminPage() {
                 setNewUserPassword('');
                 setNewUserConfirm('');
               }}
-              className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-2.5 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)] transition hover:opacity-90"
+              className="admin-button admin-button-primary"
             >
               Novo usuario
             </button>
@@ -289,7 +290,14 @@ export default function AdminPage() {
                     disabled={isSavingUser}
                     className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {isSavingUser ? 'Salvando...' : 'Salvar usuario'}
+                    {isSavingUser ? (
+                      <>
+                        <LoadingSpinner className="text-white" />
+                        <span>Salvando...</span>
+                      </>
+                    ) : (
+                      'Salvar usuario'
+                    )}
                   </button>
                 </div>
               </div>

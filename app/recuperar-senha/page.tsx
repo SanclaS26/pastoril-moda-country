@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { normalizeRequiredEmail } from '@/lib/cliente-utils';
 import { clienteSupabase } from '@/lib/supabase-cliente';
+import LoadingSpinner from '@/app/components/ui/LoadingSpinner';
 
 const neutralMessage = 'Se o e-mail estiver cadastrado, enviaremos as instruções de recuperação.';
 
@@ -76,7 +77,14 @@ export default function RecuperarSenhaPage() {
           )}
 
           <button type="submit" disabled={loading} className="w-full rounded-xl bg-[#C8722C] px-6 py-3.5 text-base font-bold text-white shadow-[0_12px_24px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50">
-            {loading ? 'Enviando...' : 'Enviar instruções'}
+            {loading ? (
+              <>
+                <LoadingSpinner className="text-white" />
+                <span>Enviando...</span>
+              </>
+            ) : (
+              'Enviar instruções'
+            )}
           </button>
         </form>
 

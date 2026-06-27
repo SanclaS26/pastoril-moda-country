@@ -1,440 +1,136 @@
 import { NextResponse } from 'next/server';
 import { validarEstoqueParaGrade } from '@/config/grades-tamanho';
 import { requireActiveAdmin } from '@/lib/admin-auth';
-import { getSupabaseAdmin, type EstoqueProdutoInsert, type EstoqueProdutoRow, type ProdutoInsert, type ProdutoRow } from '@/lib/supabase-admin';
+import type { EstoqueProdutoInsert, ProdutoInsert } from '@/lib/supabase-admin';
 
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Map([
-  ['image/jpeg', 'jpg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-]);
+const TYPES = new Map([['image/jpeg', 'jpg'], ['image/png', 'png'], ['image/webp', 'webp']]);
+const PUBLICOS = new Set(['Masculino', 'Feminino', 'Infantil', 'Unissex']);
 
-type StockInput = {
-  id?: number;
-  tamanho: string;
-  quantidade: number;
-};
-
-type ProductWithStock = ProdutoRow & {
-  estoque: EstoqueProdutoRow[];
-};
-
-function parseBoolean(value: FormDataEntryValue | null, fallback = false) {
-  if (value === null) return fallback;
-  return value === 'true' || value === '1' || value === 'on';
+function text(data: FormData, key: string, required = false) {
+  const value = String(data.get(key) ?? '').trim();
+  if (required && !value) throw new Error(`${key === 'nome' ? 'Nome' : key} é obrigatório.`);
+  return value;
 }
-
-function parseOptionalString(value: FormDataEntryValue | null) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+function id(data: FormData, key: string) {
+  const value = Number(data.get(key));
+  if (!Number.isInteger(value) || value <= 0) throw new Error(`${key === 'categoria_id' ? 'Categoria' : 'Marca'} é obrigatória.`);
+  return value;
 }
-
-function parseRequiredString(value: FormDataEntryValue | null, field: string) {
-  if (typeof value !== 'string' || !value.trim()) {
-    throw new Error(`${field} é obrigatório.`);
-  }
-
-  return value.trim();
+function bool(data: FormData, key: string, fallback = false) {
+  const value = data.get(key); return value === null ? fallback : value === 'true';
 }
-
-function parseRequiredId(value: FormDataEntryValue | null, field: string) {
-  const id = Number(value);
-
-  if (!Number.isInteger(id) || id <= 0) {
-    throw new Error(`${field} é obrigatório.`);
-  }
-
-  return id;
+function price(data: FormData, key: string, required: boolean) {
+  const raw = text(data, key);
+  if (!raw && !required) return null;
+  const value = Number(raw.replace(',', '.'));
+  if (!Number.isFinite(value) || value < 0) throw new Error('Preço inválido.');
+  return value;
 }
-
-function parsePrice(value: FormDataEntryValue | null, field: string, required: boolean) {
-  if (typeof value !== 'string' || !value.trim()) {
-    if (required) {
-      throw new Error(`${field} é obrigatório.`);
-    }
-
-    return null;
-  }
-
-  const price = Number(value.replace(',', '.'));
-
-  if (!Number.isFinite(price) || price < 0) {
-    throw new Error(`${field} deve ser maior ou igual a zero.`);
-  }
-
-  return price;
+function stock(data: FormData) {
+  let parsed: { tamanho: string; quantidade: number }[] = [];
+  try { parsed = JSON.parse(text(data, 'estoques')); } catch { throw new Error('Estoque inválido.'); }
+  if (!Array.isArray(parsed)) throw new Error('Estoque inválido.');
+  return parsed;
 }
-
-function validatePromotion(emPromocao: boolean, preco: number, precoPromocional: number | null) {
-  if (!emPromocao) {
-    return null;
-  }
-
-  if (precoPromocional === null) {
-    throw new Error('Preço promocional é obrigatório para produto em promoção.');
-  }
-
-  if (precoPromocional >= preco) {
-    throw new Error('Preço promocional deve ser menor que o preço normal.');
-  }
-
-  return precoPromocional;
-}
-
-function parseStock(value: FormDataEntryValue | null) {
-  if (typeof value !== 'string' || !value.trim()) {
-    return [];
-  }
-
-  let stock: StockInput[];
-
-  try {
-    stock = JSON.parse(value);
-  } catch {
-    throw new Error('Estoque inválido.');
-  }
-
-  if (!Array.isArray(stock)) {
-    throw new Error('Estoque inválido.');
-  }
-
-  const sizes = new Set<string>();
-
-  return stock.map((item) => {
-    const tamanho = String(item?.tamanho ?? '').trim();
-    const quantidade = Number(item?.quantidade ?? 0);
-    const sizeKey = tamanho.toLowerCase();
-
-    if (!tamanho) {
-      throw new Error('Informe o tamanho em todas as linhas de estoque.');
-    }
-
-    if (sizes.has(sizeKey)) {
-      throw new Error('Não repita o mesmo tamanho no estoque do produto.');
-    }
-
-    if (!Number.isInteger(quantidade) || quantidade <= 0) {
-      throw new Error('A quantidade em estoque deve ser maior que zero.');
-    }
-
-    sizes.add(sizeKey);
-    return {
-      id: Number.isInteger(Number(item?.id)) ? Number(item.id) : undefined,
-      tamanho,
-      quantidade,
-    };
+function files(data: FormData) {
+  const result = data.getAll('imagens').filter((file): file is File => file instanceof File && file.size > 0);
+  if (!result.length) throw new Error('Adicione pelo menos uma foto.');
+  if (result.length > 10) throw new Error('A galeria aceita até 10 fotos.');
+  return result.map((file) => {
+    const extension = TYPES.get(file.type);
+    if (!extension) throw new Error('As fotos devem ser JPG, PNG ou WebP.');
+    if (file.size > 5 * 1024 * 1024) throw new Error('Cada foto deve ter no máximo 5 MB.');
+    return { file, extension };
   });
 }
 
-function validateImage(file: File | null, required: boolean) {
-  if (!file || file.size === 0) {
-    if (required) {
-      throw new Error('A foto do produto é obrigatória.');
-    }
-
-    return null;
-  }
-
-  const extension = ALLOWED_IMAGE_TYPES.get(file.type);
-
-  if (!extension) {
-    throw new Error('A imagem deve ser JPG, PNG ou WebP.');
-  }
-
-  if (file.size > MAX_IMAGE_SIZE) {
-    throw new Error('A imagem deve ter no máximo 5 MB.');
-  }
-
-  return extension;
-}
-
-function sanitizeFileName(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-    .slice(0, 80);
-}
-
-function formatProduct(product: ProdutoRow, stock: EstoqueProdutoRow[]): ProductWithStock {
-  return {
-    ...product,
-    estoque: stock,
-  };
-}
-
-async function validateDepartmentAndCategory(
-  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
-  departamentoId: number,
-  categoriaId: number,
-) {
-  const { data: departamento, error: departamentoError } = await supabaseAdmin
-    .from('departamentos')
-    .select('id, nome, ativo')
-    .eq('id', departamentoId)
-    .eq('ativo', true)
-    .maybeSingle();
-
-  if (departamentoError) {
-    throw new Error(`Erro ao validar departamento: ${departamentoError.message}`);
-  }
-
-  if (!departamento) {
-    throw new Error('Departamento inválido ou inativo.');
-  }
-
-  const { data: categoria, error: categoriaError } = await supabaseAdmin
-    .from('categorias')
-    .select('id, departamento_id, nome, ativo')
-    .eq('id', categoriaId)
-    .eq('ativo', true)
-    .maybeSingle();
-
-  if (categoriaError) {
-    throw new Error(`Erro ao validar categoria: ${categoriaError.message}`);
-  }
-
-  if (!categoria) {
-    throw new Error('Categoria inválida ou inativa.');
-  }
-
-  if (categoria.departamento_id !== departamento.id) {
-    throw new Error('A categoria selecionada não pertence ao departamento informado.');
-  }
-
-  return { departamento, categoria };
-}
-
-async function listProducts(
-  supabaseAdmin: ReturnType<typeof getSupabaseAdmin>,
-  options: { code?: string; page?: number; pageSize?: number; promotion?: string; search?: string } = {},
-) {
-  const pageSize = Math.min(Math.max(options.pageSize ?? 10, 1), 50);
-  const page = Math.max(options.page ?? 1, 1);
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
-  const search = options.search?.trim();
-  const code = options.code?.trim();
-
-  let query = supabaseAdmin
-    .from('produtos')
-    .select('*', { count: 'exact' });
-
-  if (code) {
-    query = query.eq('codigo_produto', code).eq('ativo', true);
-  } else if (search) {
-    const escaped = search.replace(/[%_]/g, (match) => `\\${match}`);
-    query = query.or(`codigo_produto.ilike.%${escaped}%,nome.ilike.%${escaped}%,departamento.ilike.%${escaped}%,categoria.ilike.%${escaped}%,marca.ilike.%${escaped}%`);
-  }
-
-  if (options.promotion === 'promocao') {
-    query = query.eq('em_promocao', true);
-  }
-
-  const { count, data: products, error: productsError } = await query
-    .order('id', { ascending: false })
-    .range(from, to);
-
-  if (productsError) {
-    throw new Error(`Erro ao listar produtos: ${productsError.message}`);
-  }
-
-  if (!products?.length) {
-    return { page, pageSize, products: [], total: count ?? 0 };
-  }
-
-  const productIds = products.map((product) => product.id);
-  const { data: stock, error: stockError } = await supabaseAdmin
-    .from('estoque_produtos')
-    .select('*')
-    .in('produto_id', productIds)
-    .order('id', { ascending: true });
-
-  if (stockError) {
-    throw new Error(`Erro ao listar estoque dos produtos: ${stockError.message}`);
-  }
-
-  return {
-    page,
-    pageSize,
-    products: products.map((product) =>
-      formatProduct(product, (stock ?? []).filter((item) => item.produto_id === product.id))
-    ),
-    total: count ?? products.length,
-  };
-}
-
 export async function GET(request: Request) {
-  const authorization = await requireActiveAdmin(request);
-
-  if (authorization.response) {
-    return authorization.response;
+  const auth = await requireActiveAdmin(request);
+  if (auth.response) return auth.response;
+  const params = new URL(request.url).searchParams;
+  const page = Math.max(1, Number(params.get('page')) || 1);
+  const pageSize = Math.min(50, Math.max(1, Number(params.get('pageSize')) || 10));
+  let query = auth.supabaseAdmin.from('produtos').select('*', { count: 'exact' });
+  const search = params.get('search')?.trim();
+  if (search) {
+    const escaped = search.replace(/[%_]/g, (match) => `\\${match}`);
+    query = query.or(`codigo_produto.ilike.%${escaped}%,nome.ilike.%${escaped}%,categoria.ilike.%${escaped}%,marca.ilike.%${escaped}%`);
   }
-
-  try {
-    const params = new URL(request.url).searchParams;
-    const page = Number(params.get('page') ?? 1);
-    const pageSize = Number(params.get('pageSize') ?? 10);
-    const products = await listProducts(authorization.supabaseAdmin, {
-      code: params.get('code') ?? undefined,
-      page: Number.isInteger(page) ? page : 1,
-      pageSize: Number.isInteger(pageSize) ? pageSize : 10,
-      promotion: params.get('promotion') ?? undefined,
-      search: params.get('search') ?? undefined,
-    });
-    return NextResponse.json(products);
-  } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro ao listar produtos.' }, { status: 500 });
-  }
+  if (params.get('promotion') === 'promocao') query = query.eq('em_promocao', true);
+  const { data: products, count, error } = await query.order('id', { ascending: false }).range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const productIds = (products ?? []).map((p) => p.id);
+  const [{ data: stocks }, { data: images }] = productIds.length ? await Promise.all([
+    auth.supabaseAdmin.from('estoque_produtos').select('*').in('produto_id', productIds).order('id'),
+    auth.supabaseAdmin.from('produto_imagens').select('*').in('produto_id', productIds).order('ordem'),
+  ]) : [{ data: [] }, { data: [] }];
+  return NextResponse.json({
+    products: (products ?? []).map((product) => ({
+      ...product,
+      estoque: (stocks ?? []).filter((item) => item.produto_id === product.id),
+      imagens: (images ?? []).filter((item) => item.produto_id === product.id),
+    })),
+    total: count ?? 0, page, pageSize,
+  });
 }
 
 export async function POST(request: Request) {
-  const authorization = await requireActiveAdmin(request);
-
-  if (authorization.response) {
-    return authorization.response;
-  }
-
-  const { supabaseAdmin } = authorization;
-  let uploadedPath: string | null = null;
-  let createdProductId: number | null = null;
-
+  const auth = await requireActiveAdmin(request);
+  if (auth.response) return auth.response;
+  const uploaded: string[] = [];
+  let productId: number | null = null;
   try {
-    const formData = await request.formData();
-    const codigoProduto = parseRequiredString(formData.get('codigo_produto'), 'Código da peça');
-    const nome = parseRequiredString(formData.get('nome'), 'Nome');
-    const departamentoId = parseRequiredId(formData.get('departamento_id'), 'Departamento');
-    const categoriaId = parseRequiredId(formData.get('categoria_id'), 'Categoria');
-    const { departamento, categoria } = await validateDepartmentAndCategory(supabaseAdmin, departamentoId, categoriaId);
-    const preco = parsePrice(formData.get('preco'), 'Preço', true);
-    const precoPromocional = parsePrice(formData.get('preco_promocional'), 'Preço promocional', false);
-    const emPromocao = parseBoolean(formData.get('em_promocao'), false);
-    const validatedPromotionalPrice = validatePromotion(emPromocao, preco ?? 0, precoPromocional);
-    const publico = parseOptionalString(formData.get('publico'));
-    const stock = validarEstoqueParaGrade(parseStock(formData.get('estoques') ?? formData.get('estoque')), departamento.nome, publico);
-    const imageFile = formData.get('imagem');
-    const image = imageFile instanceof File ? imageFile : null;
-    const extension = validateImage(image, true);
-
-    if (!stock.length) {
-      throw new Error('Adicione pelo menos um tamanho ao produto.');
+    const data = await request.formData();
+    const nome = text(data, 'nome', true);
+    const categoriaId = id(data, 'categoria_id');
+    const publico = text(data, 'publico', true);
+    if (!PUBLICOS.has(publico)) throw new Error('Público inválido.');
+    const preco = price(data, 'preco', true) as number;
+    const emPromocao = bool(data, 'em_promocao');
+    const precoPromocional = price(data, 'preco_promocional', false);
+    if (emPromocao && (precoPromocional === null || precoPromocional >= preco)) throw new Error('O preço promocional deve ser menor que o preço normal.');
+    const gallery = files(data);
+    const { data: category } = await auth.supabaseAdmin.from('categorias').select('id,nome').eq('id', categoriaId).eq('ativo', true).maybeSingle();
+    if (!category) throw new Error('Categoria inválida ou inativa.');
+    let marcaId = Number(data.get('marca_id')) || null;
+    if (!marcaId) {
+      const { data: fallback } = await auth.supabaseAdmin.from('marcas').select('id').ilike('nome', 'Indefinida').single();
+      marcaId = fallback?.id ?? null;
     }
-
-    const { data: existingProduct, error: existingError } = await supabaseAdmin
-      .from('produtos')
-      .select('id')
-      .eq('codigo_produto', codigoProduto)
-      .maybeSingle();
-
-    if (existingError) {
-      return NextResponse.json({ error: `Erro ao verificar código do produto: ${existingError.message}` }, { status: 500 });
-    }
-
-    if (existingProduct) {
-      return NextResponse.json({ error: 'Já existe um produto com este código da peça.' }, { status: 409 });
-    }
-
-    const productPayload: ProdutoInsert = {
-      codigo_produto: codigoProduto,
-      nome,
-      departamento_id: departamento.id,
-      categoria_id: categoria.id,
-      departamento: departamento.nome,
-      categoria: categoria.nome,
-      publico,
-      marca: parseOptionalString(formData.get('marca')),
-      preco: preco ?? 0,
-      preco_promocional: validatedPromotionalPrice,
-      em_promocao: emPromocao,
-      descricao: parseOptionalString(formData.get('descricao')),
-      imagem_principal: null,
-      ativo: parseBoolean(formData.get('ativo'), true),
-      destaque: parseBoolean(formData.get('destaque'), false),
+    const { data: brand } = marcaId ? await auth.supabaseAdmin.from('marcas').select('id,nome').eq('id', marcaId).eq('ativo', true).maybeSingle() : { data: null };
+    if (!brand) throw new Error('Marca inválida e a marca padrão não foi encontrada.');
+    const normalizedStock = validarEstoqueParaGrade(stock(data), category.nome, publico);
+    if (!normalizedStock.length) throw new Error('Adicione ao menos um tamanho e estoque.');
+    const codigo = `P${Date.now().toString(36).toUpperCase()}${crypto.randomUUID().slice(0, 4).toUpperCase()}`;
+    const payload: ProdutoInsert = {
+      codigo_produto: codigo, nome, publico, categoria_id: category.id, categoria: category.nome,
+      departamento_id: null, departamento: category.nome, marca_id: brand.id, marca: brand.nome,
+      preco, em_promocao: emPromocao, preco_promocional: emPromocao ? precoPromocional : null,
+      ativo: bool(data, 'ativo', true), destaque: false, descricao: text(data, 'descricao') || null, imagem_principal: null,
     };
-
-    const { data: createdProduct, error: insertProductError } = await supabaseAdmin
-      .from('produtos')
-      .insert([productPayload])
-      .select('*')
-      .single();
-
-    if (insertProductError || !createdProduct) {
-      return NextResponse.json(
-        { error: `Erro ao cadastrar produto: ${insertProductError?.message ?? 'produto não retornado.'}` },
-        { status: 500 }
-      );
+    const { data: product, error: productError } = await auth.supabaseAdmin.from('produtos').insert(payload).select().single();
+    if (productError || !product) throw new Error(productError?.message ?? 'Erro ao criar produto.');
+    productId = product.id;
+    const rows = [];
+    for (let index = 0; index < gallery.length; index++) {
+      const { file, extension } = gallery[index];
+      const path = `${product.id}/${crypto.randomUUID()}.${extension}`;
+      const { error } = await auth.supabaseAdmin.storage.from('produtos').upload(path, file, { contentType: file.type });
+      if (error) throw new Error(`Erro ao enviar foto: ${error.message}`);
+      uploaded.push(path);
+      const { data: publicData } = auth.supabaseAdmin.storage.from('produtos').getPublicUrl(path);
+      rows.push({ produto_id: product.id, tipo_midia: 'imagem' as const, url: publicData.publicUrl, storage_path: path, ordem: index, principal: index === 0 });
     }
-
-    createdProductId = createdProduct.id;
-    const fileName = `${sanitizeFileName(nome || codigoProduto)}-${crypto.randomUUID()}.${extension}`;
-    uploadedPath = `${createdProduct.id}/${fileName}`;
-
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from('produtos')
-      .upload(uploadedPath, image as File, {
-        contentType: image?.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      await supabaseAdmin.from('produtos').delete().eq('id', createdProduct.id);
-      return NextResponse.json({ error: `Erro ao enviar foto do produto: ${uploadError.message}` }, { status: 500 });
-    }
-
-    const { data: publicUrlData } = supabaseAdmin.storage.from('produtos').getPublicUrl(uploadedPath);
-    const { data: updatedProduct, error: updateImageError } = await supabaseAdmin
-      .from('produtos')
-      .update({ imagem_principal: publicUrlData.publicUrl })
-      .eq('id', createdProduct.id)
-      .select('*')
-      .single();
-
-    if (updateImageError || !updatedProduct) {
-      await supabaseAdmin.storage.from('produtos').remove([uploadedPath]);
-      await supabaseAdmin.from('produtos').delete().eq('id', createdProduct.id);
-      return NextResponse.json(
-        { error: `Erro ao salvar URL da foto: ${updateImageError?.message ?? 'produto não retornado.'}` },
-        { status: 500 }
-      );
-    }
-
-    const stockPayload: EstoqueProdutoInsert[] = stock.map((item) => ({
-      produto_id: createdProduct.id,
-      tamanho: item.tamanho,
-      quantidade: item.quantidade,
-    }));
-
-    const { error: insertStockError } = await supabaseAdmin.from('estoque_produtos').insert(stockPayload);
-
-    if (insertStockError) {
-      await supabaseAdmin.storage.from('produtos').remove([uploadedPath]);
-      await supabaseAdmin.from('estoque_produtos').delete().eq('produto_id', createdProduct.id);
-      await supabaseAdmin.from('produtos').delete().eq('id', createdProduct.id);
-      return NextResponse.json(
-        { error: `Erro ao cadastrar estoque do produto: ${insertStockError.message}` },
-        { status: 500 }
-      );
-    }
-
-    const { data: savedStock } = await supabaseAdmin
-      .from('estoque_produtos')
-      .select('*')
-      .eq('produto_id', createdProduct.id)
-      .order('id', { ascending: true });
-
-    return NextResponse.json({ product: formatProduct(updatedProduct, savedStock ?? []) }, { status: 201 });
+    const { error: imageError } = await auth.supabaseAdmin.from('produto_imagens').insert(rows);
+    if (imageError) throw new Error(imageError.message);
+    const stockRows: EstoqueProdutoInsert[] = normalizedStock.map((item) => ({ produto_id: product.id, tamanho: item.tamanho, quantidade: item.quantidade }));
+    const { error: stockError } = await auth.supabaseAdmin.from('estoque_produtos').insert(stockRows);
+    if (stockError) throw new Error(stockError.message);
+    await auth.supabaseAdmin.from('produtos').update({ imagem_principal: rows[0].url }).eq('id', product.id);
+    return NextResponse.json({ product: { ...product, imagem_principal: rows[0].url, imagens: rows, estoque: stockRows } }, { status: 201 });
   } catch (error) {
-    if (uploadedPath) {
-      await supabaseAdmin.storage.from('produtos').remove([uploadedPath]);
-    }
-
-    if (createdProductId) {
-      await supabaseAdmin.from('estoque_produtos').delete().eq('produto_id', createdProductId);
-      await supabaseAdmin.from('produtos').delete().eq('id', createdProductId);
-    }
-
-    return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro inesperado ao cadastrar produto.' }, { status: 500 });
+    if (uploaded.length) await auth.supabaseAdmin.storage.from('produtos').remove(uploaded);
+    if (productId) await auth.supabaseAdmin.from('produtos').delete().eq('id', productId);
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro ao cadastrar produto.' }, { status: 400 });
   }
 }

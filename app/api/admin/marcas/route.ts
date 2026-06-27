@@ -5,11 +5,11 @@ export async function GET(request: Request) {
   const auth = await requireActiveAdmin(request);
   if (auth.response) return auth.response;
   const onlyActive = new URL(request.url).searchParams.get('ativo') === 'true';
-  let query = auth.supabaseAdmin.from('categorias').select('id, nome, ativo, ordem, created_at, updated_at');
+  let query = auth.supabaseAdmin.from('marcas').select('*');
   if (onlyActive) query = query.eq('ativo', true);
-  const { data, error } = await query.order('ordem', { ascending: true, nullsFirst: false }).order('nome');
-  if (error) return NextResponse.json({ error: `Erro ao listar categorias: ${error.message}` }, { status: 500 });
-  return NextResponse.json({ categorias: data ?? [] });
+  const { data, error } = await query.order('nome');
+  if (error) return NextResponse.json({ error: `Erro ao listar marcas: ${error.message}` }, { status: 500 });
+  return NextResponse.json({ marcas: data ?? [] });
 }
 
 export async function POST(request: Request) {
@@ -18,11 +18,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const nome = typeof body.nome === 'string' ? body.nome.trim() : '';
   if (!nome) return NextResponse.json({ error: 'Nome é obrigatório.' }, { status: 400 });
-  const { data, error } = await auth.supabaseAdmin
-    .from('categorias').insert({ nome, ativo: body.ativo !== false, ordem: null, departamento_id: null }).select().single();
-  if (error) {
-    const status = error.code === '23505' ? 409 : 500;
-    return NextResponse.json({ error: status === 409 ? 'Já existe uma categoria com este nome.' : error.message }, { status });
-  }
+  const { data, error } = await auth.supabaseAdmin.from('marcas').insert({ nome, ativo: body.ativo !== false }).select().single();
+  if (error) return NextResponse.json({ error: error.code === '23505' ? 'Já existe uma marca com este nome.' : error.message }, { status: error.code === '23505' ? 409 : 500 });
   return NextResponse.json({ item: data }, { status: 201 });
 }

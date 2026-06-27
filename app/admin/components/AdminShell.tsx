@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '@/lib/useAuth';
 import { supabase } from '@/lib/supabase';
 
-export type AdminNavKey = 'dashboard' | 'produtos' | 'usuarios' | 'clientes' | 'vendas' | 'carrinhos' | 'wishlists' | 'erp' | 'banners';
+export type AdminNavKey = 'dashboard' | 'produtos' | 'categorias' | 'marcas' | 'usuarios' | 'clientes' | 'vendas' | 'carrinhos' | 'wishlists' | 'erp' | 'banners';
 
 type AdminShellProps = {
   title: string;
@@ -21,6 +21,8 @@ type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' 
 const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName; subItem?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin', icon: 'home' },
   { key: 'produtos', label: 'Produtos', href: '/admin/produtos', icon: 'box' },
+  { key: 'categorias', label: 'Categorias', href: '/admin/cadastros/categorias', icon: 'box', subItem: true },
+  { key: 'marcas', label: 'Marcas', href: '/admin/cadastros/marcas', icon: 'box', subItem: true },
   { key: 'usuarios', label: 'Usuarios', href: '/admin/usuarios', icon: 'users' },
   { key: 'clientes', label: 'Clientes', href: '/admin/clientes', icon: 'users' },
   { key: 'vendas', label: 'Vendas', href: '/admin/vendas', icon: 'box' },
@@ -166,12 +168,14 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
 
   const renderNavigation = () => (
     <nav className="flex-1 space-y-1.5 px-4 py-5">
-      {navItems.map((item) => {
+      <p className="px-4 pb-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#8B7768]">Menu</p>
+      {navItems.map((item, index) => {
         const isActive = active === item.key;
 
         return (
+          <div key={item.key}>
+          {index === 2 && <p className="px-4 pb-1 pt-4 text-[11px] font-black uppercase tracking-[0.18em] text-[#8B7768]">Cadastros</p>}
           <Link
-            key={item.key}
             href={item.href}
             onClick={() => setSidebarOpen(false)}
             className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition ${item.subItem ? 'ml-5 py-2.5 text-xs' : ''} ${
@@ -183,6 +187,7 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
             <Icon name={item.icon} className="h-5 w-5 shrink-0" />
             {item.label}
           </Link>
+          </div>
         );
       })}
     </nav>

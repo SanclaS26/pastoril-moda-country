@@ -46,10 +46,21 @@ export async function GET(_request: Request, { params }: RouteContext) {
       return NextResponse.json({ error: `Erro ao buscar estoque: ${stockError.message}` }, { status: 500 });
     }
 
+    const { data: images, error: imagesError } = await supabaseAdmin
+      .from('produto_imagens')
+      .select('id, url, ordem, principal, tipo_midia')
+      .eq('produto_id', product.id)
+      .order('ordem', { ascending: true });
+
+    if (imagesError) {
+      return NextResponse.json({ error: `Erro ao buscar galeria: ${imagesError.message}` }, { status: 500 });
+    }
+
     return NextResponse.json({
       product: {
         ...product,
         estoque: stock ?? [],
+        imagens: images ?? [],
       },
     });
   } catch {

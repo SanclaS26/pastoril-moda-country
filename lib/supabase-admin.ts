@@ -70,6 +70,7 @@ export type ProdutoRow = {
   categoria: string;
   publico: string | null;
   marca: string | null;
+  marca_id: number | null;
   preco: number;
   preco_promocional: number | null;
   em_promocao: boolean;
@@ -88,6 +89,7 @@ export type ProdutoInsert = {
   categoria: string;
   publico?: string | null;
   marca?: string | null;
+  marca_id?: number | null;
   preco: number;
   preco_promocional?: number | null;
   em_promocao?: boolean;
@@ -152,12 +154,32 @@ export type DepartamentoRow = {
 
 export type CategoriaRow = {
   id: number;
-  departamento_id: number;
+  departamento_id: number | null;
   nome: string;
   ativo: boolean;
   ordem: number | null;
   created_at?: string;
   updated_at?: string;
+};
+
+export type MarcaRow = {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProdutoImagemRow = {
+  id: number;
+  produto_id: number;
+  tipo_midia: 'imagem' | 'video';
+  url: string;
+  storage_path: string | null;
+  ordem: number;
+  principal: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 export type SiteVisitRow = {
@@ -362,6 +384,18 @@ type Database = {
         Update: Partial<Omit<CategoriaRow, 'id' | 'created_at' | 'updated_at'>>;
         Relationships: [];
       };
+      marcas: {
+        Row: MarcaRow;
+        Insert: Pick<MarcaRow, 'nome' | 'ativo'>;
+        Update: Partial<Pick<MarcaRow, 'nome' | 'ativo'>>;
+        Relationships: [];
+      };
+      produto_imagens: {
+        Row: ProdutoImagemRow;
+        Insert: Pick<ProdutoImagemRow, 'produto_id' | 'tipo_midia' | 'url' | 'storage_path' | 'ordem' | 'principal'>;
+        Update: Partial<Pick<ProdutoImagemRow, 'tipo_midia' | 'url' | 'storage_path' | 'ordem' | 'principal'>>;
+        Relationships: [];
+      };
       site_visits: {
         Row: SiteVisitRow;
         Insert: SiteVisitInsert;
@@ -410,6 +444,17 @@ type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      sincronizar_produto_imagens: {
+        Args: {
+          p_produto_id: number;
+          p_imagens: {
+            tipo_midia: 'imagem' | 'video';
+            url: string;
+            storage_path: string | null;
+          }[];
+        };
+        Returns: undefined;
+      };
       excluir_carrinho_em_aberto: {
         Args: {
           p_codigo: string;

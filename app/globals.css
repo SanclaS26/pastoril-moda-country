@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+.input {
+  width: 100%;
+  border: 1px solid #d9cec2;
+  border-radius: 0.65rem;
+  background: #fff;
+  padding: 0.75rem 1rem;
+  color: #241c17;
+  outline: none;
+}
+
+.input:focus {
+  border-color: #c8722c;
+  box-shadow: 0 0 0 3px rgb(200 114 44 / 12%);
+}
+
 :root {
   --pastoril-header: #241006;
   --pastoril-brown: #3B1D0F;

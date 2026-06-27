@@ -396,6 +396,7 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedImage, setSelectedImage] = useState('');
+  const galleryTouchStartX = useRef<number | null>(null);
   const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [cartError, setCartError] = useState('');
@@ -437,7 +438,7 @@ export default function ProductDetailPage() {
 
         const loadedProduct = data.product as Product;
         setProduct(loadedProduct);
-        setSelectedImage(loadedProduct.imagem_principal ?? '');
+        setSelectedImage(loadedProduct.imagens?.[0]?.url ?? loadedProduct.imagem_principal ?? '');
         setSelectedSize(productUsesVisibleSize(loadedProduct) ? '' : TAMANHO_UNICO);
         setError('');
       } catch (fetchError) {
@@ -486,9 +487,20 @@ export default function ProductDetailPage() {
   const hasStock = product ? product.estoque.some((item) => item.quantidade > 0) : false;
   const currentPrice = product ? getProductPrice(product) : 0;
   const hasPromotion = Boolean(product?.em_promocao && product.preco_promocional !== null);
-  const productImages = product?.imagem_principal ? [product.imagem_principal] : [];
+  const productImages = product?.imagens?.length
+    ? product.imagens.filter((item) => item.tipo_midia === 'imagem').map((item) => item.url)
+    : product?.imagem_principal ? [product.imagem_principal] : [];
   const selectedImageIndex = Math.max(0, productImages.findIndex((image) => image === selectedImage));
   const isFavorite = product ? favoriteIds.has(product.id) : false;
+  const finishGallerySwipe = (clientX: number) => {
+    if (galleryTouchStartX.current === null || productImages.length < 2) return;
+    const distance = clientX - galleryTouchStartX.current;
+    galleryTouchStartX.current = null;
+    if (Math.abs(distance) < 45) return;
+    const direction = distance < 0 ? 1 : -1;
+    const nextIndex = (selectedImageIndex + direction + productImages.length) % productImages.length;
+    setSelectedImage(productImages[nextIndex]);
+  };
 
   const closeLightbox = useCallback(() => {
     setIsLightboxOpen(false);
@@ -661,7 +673,11 @@ export default function ProductDetailPage() {
           <section className="mx-auto max-w-7xl px-5 py-5 sm:px-8 sm:py-8">
             <div className="grid gap-6 lg:grid-cols-[minmax(0,1.04fr)_minmax(360px,0.96fr)] lg:items-start">
               <div>
-                <div className="relative aspect-square overflow-hidden rounded-3xl border border-[var(--pastoril-border)] bg-[var(--pastoril-soft)] shadow-[0_14px_30px_rgba(74,52,40,0.08)]">
+                <div
+                  className="relative aspect-square touch-pan-y overflow-hidden rounded-3xl border border-[var(--pastoril-border)] bg-[var(--pastoril-soft)] shadow-[0_14px_30px_rgba(74,52,40,0.08)]"
+                  onTouchStart={(event) => { galleryTouchStartX.current = event.touches[0]?.clientX ?? null; }}
+                  onTouchEnd={(event) => finishGallerySwipe(event.changedTouches[0]?.clientX ?? 0)}
+                >
                   <WishlistButton
                     className="absolute left-4 top-4 z-30 h-11 w-11"
                     isFavorite={isFavorite}
@@ -861,5 +877,3 @@ export default function ProductDetailPage() {
     </div>
   );
 }
-
-

@@ -24,6 +24,7 @@ export type Product = {
   ativo?: boolean;
   destaque?: boolean;
   estoque: StockItem[];
+  imagens?: { id: number; url: string; ordem: number; principal: boolean; tipo_midia: 'imagem' | 'video' }[];
 };
 
 export type CartItem = Product & {

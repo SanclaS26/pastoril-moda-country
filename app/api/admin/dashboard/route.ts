@@ -9,7 +9,6 @@ export const dynamic = 'force-dynamic';
 const TIME_ZONE = 'America/Rio_Branco';
 const PAGE_SIZE = 1000;
 const MAX_ROWS = 50000;
-type VisitRow = { created_at: string; user_id: string | null; visit_date: string | null; visitor_id: string | null };
 type DashboardVenda = Pick<VendaRow, 'concluded_at' | 'created_at' | 'first_admin_response_at' | 'id' | 'status' | 'tipo' | 'total_final' | 'total_original' | 'whatsapp_enviado_em'> & {
   itemCount: number;
 };
@@ -35,11 +34,6 @@ function rollingDateKeys(days: number, today: ReturnType<typeof getTodayParts>) 
   });
 }
 
-function monthDateKeys(today: ReturnType<typeof getTodayParts>) {
-  const daysInMonth = new Date(Date.UTC(today.year, today.month, 0)).getUTCDate();
-  return Array.from({ length: daysInMonth }, (_, index) => dateKey(today.year, today.month, index + 1));
-}
-
 function startIso(key: string) {
   return new Date(`${key}T05:00:00.000Z`).toISOString();
 }
@@ -50,22 +44,32 @@ function getValidTimestamp(value: string | null) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function visitDateKey(visit: VisitRow) {
-  if (visit.visit_date) return visit.visit_date;
-  const parts = new Intl.DateTimeFormat('en-US', { day: '2-digit', month: '2-digit', timeZone: TIME_ZONE, year: 'numeric' }).formatToParts(new Date(visit.created_at));
-  return dateKey(Number(parts.find((part) => part.type === 'year')?.value), Number(parts.find((part) => part.type === 'month')?.value), Number(parts.find((part) => part.type === 'day')?.value));
+async function countVisits(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  startDate: string,
+  endDate: string,
+  nowIso: string,
+) {
+  const { count, error } = await supabase
+    .from('site_visits')
+    .select('id', { count: 'exact', head: true })
+    .gte('visit_date', startDate)
+    .lte('visit_date', endDate)
+    .lte('created_at', nowIso);
+  if (error) throw new Error(`Erro ao contar visitas: ${error.message}`);
+  return count ?? 0;
 }
 
-async function loadVisits(supabase: ReturnType<typeof getSupabaseAdmin>, since: string) {
-  const rows: VisitRow[] = [];
-  for (let from = 0; from < MAX_ROWS; from += PAGE_SIZE) {
-    const { data, error } = await supabase.from('site_visits').select('user_id, visitor_id, visit_date, created_at').gte('created_at', since).range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`Erro ao carregar visitas: ${error.message}`);
-    if (!data?.length) break;
-    rows.push(...(data as VisitRow[]));
-    if (data.length < PAGE_SIZE) break;
-  }
-  return rows;
+async function loadVisitMetrics(supabase: ReturnType<typeof getSupabaseAdmin>, today: ReturnType<typeof getTodayParts>) {
+  const last30Keys = rollingDateKeys(30, today);
+  const todayKey = last30Keys.at(-1) as string;
+  const nowIso = new Date().toISOString();
+  const [todayVisits, last7Days, last30Days] = await Promise.all([
+    countVisits(supabase, todayKey, todayKey, nowIso),
+    countVisits(supabase, last30Keys.at(-7) as string, todayKey, nowIso),
+    countVisits(supabase, last30Keys[0], todayKey, nowIso),
+  ]);
+  return { today: todayVisits, last7Days, last30Days, dailyAverage: last30Days / 30, error: null as string | null };
 }
 
 async function loadVendas(supabase: ReturnType<typeof getSupabaseAdmin>) {
@@ -101,18 +105,17 @@ export async function GET(request: Request) {
 
   try {
     await cleanupExpiredOpenCarts(authorization.supabaseAdmin);
-    const period = new URL(request.url).searchParams.get('period');
     const today = getTodayParts();
-    const keys = period === '15' ? rollingDateKeys(15, today) : period === 'month' ? monthDateKeys(today) : rollingDateKeys(7, today);
-    const queryKeys = period === 'month' ? keys.slice(0, today.day) : keys;
-    const [visits, vendas] = await Promise.all([loadVisits(authorization.supabaseAdmin, startIso(queryKeys[0])), loadVendas(authorization.supabaseAdmin)]);
-    const identitiesByDay = new Map(keys.map((key) => [key, new Set<string>()]));
-
-    visits.forEach((visit) => {
-      const key = visitDateKey(visit);
-      const identity = visit.user_id ? `user:${visit.user_id}` : visit.visitor_id ? `visitor:${visit.visitor_id}` : null;
-      if (identity && identitiesByDay.has(key)) identitiesByDay.get(key)?.add(identity);
-    });
+    const [visits, vendas] = await Promise.all([
+      loadVisitMetrics(authorization.supabaseAdmin, today).catch((error) => ({
+        today: 0,
+        last7Days: 0,
+        last30Days: 0,
+        dailyAverage: 0,
+        error: error instanceof Error ? error.message : 'Erro ao carregar visitas.',
+      })),
+      loadVendas(authorization.supabaseAdmin),
+    ]);
 
     const openOrders = vendas.filter(isOpenOrder);
     const completedOrders = vendas.filter((venda) => venda.tipo === 'pedido_whatsapp' && isCompletedSale(venda));
@@ -144,7 +147,7 @@ export async function GET(request: Request) {
       carts: { count: openCarts.length, total: openCarts.reduce((sum, cart) => sum + getVendaValue(cart), 0) },
       finance: { month: sumSince(monthStart), last15Days: sumSince(last15Start), today: sumSince(todayKey) },
       orders: { averageFirstResponseMs, averageWaitMs, completed: completedOrders.length, open: openOrders.length, waitingOpen: unansweredOpenOrders.length },
-      visits: keys.map((key) => ({ date: key, visits: identitiesByDay.get(key)?.size ?? 0 })),
+      visits,
     });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Erro ao carregar dashboard.' }, { status: 500 });

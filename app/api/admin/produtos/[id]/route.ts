@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validarEstoquePorCategoria, type CategoriaTipoGrade } from '@/config/grades-tamanho';
 import { requireActiveAdmin } from '@/lib/admin-auth';
+import { parseAdminCurrency } from '@/lib/admin-currency';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 type Context = { params: Promise<{ id: string }> };
@@ -41,11 +42,11 @@ export async function PATCH(request: Request, { params }: Context) {
     const publico = value(data, 'publico');
     const categoriaId = Number(data.get('categoria_id'));
     if (!nome || !PUBLICOS.has(publico) || !Number.isInteger(categoriaId)) throw new Error('Nome, público e categoria são obrigatórios.');
-    const preco = Number(value(data, 'preco').replace(',', '.'));
+    const preco = parseAdminCurrency(value(data, 'preco'));
     const emPromocao = flag(data, 'em_promocao');
     const promoRaw = value(data, 'preco_promocional');
-    const promocional = promoRaw ? Number(promoRaw.replace(',', '.')) : null;
-    if (!Number.isFinite(preco) || preco < 0) throw new Error('Preço inválido.');
+    const promocional = promoRaw ? parseAdminCurrency(promoRaw) : null;
+    if (preco === null || preco < 0) throw new Error('Preço inválido.');
     if (emPromocao && (promocional === null || promocional >= preco)) throw new Error('O preço promocional deve ser menor que o preço normal.');
     const { data: category } = await auth.supabaseAdmin.from('categorias').select('id,nome,tipo_grade').eq('id', categoriaId).eq('ativo', true).maybeSingle();
     if (!category) throw new Error('Categoria inválida ou inativa.');

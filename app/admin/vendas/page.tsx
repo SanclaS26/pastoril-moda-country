@@ -3,7 +3,9 @@
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import AdminShell from '@/app/admin/components/AdminShell';
+import AdminCurrencyInput from '@/app/admin/components/AdminCurrencyInput';
 import ConfirmDialog from '@/app/admin/components/ConfirmDialog';
+import { formatAdminCurrency, parseAdminCurrency } from '@/lib/admin-currency';
 import { formatCpf, formatPhone } from '@/lib/cliente-utils';
 import { formatCurrency } from '@/lib/catalog';
 import { supabase } from '@/lib/supabase';
@@ -173,7 +175,7 @@ export default function AdminVendasPage() {
           item.id,
           {
             quantidade_final: String(item.quantidade_final),
-            valor_unitario_final: String(item.valor_unitario_final),
+            valor_unitario_final: formatAdminCurrency(item.valor_unitario_final),
           },
         ]),
       ),
@@ -217,7 +219,7 @@ export default function AdminVendasPage() {
             : selectedVenda.itens.map((item) => ({
                 id: item.id,
                 quantidade_final: getDraftQuantity(item.id),
-                valor_unitario_final: Number(itemDrafts[item.id]?.valor_unitario_final ?? item.valor_unitario_final),
+                valor_unitario_final: parseAdminCurrency(itemDrafts[item.id]?.valor_unitario_final) ?? item.valor_unitario_final,
               })),
           add_itens: selectedVenda.estoque_baixado
             ? []
@@ -636,7 +638,11 @@ export default function AdminVendasPage() {
                   </label>
                   <label className="text-xs font-bold text-[#4A2D1A]">
                     Valor unitario final
-                    <input type="number" min={0} step="0.01" value={itemDrafts[item.id]?.valor_unitario_final ?? ''} onChange={(event) => setItemDrafts((current) => ({ ...current, [item.id]: { ...current[item.id], valor_unitario_final: event.target.value } }))} className="mt-1 w-full rounded-lg border border-[#E7E0D8] px-3 py-2" />
+                    <AdminCurrencyInput
+                      value={itemDrafts[item.id]?.valor_unitario_final ?? ''}
+                      onValueChange={(value) => setItemDrafts((current) => ({ ...current, [item.id]: { ...current[item.id], valor_unitario_final: value } }))}
+                      className="mt-1 w-full rounded-lg border border-[#E7E0D8] px-3 py-2"
+                    />
                   </label>
                 </div>
               ))}
@@ -699,7 +705,7 @@ export default function AdminVendasPage() {
               <p className="mt-1 text-xl font-black text-[#4A2D1A]">
                 {formatCurrency(selectedVenda.itens.reduce((total, item) => {
                   const quantity = Number(itemDrafts[item.id]?.quantidade_final || 0);
-                  const unitPrice = Number(itemDrafts[item.id]?.valor_unitario_final || item.valor_unitario_final);
+                  const unitPrice = parseAdminCurrency(itemDrafts[item.id]?.valor_unitario_final) ?? item.valor_unitario_final;
                   return total + quantity * unitPrice;
                 }, addedItems.reduce((total, item) => total + Number(item.quantidade_final || 0) * item.valor_unitario_final, 0)))}
               </p>

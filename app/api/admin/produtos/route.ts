@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { validarEstoquePorCategoria, type CategoriaTipoGrade } from '@/config/grades-tamanho';
 import { requireActiveAdmin } from '@/lib/admin-auth';
+import { parseAdminCurrency } from '@/lib/admin-currency';
 import type { EstoqueProdutoInsert, ProdutoInsert } from '@/lib/supabase-admin';
 
 const TYPES = new Map([['image/jpeg', 'jpg'], ['image/png', 'png'], ['image/webp', 'webp']]);
@@ -22,8 +23,8 @@ function bool(data: FormData, key: string, fallback = false) {
 function price(data: FormData, key: string, required: boolean) {
   const raw = text(data, key);
   if (!raw && !required) return null;
-  const value = Number(raw.replace(',', '.'));
-  if (!Number.isFinite(value) || value < 0) throw new Error('Preço inválido.');
+  const value = parseAdminCurrency(raw);
+  if (value === null || value < 0) throw new Error('Preço inválido.');
   return value;
 }
 function stock(data: FormData) {

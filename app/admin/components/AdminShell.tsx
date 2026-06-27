@@ -16,7 +16,9 @@ type AdminShellProps = {
   children: ReactNode;
 };
 
-type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' | 'chevron' | 'heart' | 'plug';
+type IconName = 'menu' | 'home' | 'box' | 'users' | 'image' | 'logout' | 'bell' | 'chevron' | 'heart' | 'plug' | 'sun' | 'moon';
+type AdminTheme = 'light' | 'dark';
+const ADMIN_THEME_STORAGE_KEY = 'pastoril-admin-theme';
 
 const navItems: { key: AdminNavKey; label: string; href: string; icon: IconName; subItem?: boolean }[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/admin', icon: 'home' },
@@ -131,6 +133,23 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
     );
   }
 
+  if (name === 'sun') {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="3.5" />
+        <path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
+      </svg>
+    );
+  }
+
+  if (name === 'moon') {
+    return (
+      <svg {...common}>
+        <path d="M20 15.2A8.2 8.2 0 0 1 8.8 4 8.2 8.2 0 1 0 20 15.2Z" />
+      </svg>
+    );
+  }
+
   return (
     <svg {...common}>
       <path d="m9 18 6-6-6-6" />
@@ -143,6 +162,7 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [adminEmail, setAdminEmail] = useState('admin@pastoril.com');
+  const [theme, setTheme] = useState<AdminTheme>('light');
 
   useEffect(() => {
     let activeRequest = true;
@@ -161,13 +181,37 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
     };
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const initialTheme = document.getElementById('admin-theme-root')?.classList.contains('admin-theme-dark') ? 'dark' : 'light';
+        setTheme(initialTheme);
+      } catch {
+        // O painel continua em modo claro quando o armazenamento estiver indisponível.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const changeTheme = (nextTheme: AdminTheme) => {
+    setTheme(nextTheme);
+    const root = document.getElementById('admin-theme-root');
+    root?.classList.remove('admin-theme-light', 'admin-theme-dark');
+    root?.classList.add(`admin-theme-${nextTheme}`);
+    try {
+      window.localStorage.setItem(ADMIN_THEME_STORAGE_KEY, nextTheme);
+    } catch {
+      // A alternância ainda funciona durante a sessão.
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     router.push('/admin/login');
   };
 
   const renderNavigation = () => (
-    <nav className="flex-1 space-y-1.5 px-4 py-5">
+    <nav className="space-y-1.5 px-4 pb-8 pt-5">
       <p className="px-4 pb-2 pt-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#8B7768]">Menu</p>
       {navItems.map((item, index) => {
         const isActive = active === item.key;
@@ -178,10 +222,10 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
           <Link
             href={item.href}
             onClick={() => setSidebarOpen(false)}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition ${item.subItem ? 'ml-5 py-2.5 text-xs' : ''} ${
+            className={`admin-sidebar-link flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition-colors duration-200 ${item.subItem ? 'ml-5 py-2.5 text-xs' : ''} ${
               isActive
-                ? 'bg-[#C8722C] text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)]'
-                : 'text-[#4A2D1A] hover:bg-[#F7F0E7]'
+                ? 'admin-sidebar-link-selected bg-[#C8722C] text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)]'
+                : 'admin-sidebar-link-idle text-[#4A2D1A] hover:bg-[#F7F0E7]'
             }`}
           >
             <Icon name={item.icon} className="h-5 w-5 shrink-0" />
@@ -194,7 +238,7 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
   );
 
   return (
-    <div className="min-h-screen bg-[#F9F6F1] text-[#241C17]">
+    <div className="admin-theme-shell min-h-screen bg-[#F9F6F1] text-[#241C17]">
       {sidebarOpen && (
         <button
           type="button"
@@ -205,19 +249,11 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col overflow-hidden border-r border-[#E7E0D8] shadow-[14px_0_35px_rgba(74,45,26,0.08)] transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex h-dvh max-h-dvh w-[260px] flex-col overflow-hidden border-r border-[#E7E0D8] bg-[#F9F6F1] shadow-[14px_0_35px_rgba(74,45,26,0.08)] transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{
-          backgroundImage: "url('/brand/admin/sidebar-bg.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center bottom',
-          backgroundRepeat: 'no-repeat',
-        }}
       >
-        <div className="absolute inset-0 bg-[#F9F6F1]/58" aria-hidden="true" />
-
-        <div className="relative z-10 flex h-[104px] items-center justify-center border-b border-[#E7E0D8]/80 px-6">
+        <div className="relative z-10 flex h-[104px] shrink-0 items-center justify-center border-b border-[#E7E0D8]/80 px-6">
           <Link href="/admin" className="relative h-[76px] w-[116px]" aria-label="Pastoril Admin">
             <Image
               src="/brand/pastoril-logo-header.png"
@@ -230,19 +266,27 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
           </Link>
         </div>
 
-        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {renderNavigation()}
         </div>
 
-        <div className="relative z-10 mt-auto border-t border-[#E7E0D8]/80 bg-[#F9F6F1]/25 p-4">
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold text-[#4A2D1A] transition hover:bg-white/65"
-          >
-            <Icon name="logout" className="h-5 w-5" />
-            Sair
-          </button>
-          <p className="mt-5 px-2 text-xs text-[#6E625A]">Pastoril Moda Country © 2026</p>
+        <div className="admin-sidebar-footer relative z-10 shrink-0 overflow-hidden border-t px-4 py-3">
+          <div
+            className="admin-sidebar-art pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat opacity-20"
+            style={{ backgroundImage: "url('/brand/admin/sidebar-bg.png')" }}
+            aria-hidden="true"
+          />
+          <div className="admin-sidebar-footer-overlay absolute inset-0" aria-hidden="true" />
+          <div className="relative z-10">
+            <button
+              onClick={handleLogout}
+              className="admin-sidebar-logout flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold transition"
+            >
+              <Icon name="logout" className="h-5 w-5" />
+              Sair
+            </button>
+            <p className="admin-sidebar-copyright mt-3 px-2 text-xs leading-5">Pastoril Moda Country © 2026</p>
+          </div>
         </div>
       </aside>
 
@@ -264,6 +308,30 @@ export default function AdminShell({ title, subtitle, active, children }: AdminS
             </div>
 
             <div className="flex items-center gap-3">
+              <div className="admin-theme-switch flex items-center rounded-full border border-[#E7E0D8] bg-white p-1" role="group" aria-label="Tema do painel">
+                <button
+                  type="button"
+                  onClick={() => changeTheme('light')}
+                  aria-pressed={theme === 'light'}
+                  className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition ${
+                    theme === 'light' ? 'bg-[#F7F0E7] text-[#4A2D1A]' : 'text-[#6E625A] hover:text-[#241C17]'
+                  }`}
+                >
+                  <Icon name="sun" className="h-4 w-4" />
+                  <span className="hidden md:inline">Claro</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => changeTheme('dark')}
+                  aria-pressed={theme === 'dark'}
+                  className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-bold transition ${
+                    theme === 'dark' ? 'bg-[#4A2D1A] text-white' : 'text-[#6E625A] hover:text-[#241C17]'
+                  }`}
+                >
+                  <Icon name="moon" className="h-4 w-4" />
+                  <span className="hidden md:inline">Escuro</span>
+                </button>
+              </div>
               <button className="hidden h-10 w-10 items-center justify-center rounded-full border border-[#E7E0D8] bg-white text-[#4A2D1A] sm:flex" aria-label="Notificacoes">
                 <Icon name="bell" className="h-5 w-5" />
               </button>

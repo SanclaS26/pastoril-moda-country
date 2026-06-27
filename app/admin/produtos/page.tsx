@@ -7,7 +7,9 @@ import {
   type CategoriaTipoGrade,
 } from '@/config/grades-tamanho';
 import { supabase } from '@/lib/supabase';
+import { formatAdminCurrency, normalizeAdminCurrency, parseAdminCurrency } from '@/lib/admin-currency';
 import { useProtectedRoute } from '@/lib/useAuth';
+import AdminCurrencyInput from '../components/AdminCurrencyInput';
 import AdminShell from '../components/AdminShell';
 
 type Option = { id: number; nome: string; ativo: boolean; tipo_grade?: CategoriaTipoGrade };
@@ -111,8 +113,8 @@ export default function ProdutosPage() {
       publico: product.publico,
       categoria_id: String(product.categoria_id),
       marca_id: product.marca_id ? String(product.marca_id) : undefinedBrand ? String(undefinedBrand.id) : '',
-      preco: String(product.preco),
-      promocional: product.preco_promocional === null ? '' : String(product.preco_promocional),
+      preco: formatAdminCurrency(product.preco),
+      promocional: formatAdminCurrency(product.preco_promocional),
       promocao: product.em_promocao,
       ativo: product.ativo,
       descricao: product.descricao ?? '',
@@ -191,7 +193,7 @@ export default function ProdutosPage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!form.nome.trim() || !form.publico || !form.categoria_id || !form.preco) {
+    if (!form.nome.trim() || !form.publico || !form.categoria_id || parseAdminCurrency(form.preco) === null) {
       return setMessage('Preencha todos os campos obrigatórios.');
     }
     if (!gallery.length) return setMessage('Adicione pelo menos uma foto.');
@@ -205,9 +207,9 @@ export default function ProdutosPage() {
       data.set('publico', form.publico);
       data.set('categoria_id', form.categoria_id);
       data.set('marca_id', form.marca_id);
-      data.set('preco', form.preco);
+      data.set('preco', normalizeAdminCurrency(form.preco));
       data.set('em_promocao', String(form.promocao));
-      data.set('preco_promocional', form.promocao ? form.promocional : '');
+      data.set('preco_promocional', form.promocao ? normalizeAdminCurrency(form.promocional) : '');
       data.set('ativo', String(form.ativo));
       data.set('descricao', form.descricao);
       data.set('estoques', JSON.stringify(stock));
@@ -340,17 +342,11 @@ export default function ProdutosPage() {
                     </select>
                   </Field>
                   <Field label="Preço *">
-                    <div className="flex overflow-hidden rounded-[0.65rem] border border-[#D9CEC2] bg-white focus-within:border-[#C8722C] focus-within:ring-2 focus-within:ring-[#C8722C]/10">
-                      <span className="flex items-center border-r border-[#E7E0D8] bg-[#F9F6F1] px-3 text-sm font-bold text-[#6E625A]">R$</span>
-                      <input type="number" min="0" step="0.01" value={form.preco} onChange={(event) => updateForm('preco', event.target.value)} required className="min-w-0 flex-1 px-3 py-2.5 outline-none" placeholder="0,00" />
-                    </div>
+                    <AdminCurrencyInput value={form.preco} onValueChange={(value) => updateForm('preco', value)} required className="input" placeholder="R$ 0,00" />
                   </Field>
                   <Toggle label="Produto em promoção" checked={form.promocao} onChange={(value) => updateForm('promocao', value)} />
                   {form.promocao && <Field label="Preço promocional *">
-                    <div className="flex overflow-hidden rounded-[0.65rem] border border-[#D9CEC2] bg-white">
-                      <span className="flex items-center border-r border-[#E7E0D8] bg-[#F9F6F1] px-3 text-sm font-bold text-[#6E625A]">R$</span>
-                      <input type="number" min="0" step="0.01" value={form.promocional} onChange={(event) => updateForm('promocional', event.target.value)} required className="min-w-0 flex-1 px-3 py-2.5 outline-none" placeholder="0,00" />
-                    </div>
+                    <AdminCurrencyInput value={form.promocional} onValueChange={(value) => updateForm('promocional', value)} required className="input" placeholder="R$ 0,00" />
                   </Field>}
                   <Toggle label="Produto ativo" checked={form.ativo} onChange={(value) => updateForm('ativo', value)} />
                 </div>

@@ -36,7 +36,32 @@ As variaveis `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` tambem
 precisam estar configuradas no servidor, conforme a configuracao normal do
 projeto. Nunca coloque `SUPABASE_SERVICE_ROLE_KEY` em variavel `NEXT_PUBLIC_*`.
 
-## 3. Chamar localmente
+## 3. Usar o formulario
+
+Com o servidor local em execucao, acesse:
+
+```text
+http://localhost:3000/admin/bootstrap
+```
+
+Em producao, acesse:
+
+```text
+https://www.pastoril.com.br/admin/bootstrap
+```
+
+Preencha nome, e-mail, senha, confirmacao da senha e a chave configurada em
+`ADMIN_BOOTSTRAP_SECRET`. O celular e opcional. A pagina envia esses dados
+diretamente para `POST /api/admin/bootstrap`; a chave e a senha nao sao salvas
+no navegador.
+
+A interface nao oferece o modo `force`. Se ja existir um administrador ativo,
+a criacao sera bloqueada para evitar multiplos administradores por esse fluxo.
+
+Essa pagina e uma ferramenta de recuperacao e nao deve aparecer no menu publico
+nem no menu administrativo.
+
+## 4. Chamar a API localmente
 
 Com o projeto em execucao, envie:
 
@@ -53,17 +78,9 @@ curl -X POST http://localhost:3000/api/admin/bootstrap \
 ```
 
 `celular` e opcional. Se ja houver um administrador ativo, a rota responde com
-conflito. Para confirmar conscientemente uma nova execucao, inclua:
+conflito. O formulario visual nao envia `force`.
 
-```json
-{
-  "force": true
-}
-```
-
-Mantenha os demais campos do exemplo na mesma requisicao.
-
-## 4. Desativar depois do uso
+## 5. Desativar depois do uso
 
 Depois de criar o administrador:
 
@@ -74,7 +91,10 @@ Depois de criar o administrador:
 Sem essa variavel, a rota responde como indisponivel e nao executa nenhuma
 operacao.
 
-## 5. Conferir o acesso
+Se for necessario manter a rota disponivel por algum motivo operacional, troque
+o valor de `ADMIN_BOOTSTRAP_SECRET` depois de cada uso.
+
+## 6. Conferir o acesso
 
 Acesse `/admin/login`, entre com o e-mail e a senha usados no bootstrap e
 confirme que o painel administrativo e carregado.

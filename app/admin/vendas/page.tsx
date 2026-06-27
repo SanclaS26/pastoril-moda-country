@@ -476,21 +476,21 @@ export default function AdminVendasPage() {
           )}
         </div>
 
-        <section className={`grid gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] ${isOpenCarts ? 'md:grid-cols-4' : 'md:grid-cols-6'}`}>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" placeholder="Codigo, nome, CPF ou celular" />
-          <select value={deletedFilter} onChange={(event) => setDeletedFilter(event.target.value as DeletedFilter)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]">
+        <section className={`admin-panel grid gap-3 p-4 ${isOpenCarts ? 'md:grid-cols-4' : 'md:grid-cols-6'}`}>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} className="admin-input rounded-xl px-4 py-3 text-sm outline-none" placeholder="Codigo, nome, CPF ou celular" />
+          <select value={deletedFilter} onChange={(event) => setDeletedFilter(event.target.value as DeletedFilter)} className="admin-input rounded-xl px-4 py-3 text-sm outline-none">
             <option value="ativas">Ativas</option>
             <option value="excluidas">Excluidas</option>
           </select>
-          <input type="date" value={start} onChange={(event) => setStart(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" />
-          <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" />
+          <input type="date" value={start} onChange={(event) => setStart(event.target.value)} className="admin-input rounded-xl px-4 py-3 text-sm outline-none" />
+          <input type="date" value={end} onChange={(event) => setEnd(event.target.value)} className="admin-input rounded-xl px-4 py-3 text-sm outline-none" />
         </section>
 
         {successMessage && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{successMessage}</div>}
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
 
         {!isOpenCarts && (
-          <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[#E7E0D8] bg-white p-2 shadow-[0_8px_18px_rgba(74,45,26,0.04)]">
+          <div className="admin-panel grid grid-cols-3 gap-2 p-2">
             {[
               { label: 'Abertas', value: 'em_aberto' as const },
               { label: 'Concluidas', value: 'concluida' as const },
@@ -501,7 +501,7 @@ export default function AdminVendasPage() {
                 type="button"
                 onClick={() => setStatus(option.value)}
                 aria-pressed={status === option.value}
-                className={`rounded-xl px-3 py-2.5 text-sm font-bold transition ${status === option.value ? 'bg-[#4A2D1A] text-white shadow-sm' : 'text-[#4A2D1A] hover:bg-[#F7F0E7]'}`}
+                className={`rounded-xl px-3 py-2.5 text-sm font-bold transition ${status === option.value ? 'bg-[color:var(--admin-text)] text-white shadow-sm' : 'text-[color:var(--admin-text)] hover:bg-[color:var(--admin-surface-soft)]'}`}
               >
                 {option.label}
               </button>
@@ -509,16 +509,16 @@ export default function AdminVendasPage() {
           </div>
         )}
 
-        <section className="overflow-hidden rounded-2xl border border-[#E7E0D8] bg-white shadow-[0_8px_18px_rgba(74,45,26,0.04)]">
+        <section className="admin-table-shell">
           {loading ? (
-            <div className="px-4 py-12 text-center text-sm text-[#6E625A]">Carregando vendas...</div>
+            <div className="admin-empty-state px-4 py-12 text-center text-sm">Carregando vendas...</div>
           ) : vendas.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-[#6E625A]">{isOpenCarts ? 'Nenhum carrinho aberto encontrado.' : 'Nenhuma venda encontrada.'}</div>
+            <div className="admin-empty-state px-4 py-12 text-center text-sm">{isOpenCarts ? 'Nenhum carrinho aberto encontrado.' : 'Nenhuma venda encontrada.'}</div>
           ) : (
             <>
               <div className="hidden overflow-x-auto lg:block">
-                <table className="w-full min-w-[1080px]">
-                  <thead className="border-b border-[#E7E0D8] bg-[#F7F0E7]">
+                <table className="admin-table w-full min-w-[1080px]">
+                  <thead>
                     <tr>
                       <Th>Codigo</Th>
                       <Th>Data</Th>
@@ -533,7 +533,7 @@ export default function AdminVendasPage() {
                   </thead>
                   <tbody>
                     {vendas.map((venda) => (
-                      <tr key={venda.id} className="border-b border-[#F1EAE2] last:border-0 hover:bg-[#F9F6F1]">
+                      <tr key={venda.id} className="border-b border-[color:var(--admin-border)] last:border-0 hover:bg-[color:var(--admin-row-hover)]">
                         <Td>{venda.codigo}</Td>
                         <Td>{formatDateTime(venda.whatsapp_enviado_em ?? venda.created_at)}</Td>
                         <Td>{clienteLabel(venda)}</Td>
@@ -543,16 +543,16 @@ export default function AdminVendasPage() {
                         {isOpenCarts && <Td>{formatOpenTime(venda.created_at)}</Td>}
                         <Td>{statusLabel(venda.status)}</Td>
                         <Td>
-                          <div className="flex flex-wrap gap-2">
-                            <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A] hover:bg-[#F7F0E7]">
+                          <div className="admin-table-actions">
+                            <button onClick={() => openVenda(venda)} className="admin-table-action-secondary px-3 py-2 text-xs">
                               Detalhes
                             </button>
                             {deletedFilter === 'excluidas' ? (
-                              <button disabled={saving} onClick={() => requestRestore(venda)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
+                              <button disabled={saving} onClick={() => requestRestore(venda)} className="admin-table-action-secondary px-3 py-2 text-xs disabled:opacity-50">
                                 Restaurar
                               </button>
                             ) : (
-                              <button disabled={saving} onClick={() => requestDelete(venda)} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                              <button disabled={saving} onClick={() => requestDelete(venda)} className="admin-table-action-danger px-3 py-2 text-xs disabled:opacity-50">
                                 Excluir
                               </button>
                             )}
@@ -566,28 +566,28 @@ export default function AdminVendasPage() {
 
               <div className="grid gap-3 p-4 lg:hidden">
                 {vendas.map((venda) => (
-                  <article key={venda.id} className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] p-4">
+                  <article key={venda.id} className="admin-panel-soft rounded-xl p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h2 className="text-sm font-bold text-[#241C17]">{venda.codigo}</h2>
-                        <p className="text-xs text-[#6E625A]">{clienteLabel(venda)} - {statusLabel(venda.status)}</p>
-                        {isOpenCarts && <p className="text-xs text-[#6E625A]">{venda.cliente_celular ? formatPhone(venda.cliente_celular) : 'Sem telefone'} · {formatOpenTime(venda.created_at)}</p>}
+                        <h2 className="text-sm font-bold text-[color:var(--admin-text)]">{venda.codigo}</h2>
+                        <p className="text-xs text-[color:var(--admin-muted)]">{clienteLabel(venda)} - {statusLabel(venda.status)}</p>
+                        {isOpenCarts && <p className="text-xs text-[color:var(--admin-muted)]">{venda.cliente_celular ? formatPhone(venda.cliente_celular) : 'Sem telefone'} · {formatOpenTime(venda.created_at)}</p>}
                       </div>
                       <div className="flex flex-col gap-2">
-                        <button onClick={() => openVenda(venda)} className="rounded-lg border border-[#C8722C] px-3 py-2 text-xs font-bold text-[#4A2D1A]">Ver</button>
+                        <button onClick={() => openVenda(venda)} className="admin-table-action-secondary px-3 py-2 text-xs">Ver</button>
                         {deletedFilter === 'excluidas' ? (
-                          <button disabled={saving} onClick={() => requestRestore(venda)} className="rounded-lg border border-emerald-300 px-3 py-2 text-xs font-bold text-emerald-700 disabled:opacity-50">
+                          <button disabled={saving} onClick={() => requestRestore(venda)} className="admin-table-action-secondary px-3 py-2 text-xs disabled:opacity-50">
                             Restaurar
                           </button>
                         ) : (
-                          <button disabled={saving} onClick={() => requestDelete(venda)} className="rounded-lg border border-rose-300 px-3 py-2 text-xs font-bold text-rose-700 disabled:opacity-50">
+                          <button disabled={saving} onClick={() => requestDelete(venda)} className="admin-table-action-danger px-3 py-2 text-xs disabled:opacity-50">
                             Excluir
                           </button>
                         )}
                       </div>
                     </div>
-                    <p className="mt-3 text-xs text-[#6E625A]">{venda.itens.map((item) => `${item.quantidade_final}x ${item.nome} (${item.tamanho})`).join(' | ')}</p>
-                    <p className="mt-3 text-sm font-bold text-[#4A2D1A]">{formatCurrency(venda.total_final ?? venda.total_original)}</p>
+                    <p className="mt-3 text-xs text-[color:var(--admin-muted)]">{venda.itens.map((item) => `${item.quantidade_final}x ${item.nome} (${item.tamanho})`).join(' | ')}</p>
+                    <p className="mt-3 text-sm font-bold text-[color:var(--admin-text)]">{formatCurrency(venda.total_final ?? venda.total_original)}</p>
                   </article>
                 ))}
               </div>
@@ -598,25 +598,25 @@ export default function AdminVendasPage() {
 
       {selectedVenda && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#241C17]/60 px-4 py-6">
-          <section className="max-h-[92svh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
-            <div className="mb-5 flex items-start justify-between gap-4 border-b border-[#E7E0D8] pb-4">
+          <section className="admin-modal-surface max-h-[92svh] w-full max-w-4xl overflow-y-auto rounded-2xl p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4 border-b border-[color:var(--admin-border)] pb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#241C17]">{selectedVenda.codigo}</h2>
-                <p className="mt-1 text-sm text-[#6E625A]">{clienteLabel(selectedVenda)} - {selectedVenda.cliente_cpf ? formatCpf(selectedVenda.cliente_cpf) : 'sem CPF'} - {selectedVenda.cliente_celular ? formatPhone(selectedVenda.cliente_celular) : 'sem telefone'}</p>
+                <h2 className="text-xl font-bold text-[color:var(--admin-text)]">{selectedVenda.codigo}</h2>
+                <p className="mt-1 text-sm text-[color:var(--admin-muted)]">{clienteLabel(selectedVenda)} - {selectedVenda.cliente_cpf ? formatCpf(selectedVenda.cliente_cpf) : 'sem CPF'} - {selectedVenda.cliente_celular ? formatPhone(selectedVenda.cliente_celular) : 'sem telefone'}</p>
               </div>
-              <button onClick={() => setSelectedVenda(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F7F0E7] text-xl text-[#4A2D1A]" aria-label="Fechar">x</button>
+              <button onClick={() => setSelectedVenda(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--admin-surface-soft)] text-xl text-[color:var(--admin-text)]" aria-label="Fechar">x</button>
             </div>
 
-            {modalMessage && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{modalMessage}</div>}
+            {modalMessage && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">{modalMessage}</div>}
 
             <div className="space-y-3">
               {selectedVenda.itens.map((item) => (
-                <div key={item.id} className="grid gap-3 rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] p-3 md:grid-cols-[1fr_120px_150px]">
+                <div key={item.id} className="grid gap-3 rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] p-3 md:grid-cols-[1fr_120px_150px]">
                   <div>
-                    <p className="text-sm font-bold text-[#241C17]">{item.nome}</p>
-                    <p className="text-xs text-[#6E625A]">{item.codigo_produto} - Tam. {item.tamanho} - Original: {item.quantidade_original} x {formatCurrency(item.valor_unitario_original)}</p>
+                    <p className="text-sm font-bold text-[color:var(--admin-text)]">{item.nome}</p>
+                    <p className="text-xs text-[color:var(--admin-muted)]">{item.codigo_produto} - Tam. {item.tamanho} - Original: {item.quantidade_original} x {formatCurrency(item.valor_unitario_original)}</p>
                   </div>
-                  <label className="text-xs font-bold text-[#4A2D1A]">
+                  <label className="text-xs font-bold text-[color:var(--admin-text)]">
                     Quantidade final
                     <input
                       inputMode="numeric"
@@ -632,16 +632,16 @@ export default function AdminVendasPage() {
                         }
                         setItemDrafts((current) => ({ ...current, [item.id]: { ...current[item.id], quantidade_final: value } }));
                       }}
-                      className="mt-1 w-full rounded-lg border border-[#E7E0D8] px-3 py-2"
+                      className="admin-input mt-1 w-full rounded-lg px-3 py-2"
                     />
-                    {item.estoque_disponivel !== null && item.estoque_disponivel !== undefined && <span className="mt-1 block font-normal text-[#6E625A]">Estoque: {item.estoque_disponivel}</span>}
+                    {item.estoque_disponivel !== null && item.estoque_disponivel !== undefined && <span className="mt-1 block font-normal text-[color:var(--admin-muted)]">Estoque: {item.estoque_disponivel}</span>}
                   </label>
-                  <label className="text-xs font-bold text-[#4A2D1A]">
+                  <label className="text-xs font-bold text-[color:var(--admin-text)]">
                     Valor unitario final
                     <AdminCurrencyInput
                       value={itemDrafts[item.id]?.valor_unitario_final ?? ''}
                       onValueChange={(value) => setItemDrafts((current) => ({ ...current, [item.id]: { ...current[item.id], valor_unitario_final: value } }))}
-                      className="mt-1 w-full rounded-lg border border-[#E7E0D8] px-3 py-2"
+                      className="mt-1 w-full rounded-lg"
                     />
                   </label>
                 </div>
@@ -649,21 +649,21 @@ export default function AdminVendasPage() {
             </div>
 
             {!isOpenCarts && !selectedVenda.estoque_baixado && (
-              <section className="mt-4 rounded-xl border border-[#E7E0D8] bg-[#FFFDF9] p-4">
-                <h3 className="text-sm font-bold text-[#4A2D1A]">Adicionar produto</h3>
+              <section className="mt-4 rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] p-4">
+                <h3 className="text-sm font-bold text-[color:var(--admin-text)]">Adicionar produto</h3>
                 <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
-                  <input value={productCode} onChange={(event) => setProductCode(event.target.value)} className="rounded-lg border border-[#E7E0D8] bg-[#F9F6F1] px-3 py-2 text-sm outline-none focus:border-[#C8722C]" placeholder="Codigo do produto" />
-                  <button type="button" disabled={productSearchLoading} onClick={() => void searchProductByCode()} className="rounded-lg border border-[#C8722C] px-4 py-2 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] disabled:opacity-60">
+                  <input value={productCode} onChange={(event) => setProductCode(event.target.value)} className="admin-input rounded-lg px-3 py-2 text-sm outline-none" placeholder="Codigo do produto" />
+                  <button type="button" disabled={productSearchLoading} onClick={() => void searchProductByCode()} className="admin-table-action-secondary rounded-lg px-4 py-2 text-sm disabled:opacity-60">
                     {productSearchLoading ? 'Buscando...' : 'Buscar'}
                   </button>
                 </div>
                 {productSearch && (
-                  <div className="mt-3 grid gap-3 rounded-lg border border-[#E7E0D8] bg-[#F9F6F1] p-3 md:grid-cols-[1fr_150px_120px_auto]">
+                  <div className="mt-3 grid gap-3 rounded-lg border border-[color:var(--admin-border)] bg-[color:var(--admin-surface)] p-3 md:grid-cols-[1fr_150px_120px_auto]">
                     <div>
-                      <p className="text-sm font-bold text-[#241C17]">{productSearch.nome}</p>
-                      <p className="text-xs text-[#6E625A]">{productSearch.codigo_produto}</p>
+                      <p className="text-sm font-bold text-[color:var(--admin-text)]">{productSearch.nome}</p>
+                      <p className="text-xs text-[color:var(--admin-muted)]">{productSearch.codigo_produto}</p>
                     </div>
-                    <select value={productSizeId} onChange={(event) => setProductSizeId(event.target.value)} className="rounded-lg border border-[#E7E0D8] bg-white px-3 py-2 text-sm">
+                    <select value={productSizeId} onChange={(event) => setProductSizeId(event.target.value)} className="admin-input rounded-lg px-3 py-2 text-sm">
                       <option value="">Tamanho</option>
                       {productSearch.estoque.map((item) => <option key={item.id} value={item.id}>{item.tamanho} - {item.quantidade}</option>)}
                     </select>
@@ -674,10 +674,10 @@ export default function AdminVendasPage() {
                         if (!productQuantity) setProductQuantity('1');
                       }}
                       onChange={(event) => setProductQuantity(event.target.value.replace(/\D/g, ''))}
-                      className="rounded-lg border border-[#E7E0D8] bg-white px-3 py-2 text-sm"
+                      className="admin-input rounded-lg px-3 py-2 text-sm"
                       placeholder="Qtd."
                     />
-                    <button type="button" onClick={addProductDraft} className="rounded-lg bg-[#4A2D1A] px-4 py-2 text-sm font-bold text-white hover:bg-[#2F1B10]">
+                    <button type="button" onClick={addProductDraft} className="rounded-lg bg-[color:var(--admin-text)] px-4 py-2 text-sm font-bold text-white hover:opacity-90">
                       Adicionar
                     </button>
                   </div>
@@ -685,9 +685,9 @@ export default function AdminVendasPage() {
                 {addedItems.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {addedItems.map((item) => (
-                      <div key={item.key} className="flex flex-col gap-2 rounded-lg border border-[#E7E0D8] bg-white px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
-                        <span className="font-semibold text-[#241C17]">{item.quantidade_final}x {item.nome} ({item.tamanho})</span>
-                        <button type="button" onClick={() => removeAddedItem(item.key)} className="text-xs font-bold text-rose-700">Remover</button>
+                      <div key={item.key} className="flex flex-col gap-2 rounded-lg border border-[color:var(--admin-border)] bg-[color:var(--admin-surface)] px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                        <span className="font-semibold text-[color:var(--admin-text)]">{item.quantidade_final}x {item.nome} ({item.tamanho})</span>
+                        <button type="button" onClick={() => removeAddedItem(item.key)} className="text-xs font-bold text-rose-700 dark:text-rose-300">Remover</button>
                       </div>
                     ))}
                   </div>
@@ -695,14 +695,14 @@ export default function AdminVendasPage() {
               </section>
             )}
 
-            <label className="mt-4 block text-sm font-bold text-[#4A2D1A]">
+            <label className="mt-4 block text-sm font-bold text-[color:var(--admin-text)]">
               Observacoes administrativas
-              <textarea value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} className="mt-2 min-h-20 w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm outline-none focus:border-[#C8722C]" />
+              <textarea value={adminNotes} onChange={(event) => setAdminNotes(event.target.value)} className="admin-input mt-2 min-h-20 w-full rounded-xl px-4 py-3 text-sm outline-none" />
             </label>
 
-            <div className="mt-4 rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-right">
-              <p className="text-xs font-bold uppercase text-[#6E625A]">Total previsto</p>
-              <p className="mt-1 text-xl font-black text-[#4A2D1A]">
+            <div className="mt-4 rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-right">
+              <p className="text-xs font-bold uppercase text-[color:var(--admin-muted)]">Total previsto</p>
+              <p className="mt-1 text-xl font-black text-[color:var(--admin-text)]">
                 {formatCurrency(selectedVenda.itens.reduce((total, item) => {
                   const quantity = Number(itemDrafts[item.id]?.quantidade_final || 0);
                   const unitPrice = parseAdminCurrency(itemDrafts[item.id]?.valor_unitario_final) ?? item.valor_unitario_final;
@@ -711,16 +711,16 @@ export default function AdminVendasPage() {
               </p>
             </div>
 
-            <div className="mt-5 flex flex-col gap-3 border-t border-[#E7E0D8] pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+            <div className="mt-5 flex flex-col gap-3 border-t border-[color:var(--admin-border)] pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
               {selectedVenda.deleted_at ? (
-                <button disabled={saving} onClick={() => requestRestore(selectedVenda)} className="rounded-lg border border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">Restaurar venda</button>
+                <button disabled={saving} onClick={() => requestRestore(selectedVenda)} className="admin-table-action-secondary rounded-lg px-4 py-3 text-sm disabled:opacity-50">Restaurar venda</button>
               ) : (
-                <button disabled={saving} onClick={() => requestDelete(selectedVenda)} className="rounded-lg border border-rose-300 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Excluir venda</button>
+                <button disabled={saving} onClick={() => requestDelete(selectedVenda)} className="admin-table-action-danger rounded-lg px-4 py-3 text-sm disabled:opacity-50">Excluir venda</button>
               )}
-              <button disabled={saving} onClick={() => updateVenda()} className="rounded-lg border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] disabled:opacity-50">Salvar ajustes</button>
-              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'em_aberto')} className="rounded-lg border border-[#C8722C] px-4 py-3 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] disabled:opacity-50">Reabrir</button>
-              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'cancelada')} className="rounded-lg border border-rose-300 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50 disabled:opacity-50">Cancelar</button>
-              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'concluida')} className="rounded-lg bg-[#C8722C] px-4 py-3 text-sm font-bold text-white hover:bg-[#4A2D1A] disabled:opacity-50">Concluir venda</button>
+              <button disabled={saving} onClick={() => updateVenda()} className="admin-table-action-secondary rounded-lg px-4 py-3 text-sm disabled:opacity-50">Salvar ajustes</button>
+              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'em_aberto')} className="admin-table-action-secondary rounded-lg px-4 py-3 text-sm disabled:opacity-50">Reabrir</button>
+              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'cancelada')} className="admin-table-action-danger rounded-lg px-4 py-3 text-sm disabled:opacity-50">Cancelar</button>
+              <button disabled={saving} onClick={() => requestStatusChange(selectedVenda, 'concluida')} className="rounded-lg bg-[color:var(--admin-accent)] px-4 py-3 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50">Concluir venda</button>
             </div>
           </section>
         </div>
@@ -745,17 +745,17 @@ export default function AdminVendasPage() {
 
 function Indicator({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)]">
-      <p className="text-sm font-bold text-[#4A2D1A]">{label}</p>
-      <p className="mt-2 text-2xl font-black text-[#241C17]">{value}</p>
+    <div className="admin-panel rounded-2xl p-4">
+      <p className="text-sm font-bold text-[color:var(--admin-text)]">{label}</p>
+      <p className="mt-2 text-2xl font-black text-[color:var(--admin-text)]">{value}</p>
     </div>
   );
 }
 
 function Th({ children }: { children: ReactNode }) {
-  return <th className="px-5 py-3 text-left text-xs font-bold uppercase text-[#6E625A]">{children}</th>;
+  return <th className="px-5 py-3 text-left text-xs font-bold uppercase text-[color:var(--admin-muted)]">{children}</th>;
 }
 
 function Td({ children }: { children: ReactNode }) {
-  return <td className="px-5 py-4 text-sm text-[#241C17]">{children}</td>;
+  return <td className="px-5 py-4 text-sm text-[color:var(--admin-text)]">{children}</td>;
 }

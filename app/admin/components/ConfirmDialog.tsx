@@ -31,16 +31,16 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#241C17]/60 px-4 py-6">
-      <section className="w-full max-w-md rounded-2xl border border-[#E7E0D8] bg-white p-5 shadow-2xl">
-        <h2 className="text-lg font-bold text-[#241C17]">{title}</h2>
-        <p className="mt-2 text-sm leading-6 text-[#6E625A]">{message}</p>
+      <section className="admin-modal-surface w-full max-w-md rounded-2xl p-5 shadow-2xl">
+        <h2 className="text-lg font-bold text-[color:var(--admin-text)]">{title}</h2>
+        <p className="mt-2 text-sm leading-6 text-[color:var(--admin-muted)]">{message}</p>
         {children && <div className="mt-4">{children}</div>}
         <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="rounded-xl border border-[#D8C8B9] px-4 py-2.5 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] disabled:cursor-not-allowed disabled:opacity-60"
+            className="admin-table-action-secondary rounded-xl px-4 py-2.5 text-sm disabled:cursor-not-allowed disabled:opacity-60"
           >
             {cancelLabel}
           </button>

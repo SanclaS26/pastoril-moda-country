@@ -255,28 +255,28 @@ export default function ProdutosPage() {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           placeholder="Buscar por nome, categoria ou marca"
-          className="flex-1 rounded-xl border border-[#D9CEC2] bg-white px-4 py-3 outline-none focus:border-[#C8722C]"
+          className="admin-input flex-1 rounded-xl px-4 py-3 outline-none"
         />
-        <button onClick={openCreate} className="rounded-xl bg-[#C8722C] px-6 py-3 font-bold text-white shadow-sm hover:bg-[#A9571E]">
+        <button onClick={openCreate} className="rounded-xl bg-[color:var(--admin-accent)] px-6 py-3 font-bold text-white shadow-sm hover:opacity-90">
           Novo produto
         </button>
       </div>
 
-      {message && !modalOpen && <p className="mb-4 rounded-xl bg-[#F7F0E7] px-4 py-3 text-sm">{message}</p>}
+      {message && !modalOpen && <p className="mb-4 rounded-xl bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm text-[color:var(--admin-text)]">{message}</p>}
 
-      <div className="overflow-x-auto rounded-2xl border border-[#E7E0D8] bg-white">
-        <table className="min-w-full text-left text-sm">
-          <thead className="bg-[#F7F0E7]"><tr>
+      <div className="admin-table-shell overflow-x-auto">
+        <table className="admin-table min-w-full text-left text-sm">
+          <thead><tr>
             {['Foto', 'Produto', 'Público', 'Categoria', 'Marca', 'Preço', 'Estoque', 'Status', ''].map((header) =>
               <th key={header} className="px-4 py-3">{header}</th>
             )}
           </tr></thead>
-          <tbody className="divide-y divide-[#E7E0D8]">
-            {products.map((product) => <tr key={product.id}>
-              <td className="px-4 py-3"><div className="relative h-14 w-14 overflow-hidden rounded-lg bg-[#F7F0E7]">
+          <tbody>
+            {products.map((product) => <tr key={product.id} className="hover:bg-[color:var(--admin-row-hover)]">
+              <td className="px-4 py-3"><div className="relative h-14 w-14 overflow-hidden rounded-lg bg-[color:var(--admin-surface-soft)]">
                 {product.imagem_principal && <Image src={product.imagem_principal} alt="" fill sizes="56px" className="object-cover" />}
               </div></td>
-              <td className="px-4 py-3"><b>{product.nome}</b><small className="block text-[#6E625A]">{product.codigo_produto}</small></td>
+              <td className="px-4 py-3"><b>{product.nome}</b><small className="block text-[color:var(--admin-muted)]">{product.codigo_produto}</small></td>
               <td className="px-4 py-3">{product.publico}</td>
               <td className="px-4 py-3">{product.categoria}</td>
               <td className="px-4 py-3">{product.marca || 'Indefinida'}</td>
@@ -286,7 +286,7 @@ export default function ProdutosPage() {
               </td>
               <td className="px-4 py-3">{product.estoque.reduce((sum, item) => sum + item.quantidade, 0)}</td>
               <td className="px-4 py-3">{product.ativo ? 'Ativo' : 'Inativo'}</td>
-              <td className="px-4 py-3"><button onClick={() => openEdit(product)} className="font-bold text-[#C8722C]">Editar</button></td>
+              <td className="px-4 py-3"><button onClick={() => openEdit(product)} className="admin-table-action-secondary px-3 py-2 text-xs">Editar</button></td>
             </tr>)}
           </tbody>
         </table>
@@ -296,27 +296,27 @@ export default function ProdutosPage() {
         <form
           id="product-form"
           onSubmit={submit}
-          className="flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#E7E0D8] bg-[#FFFEFC] shadow-2xl"
+          className="admin-modal-surface flex max-h-[96vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl shadow-2xl"
         >
-          <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-[#E7E0D8] bg-[#FFFEFC]/95 px-4 py-3 backdrop-blur sm:px-6">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F7F0E7] text-[#8B451D]">
+          <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-[color:var(--admin-border)] bg-[color:var(--admin-surface)]/95 px-4 py-3 backdrop-blur sm:px-6">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:var(--admin-surface-soft)] text-[color:var(--admin-accent)]">
               <BoxIcon />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="truncate text-xl font-black text-[#241C17]">{editing ? 'Editar produto' : 'Novo produto'}</h2>
-              <p className="text-xs text-[#6E625A]">Campos com * são obrigatórios.</p>
+              <h2 className="truncate text-xl font-black text-[color:var(--admin-text)]">{editing ? 'Editar produto' : 'Novo produto'}</h2>
+              <p className="text-xs text-[color:var(--admin-muted)]">Campos com * são obrigatórios.</p>
             </div>
-            <button type="button" onClick={closeModal} className="hidden rounded-lg border border-[#D9CEC2] px-4 py-2 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7] sm:block">
+            <button type="button" onClick={closeModal} className="hidden rounded-lg border border-[color:var(--admin-border)] px-4 py-2 text-sm font-bold text-[color:var(--admin-text)] hover:bg-[color:var(--admin-row-hover)] sm:block">
               Cancelar
             </button>
-            <button type="submit" disabled={saving || created} className="hidden rounded-lg bg-[#C05F16] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-[#A95012] disabled:opacity-60 sm:block">
+            <button type="submit" disabled={saving || created} className="hidden rounded-lg bg-[color:var(--admin-accent)] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-60 sm:block">
               {saving ? 'Salvando...' : 'Salvar produto'}
             </button>
-            <button type="button" onClick={closeModal} className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F7F0E7] text-xl sm:hidden" aria-label="Fechar">×</button>
+            <button type="button" onClick={closeModal} className="flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--admin-surface-soft)] text-xl sm:hidden" aria-label="Fechar">×</button>
           </header>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6">
-            {message && <div role="alert" className="mb-4 rounded-xl border border-[#E9C9AA] bg-[#FFF7EF] px-4 py-3 text-sm font-semibold text-[#8B451D]">{message}</div>}
+            {message && <div role="alert" className="mb-4 rounded-xl border border-[#E9C9AA] bg-[#FFF7EF] px-4 py-3 text-sm font-semibold text-[#8B451D] dark:border-[#6b4a2c] dark:bg-[#352a23] dark:text-[#f0caa1]">{message}</div>}
 
             {created ? <SuccessPanel onAnother={createAnother} onClose={closeModal} /> : <div className="space-y-5">
               <Section number="1" title="Informações básicas">
@@ -354,17 +354,17 @@ export default function ProdutosPage() {
 
               <Section number="2" title="Tamanhos e estoque" subtitle="Os tamanhos são definidos automaticamente pela categoria.">
                 {!selectedCategory?.tipo_grade ? <EmptyStock /> : <>
-                  <div className="mb-3 rounded-lg border border-[#E9C9AA] bg-[#FFF8F1] px-3 py-2 text-sm font-semibold text-[#8B451D]">
+                  <div className="mb-3 rounded-lg border border-[#E9C9AA] bg-[#FFF8F1] px-3 py-2 text-sm font-semibold text-[#8B451D] dark:border-[#6b4a2c] dark:bg-[#352a23] dark:text-[#f0caa1]">
                     Tamanhos definidos pela categoria: {selectedCategory.nome}
                   </div>
-                  <div className="overflow-hidden rounded-xl border border-[#E7E0D8]">
-                    <div className="grid grid-cols-2 bg-[#F9F6F1] px-4 py-2 text-xs font-black uppercase tracking-wide text-[#6E625A]">
+                  <div className="overflow-hidden rounded-xl border border-[color:var(--admin-border)]">
+                    <div className="grid grid-cols-2 bg-[color:var(--admin-surface-soft)] px-4 py-2 text-xs font-black uppercase tracking-wide text-[color:var(--admin-muted)]">
                       <span>Tamanho</span><span>Estoque</span>
                     </div>
-                    <div className="grid grid-cols-1 divide-y divide-[#EFE8E0] sm:grid-cols-2 sm:divide-y-0">
-                      {stock.map((item) => <label key={item.tamanho} className="grid grid-cols-2 items-center gap-3 border-b border-[#EFE8E0] px-4 py-2 sm:odd:border-r">
-                        <span className="font-bold text-[#4A2D1A]">{item.tamanho}</span>
-                        <input type="number" min="0" step="1" value={item.quantidade} onChange={(event) => updateStock(item.tamanho, event.target.value)} className="w-full rounded-lg border border-[#D9CEC2] px-3 py-2 text-center outline-none focus:border-[#C8722C]" aria-label={`Estoque tamanho ${item.tamanho}`} />
+                    <div className="grid grid-cols-1 divide-y divide-[color:var(--admin-border)] sm:grid-cols-2 sm:divide-y-0">
+                      {stock.map((item) => <label key={item.tamanho} className="grid grid-cols-2 items-center gap-3 border-b border-[color:var(--admin-border)] px-4 py-2 sm:odd:border-r">
+                        <span className="font-bold text-[color:var(--admin-text)]">{item.tamanho}</span>
+                        <input type="number" min="0" step="1" value={item.quantidade} onChange={(event) => updateStock(item.tamanho, event.target.value)} className="admin-input w-full rounded-lg px-3 py-2 text-center outline-none" aria-label={`Estoque tamanho ${item.tamanho}`} />
                       </label>)}
                     </div>
                   </div>
@@ -373,15 +373,15 @@ export default function ProdutosPage() {
 
               <Section number="3" title={`Fotos do produto (${gallery.length}/10)`} subtitle="A primeira foto é a capa do produto. Arraste as miniaturas para reordenar.">
                 <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_1.2fr]">
-                  <label onDragOver={(event) => event.preventDefault()} onDrop={dropFiles} className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#CFB9A5] bg-[#FFFCF8] p-5 text-center transition hover:border-[#C8722C] hover:bg-[#FFF8F1]">
+                  <label onDragOver={(event) => event.preventDefault()} onDrop={dropFiles} className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] p-5 text-center transition hover:border-[color:var(--admin-accent)] hover:bg-[color:var(--admin-row-hover)]">
                     <UploadIcon />
-                    <b className="mt-2 text-[#4A2D1A]">Arraste e solte as fotos aqui</b>
-                    <span className="text-sm text-[#6E625A]">ou clique para selecionar</span>
-                    <small className="mt-2 text-[#8B7768]">JPG, PNG ou WEBP · máximo 5 MB cada</small>
+                    <b className="mt-2 text-[color:var(--admin-text)]">Arraste e solte as fotos aqui</b>
+                    <span className="text-sm text-[color:var(--admin-muted)]">ou clique para selecionar</span>
+                    <small className="mt-2 text-[color:var(--admin-muted)]">JPG, PNG ou WEBP · máximo 5 MB cada</small>
                     <input type="file" multiple accept="image/jpeg,image/png,image/webp" onChange={(event: ChangeEvent<HTMLInputElement>) => event.target.files && addFiles(event.target.files)} className="sr-only" />
                   </label>
-                  {gallery.length === 0 ? <div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-[#E7E0D8] bg-white p-5 text-center text-[#6E625A]">
-                    <PhotoIcon /><b className="mt-2 text-[#4A2D1A]">Nenhuma foto adicionada</b><span className="text-sm">Adicione até 10 fotos do produto.</span>
+                  {gallery.length === 0 ? <div className="admin-empty-state flex min-h-40 flex-col items-center justify-center p-5 text-center">
+                    <PhotoIcon /><b className="mt-2 text-[color:var(--admin-text)]">Nenhuma foto adicionada</b><span className="text-sm">Adicione até 10 fotos do produto.</span>
                   </div> : <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                     {gallery.map((item, index) => <div
                       key={item.key}
@@ -389,12 +389,12 @@ export default function ProdutosPage() {
                       onDragStart={() => setDragIndex(index)}
                       onDragOver={(event) => event.preventDefault()}
                       onDrop={() => moveImage(index)}
-                      className="group relative aspect-square cursor-grab overflow-hidden rounded-xl border-2 border-[#E7E0D8] bg-[#F7F0E7]"
+                      className="group relative aspect-square cursor-grab overflow-hidden rounded-xl border-2 border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)]"
                     >
                       <Image src={item.url} alt="" fill sizes="150px" className="object-cover" unoptimized={Boolean(item.file)} />
-                      {index === 0 && <span className="absolute bottom-1.5 left-1.5 rounded-md bg-[#C05F16] px-2 py-1 text-[10px] font-black text-white">Principal</span>}
-                      <button type="button" onClick={() => removeImage(item)} className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 font-black text-red-700 shadow" aria-label="Excluir foto">×</button>
-                      {index > 0 && <button type="button" onClick={() => setGallery((current) => [item, ...current.filter((candidate) => candidate !== item)])} className="absolute bottom-1.5 left-1.5 right-1.5 rounded-md bg-white/95 px-1 py-1 text-[10px] font-black text-[#8B451D] opacity-0 shadow transition group-hover:opacity-100 group-focus-within:opacity-100">Definir principal</button>}
+                      {index === 0 && <span className="absolute bottom-1.5 left-1.5 rounded-md bg-[color:var(--admin-accent)] px-2 py-1 text-[10px] font-black text-white">Principal</span>}
+                      <button type="button" onClick={() => removeImage(item)} className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-[color:var(--admin-surface)]/95 font-black text-red-700 shadow" aria-label="Excluir foto">×</button>
+                      {index > 0 && <button type="button" onClick={() => setGallery((current) => [item, ...current.filter((candidate) => candidate !== item)])} className="absolute bottom-1.5 left-1.5 right-1.5 rounded-md bg-[color:var(--admin-surface)]/95 px-1 py-1 text-[10px] font-black text-[color:var(--admin-text)] opacity-0 shadow transition group-hover:opacity-100 group-focus-within:opacity-100">Definir principal</button>}
                     </div>)}
                   </div>}
                 </div>
@@ -415,9 +415,9 @@ export default function ProdutosPage() {
             </div>}
           </div>
 
-          {!created && <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#E7E0D8] bg-[#FFFEFC] px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
-            <button type="button" onClick={closeModal} className="rounded-lg border border-[#D9CEC2] px-5 py-3 text-sm font-bold text-[#4A2D1A] hover:bg-[#F7F0E7]">Cancelar</button>
-            <button type="submit" disabled={saving} className="rounded-lg bg-[#C05F16] px-6 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#A95012] disabled:opacity-60">
+          {!created && <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[color:var(--admin-border)] bg-[color:var(--admin-surface)] px-4 py-3 sm:flex-row sm:justify-end sm:px-6">
+            <button type="button" onClick={closeModal} className="admin-table-action-secondary rounded-lg px-5 py-3 text-sm">Cancelar</button>
+            <button type="submit" disabled={saving} className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 text-sm font-bold text-white shadow-sm hover:opacity-90 disabled:opacity-60">
               {saving ? 'Salvando...' : 'Salvar produto'}
             </button>
           </footer>}
@@ -428,29 +428,29 @@ export default function ProdutosPage() {
 }
 
 function Section({ number, title, subtitle, children }: { number: string; title: string; subtitle?: string; children: React.ReactNode }) {
-  return <section className="border-b border-[#E7E0D8] pb-5 last:border-0 last:pb-0">
+  return <section className="border-b border-[color:var(--admin-border)] pb-5 last:border-0 last:pb-0">
     <div className="mb-3">
-      <h3 className="flex items-center gap-2 text-base font-black text-[#241C17]">
-        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[#F7F0E7] text-xs text-[#A9571E]">{number}</span>
+      <h3 className="flex items-center gap-2 text-base font-black text-[color:var(--admin-text)]">
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-[color:var(--admin-surface-soft)] text-xs text-[color:var(--admin-accent)]">{number}</span>
         {title}
       </h3>
-      {subtitle && <p className="ml-8 mt-0.5 text-xs text-[#6E625A]">{subtitle}</p>}
+      {subtitle && <p className="ml-8 mt-0.5 text-xs text-[color:var(--admin-muted)]">{subtitle}</p>}
     </div>
     {children}
   </section>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-1.5 block text-xs font-bold text-[#4A2D1A]">{label}</span>{children}</label>;
+  return <label className="block"><span className="mb-1.5 block text-xs font-bold text-[color:var(--admin-text)]">{label}</span>{children}</label>;
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return <label className="flex min-h-[66px] items-end">
     <span className="block w-full">
-      <span className="mb-1.5 block text-xs font-bold text-[#4A2D1A]">{label}</span>
-      <span className="flex h-[42px] items-center gap-2 rounded-[0.65rem] border border-[#D9CEC2] bg-white px-3">
+      <span className="mb-1.5 block text-xs font-bold text-[color:var(--admin-text)]">{label}</span>
+      <span className="flex h-[42px] items-center gap-2 rounded-[0.65rem] border border-[color:var(--admin-border)] bg-[color:var(--admin-surface)] px-3">
         <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="peer sr-only" />
-        <span className="relative h-6 w-11 rounded-full bg-[#C8C5C2] transition peer-checked:bg-[#C05F16] after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5" />
+        <span className="relative h-6 w-11 rounded-full bg-[color:var(--admin-border)] transition peer-checked:bg-[color:var(--admin-accent)] after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5" />
         <span className="text-sm font-semibold">{checked ? 'Sim' : 'Não'}</span>
       </span>
     </span>
@@ -458,20 +458,20 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 function EmptyStock() {
-  return <div className="flex min-h-32 flex-col items-center justify-center rounded-xl border border-[#E7E0D8] bg-white p-5 text-center">
-    <BoxIcon /><b className="mt-2 text-[#4A2D1A]">Selecione uma categoria para carregar os tamanhos.</b>
-    <span className="text-sm text-[#6E625A]">O estoque poderá ser informado para cada tamanho.</span>
+  return <div className="admin-empty-state flex min-h-32 flex-col items-center justify-center p-5 text-center">
+    <BoxIcon /><b className="mt-2 text-[color:var(--admin-text)]">Selecione uma categoria para carregar os tamanhos.</b>
+    <span className="text-sm text-[color:var(--admin-muted)]">O estoque poderá ser informado para cada tamanho.</span>
   </div>;
 }
 
 function SuccessPanel({ onAnother, onClose }: { onAnother: () => void; onClose: () => void }) {
   return <div className="mx-auto flex min-h-[360px] max-w-xl flex-col items-center justify-center py-8 text-center">
     <span className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-3xl text-green-700">✓</span>
-    <h3 className="mt-5 text-2xl font-black text-[#241C17]">Produto cadastrado com sucesso</h3>
-    <p className="mt-2 text-[#6E625A]">Deseja cadastrar outro produto?</p>
+    <h3 className="mt-5 text-2xl font-black text-[color:var(--admin-text)]">Produto cadastrado com sucesso</h3>
+    <p className="mt-2 text-[color:var(--admin-muted)]">Deseja cadastrar outro produto?</p>
     <div className="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-      <button type="button" onClick={onClose} className="rounded-xl border border-[#D9CEC2] px-6 py-3 font-bold text-[#4A2D1A]">Fechar</button>
-      <button type="button" onClick={onAnother} className="rounded-xl bg-[#C05F16] px-6 py-3 font-bold text-white">Cadastrar outro</button>
+      <button type="button" onClick={onClose} className="admin-table-action-secondary rounded-xl px-6 py-3 font-bold">Fechar</button>
+      <button type="button" onClick={onAnother} className="rounded-xl bg-[color:var(--admin-accent)] px-6 py-3 font-bold text-white">Cadastrar outro</button>
     </div>
   </div>;
 }

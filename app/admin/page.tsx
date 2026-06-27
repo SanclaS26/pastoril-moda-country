@@ -134,7 +134,7 @@ export default function AdminPage() {
   return (
     <AdminShell
       title={activeSection === 'usuarios' ? 'Usuarios' : 'Dashboard'}
-      subtitle={activeSection === 'usuarios' ? 'Administradores cadastrados no banco.' : 'Pedidos, vendas, carrinhos e visitas em um só lugar.'}
+      subtitle={activeSection === 'usuarios' ? 'Administradores cadastrados no banco.' : 'Resumo executivo de pedidos, vendas e carrinhos.'}
       active={shellActive}
     >
       {activeSection === 'dashboard' && <AdminDashboard />}
@@ -142,8 +142,8 @@ export default function AdminPage() {
         <div className="space-y-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-2xl font-bold text-[#241C17]">Usuarios</h2>
-              <p className="mt-1 text-sm text-[#6E625A]">Administradores cadastrados no banco.</p>
+              <h2 className="text-2xl font-bold text-[color:var(--admin-text)]">Usuarios</h2>
+              <p className="mt-1 text-sm text-[color:var(--admin-muted)]">Administradores cadastrados no banco.</p>
             </div>
             <button
               onClick={() => {
@@ -154,7 +154,7 @@ export default function AdminPage() {
                 setNewUserPassword('');
                 setNewUserConfirm('');
               }}
-              className="rounded-lg bg-[#C8722C] px-6 py-2.5 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A]"
+              className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-2.5 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)] transition hover:opacity-90"
             >
               Novo usuario
             </button>
@@ -172,38 +172,36 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="overflow-hidden rounded-2xl border border-[#E7E0D8] bg-white shadow-[0_10px_24px_rgba(74,45,26,0.045)]">
+          <div className="admin-table-shell overflow-hidden rounded-2xl">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px]">
-                <thead className="border-b border-[#E7E0D8] bg-[#F7F0E7]">
+                <thead className="border-b border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)]">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase text-[#6E625A]">Nome</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase text-[#6E625A]">E-mail</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold uppercase text-[#6E625A]">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase text-[color:var(--admin-muted)]">Nome</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase text-[color:var(--admin-muted)]">E-mail</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold uppercase text-[color:var(--admin-muted)]">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingUsers ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-sm text-[#6E625A]">
+                      <td colSpan={3} className="admin-empty-state px-6 py-8 text-center text-sm">
                         Carregando usuarios...
                       </td>
                     </tr>
                   ) : users.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-sm text-[#6E625A]">
+                      <td colSpan={3} className="admin-empty-state px-6 py-8 text-center text-sm">
                         Nenhum usuario administrativo cadastrado.
                       </td>
                     </tr>
                   ) : (
                     users.map((user) => (
-                      <tr key={user.id} className="border-b border-[#F1EAE2] last:border-0 hover:bg-[#F9F6F1]">
-                        <td className="px-6 py-4 text-sm font-bold text-[#241C17]">{user.nome}</td>
-                        <td className="px-6 py-4 text-sm text-[#241C17]">{user.email}</td>
+                      <tr key={user.id} className="border-b border-[color:var(--admin-border)] last:border-0 hover:bg-[color:var(--admin-row-hover)]">
+                        <td className="px-6 py-4 text-sm font-bold text-[color:var(--admin-text)]">{user.nome}</td>
+                        <td className="px-6 py-4 text-sm text-[color:var(--admin-text)]">{user.email}</td>
                         <td className="px-6 py-4 text-sm">
-                          <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${
-                            user.ativo ? 'bg-emerald-50 text-emerald-700' : 'bg-[#F7F0E7] text-[#6E625A]'
-                          }`}>
+                          <span className={`admin-badge ${user.ativo ? 'admin-badge-success' : ''}`}>
                             {user.ativo ? 'Ativo' : 'Inativo'}
                           </span>
                         </td>
@@ -217,15 +215,15 @@ export default function AdminPage() {
 
           {showUserForm && (
             <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#241C17]/60 px-4 py-6">
-              <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
-                <div className="mb-6 flex items-center justify-between gap-4 border-b border-[#E7E0D8] pb-4">
+              <div className="admin-modal-surface w-full max-w-2xl rounded-3xl p-6 shadow-2xl">
+                <div className="mb-6 flex items-center justify-between gap-4 border-b border-[color:var(--admin-border)] pb-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-[#241C17]">Novo usuario</h3>
-                    <p className="text-sm text-[#6E625A]">Dados do usuario administrativo.</p>
+                    <h3 className="text-2xl font-bold text-[color:var(--admin-text)]">Novo usuario</h3>
+                    <p className="text-sm text-[color:var(--admin-muted)]">Dados do usuario administrativo.</p>
                   </div>
                   <button
                     onClick={() => setShowUserForm(false)}
-                    className="text-2xl text-[#6E625A] hover:text-[#4A2D1A]"
+                    className="text-2xl text-[color:var(--admin-muted)] hover:text-[color:var(--admin-text)]"
                     aria-label="Fechar"
                   >
                     x
@@ -240,40 +238,40 @@ export default function AdminPage() {
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <label className="block">
-                    <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">Nome</span>
+                    <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">Nome</span>
                     <input
                       value={newUserName}
                       onChange={(event) => setNewUserName(event.target.value)}
-                      className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] focus:border-[#C8722C] focus:outline-none focus:ring-2 focus:ring-[#C8722C]/20"
+                      className="admin-input w-full rounded-xl px-4 py-3"
                       placeholder="Nome completo"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">E-mail</span>
+                    <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">E-mail</span>
                     <input
                       value={newUserEmail}
                       onChange={(event) => setNewUserEmail(event.target.value)}
-                      className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] focus:border-[#C8722C] focus:outline-none focus:ring-2 focus:ring-[#C8722C]/20"
+                      className="admin-input w-full rounded-xl px-4 py-3"
                       placeholder="usuario@example.com"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">Senha</span>
+                    <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">Senha</span>
                     <input
                       value={newUserPassword}
                       onChange={(event) => setNewUserPassword(event.target.value)}
                       type="password"
-                      className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] focus:border-[#C8722C] focus:outline-none focus:ring-2 focus:ring-[#C8722C]/20"
+                      className="admin-input w-full rounded-xl px-4 py-3"
                       placeholder="Senha"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">Confirmar senha</span>
+                    <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">Confirmar senha</span>
                     <input
                       value={newUserConfirm}
                       onChange={(event) => setNewUserConfirm(event.target.value)}
                       type="password"
-                      className="w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-[#241C17] focus:border-[#C8722C] focus:outline-none focus:ring-2 focus:ring-[#C8722C]/20"
+                      className="admin-input w-full rounded-xl px-4 py-3"
                       placeholder="Repetir senha"
                     />
                   </label>
@@ -282,14 +280,14 @@ export default function AdminPage() {
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
                   <button
                     onClick={() => setShowUserForm(false)}
-                    className="rounded-lg border border-[#E7E0D8] px-6 py-3 text-sm font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7]"
+                    className="admin-table-action-secondary rounded-lg px-6 py-3 text-sm"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleCreateUser}
                     disabled={isSavingUser}
-                    className="rounded-lg bg-[#C8722C] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isSavingUser ? 'Salvando...' : 'Salvar usuario'}
                   </button>

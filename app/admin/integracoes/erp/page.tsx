@@ -71,7 +71,7 @@ async function getSessionToken() {
 }
 
 function fieldClass(extra = '') {
-  return `w-full rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm text-[#241C17] outline-none transition focus:border-[#C8722C] focus:ring-2 focus:ring-[#C8722C]/20 disabled:cursor-not-allowed disabled:bg-[#F1EAE2] disabled:text-[#8A7B70] ${extra}`;
+  return `admin-input w-full rounded-xl px-4 py-3 text-sm outline-none transition disabled:cursor-not-allowed ${extra}`;
 }
 
 function mapIntegrationToForm(integration: ErpIntegrationResponse | null): ErpForm {
@@ -176,12 +176,12 @@ export default function AdminErpIntegrationPage() {
       active="erp"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+        <div className="rounded-2xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm font-semibold text-[color:var(--admin-text)]">
           A integração ainda não está ativa. Esta área está sendo preparada para a futura conexão com o ERP.
         </div>
 
-        {message && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{message}</div>}
-        {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>}
+        {message && <div className="rounded-2xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm text-[color:var(--admin-text)]">{message}</div>}
+        {error && <div className="rounded-2xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm text-[color:var(--admin-text)]">{error}</div>}
 
         <Section title="Status da integração">
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -237,7 +237,7 @@ export default function AdminErpIntegrationPage() {
               ))}
             </div>
 
-            <p className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm text-[#6E625A]">
+            <p className="rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm text-[color:var(--admin-muted)]">
               Credenciais serão armazenadas somente pelo servidor com proteção adequada quando a API for implementada. Nenhuma chave, token, senha ou Client Secret é salva nesta etapa.
             </p>
           </div>
@@ -265,7 +265,7 @@ export default function AdminErpIntegrationPage() {
               <Toggle label="Enviar vendas confirmadas ao ERP" checked={form.send_confirmed_sales} onChange={(value) => updateField('send_confirmed_sales', value)} disabled={loading} />
             </div>
           </div>
-          <p className="mt-4 rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm text-[#6E625A]">
+          <p className="mt-4 rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm text-[color:var(--admin-muted)]">
             A baixa de estoque no ERP somente poderá ocorrer após a confirmação da venda no painel administrativo.
           </p>
         </Section>
@@ -275,18 +275,18 @@ export default function AdminErpIntegrationPage() {
             <button
               type="submit"
               disabled={loading || saving}
-              className="rounded-lg bg-[#C8722C] px-6 py-3 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)] transition hover:bg-[#4A2D1A] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.18)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? 'Salvando...' : 'Salvar configuração'}
             </button>
-            <button type="button" disabled title="Disponível após a implementação da API" className="rounded-lg border border-[#E7E0D8] px-6 py-3 text-sm font-bold text-[#6E625A] opacity-60">
+            <button type="button" disabled title="Disponível após a implementação da API" className="admin-table-action-secondary rounded-lg px-6 py-3 text-sm opacity-60">
               Testar conexão
             </button>
-            <button type="button" disabled title="Disponível após a implementação da API" className="rounded-lg border border-[#E7E0D8] px-6 py-3 text-sm font-bold text-[#6E625A] opacity-60">
+            <button type="button" disabled title="Disponível após a implementação da API" className="admin-table-action-secondary rounded-lg px-6 py-3 text-sm opacity-60">
               Sincronizar agora
             </button>
           </div>
-          <p className="mt-3 text-sm text-[#6E625A]">Testar conexão e sincronizar agora estarão disponíveis após a implementação da API.</p>
+          <p className="mt-3 text-sm text-[color:var(--admin-muted)]">Testar conexão e sincronizar agora estarão disponíveis após a implementação da API.</p>
         </Section>
       </form>
     </AdminShell>
@@ -295,8 +295,8 @@ export default function AdminErpIntegrationPage() {
 
 function Section({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <section className="rounded-2xl border border-[#E7E0D8] bg-white p-4 shadow-[0_8px_18px_rgba(74,45,26,0.04)] sm:p-5">
-      <h2 className="text-base font-black text-[#241C17]">{title}</h2>
+    <section className="admin-panel rounded-2xl p-4 sm:p-5">
+      <h2 className="text-base font-black text-[color:var(--admin-text)]">{title}</h2>
       <div className="mt-4">{children}</div>
     </section>
   );
@@ -305,7 +305,7 @@ function Section({ children, title }: { children: ReactNode; title: string }) {
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">{label}</span>
+      <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">{label}</span>
       {children}
     </label>
   );
@@ -313,25 +313,25 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 
 function StatusItem({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'neutral' | 'warning' }) {
   return (
-    <div className="rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] p-4">
+    <div className="rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] p-4">
       <div className="flex items-center gap-2">
-        <span className={`h-2.5 w-2.5 rounded-full ${tone === 'warning' ? 'bg-amber-500' : 'bg-[#7B8B58]'}`} aria-hidden="true" />
-        <p className="text-xs font-bold uppercase text-[#6E625A]">{label}</p>
+        <span className={`h-2.5 w-2.5 rounded-full ${tone === 'warning' ? 'bg-amber-500' : 'bg-[color:var(--admin-success)]'}`} aria-hidden="true" />
+        <p className="text-xs font-bold uppercase text-[color:var(--admin-muted)]">{label}</p>
       </div>
-      <p className="mt-2 text-sm font-black text-[#241C17]">{value}</p>
+      <p className="mt-2 text-sm font-black text-[color:var(--admin-text)]">{value}</p>
     </div>
   );
 }
 
 function Toggle({ checked, disabled, label, onChange }: { checked: boolean; disabled?: boolean; label: string; onChange: (value: boolean) => void }) {
   return (
-    <label className="flex min-h-14 items-center gap-3 rounded-xl border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3 text-sm font-bold text-[#4A2D1A]">
+    <label className="flex min-h-14 items-center gap-3 rounded-xl border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm font-bold text-[color:var(--admin-text)]">
       <input
         type="checkbox"
         checked={checked}
         disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="h-4 w-4 rounded border-[#C7B8AA] text-[#C8722C] focus:ring-[#C8722C]"
+        className="h-4 w-4 rounded border-[color:var(--admin-border)] text-[color:var(--admin-accent)] focus:ring-[color:var(--admin-accent)]"
       />
       <span>{label}</span>
     </label>

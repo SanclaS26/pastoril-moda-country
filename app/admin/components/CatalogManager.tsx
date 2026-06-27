@@ -1,26 +1,25 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import ConfirmDialog from './ConfirmDialog';
+import { supabase } from '@/lib/supabase';
 
 type Item = { id: number; nome: string; ativo: boolean; tipo_grade?: string };
 type Props = { endpoint: 'categorias' | 'marcas'; itemLabel: string };
 
 async function token() {
   const { data } = await supabase.auth.getSession();
-  if (!data.session?.access_token) throw new Error('Sessão expirada.');
-  return data.session.access_token;
+  return data.session?.access_token ?? '';
 }
 
 export default function CatalogManager({ endpoint, itemLabel }: Props) {
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState('');
   const [gradeType, setGradeType] = useState('unico');
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
   const [editing, setEditing] = useState<Item | null>(null);
   const [deleting, setDeleting] = useState<Item | null>(null);
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,9 +50,14 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
-      setName(''); setGradeType('unico'); setEditing(null); setMessage(`${itemLabel} salva com sucesso.`);
+      setName('');
+      setGradeType('unico');
+      setEditing(null);
+      setMessage(`${itemLabel} salva com sucesso.`);
       await load();
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'Erro ao salvar.'); }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Erro ao salvar.');
+    }
   };
 
   const toggle = async (item: Item) => {
@@ -70,7 +74,8 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
   const remove = async () => {
     if (!deleting) return;
     const response = await fetch(`/api/admin/${endpoint}/${deleting.id}`, {
-      method: 'DELETE', headers: { Authorization: `Bearer ${await token()}` },
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${await token()}` },
     });
     const body = await response.json();
     setDeleting(null);
@@ -79,32 +84,96 @@ export default function CatalogManager({ endpoint, itemLabel }: Props) {
     await load();
   };
 
-  return <>
-    <form onSubmit={save} className="mb-6 flex flex-col gap-3 rounded-2xl border border-[#E7E0D8] bg-white p-5 sm:flex-row">
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder={`Nome da ${itemLabel.toLowerCase()}`} required className="flex-1 rounded-lg border border-[#D9CEC2] px-4 py-3 outline-none focus:border-[#C8722C]" />
-      {endpoint === 'categorias' && <select value={gradeType} onChange={(event) => setGradeType(event.target.value)} className="rounded-lg border border-[#D9CEC2] bg-white px-4 py-3 outline-none focus:border-[#C8722C]" aria-label="Tipo de grade">
-        <option value="roupas">Roupas</option>
-        <option value="calcados">Calçados</option>
-        <option value="chapeus_bones">Chapéus e bonés</option>
-        <option value="cintos">Cintos</option>
-        <option value="unico">Tamanho único</option>
-      </select>}
-      <button className="rounded-lg bg-[#C8722C] px-6 py-3 font-bold text-white">{editing ? 'Salvar alteração' : `Cadastrar ${itemLabel.toLowerCase()}`}</button>
-      {editing && <button type="button" onClick={() => { setEditing(null); setName(''); setGradeType('unico'); }} className="rounded-lg border px-5 py-3">Cancelar</button>}
-    </form>
-    {message && <p className="mb-4 rounded-lg bg-[#F7F0E7] px-4 py-3 text-sm">{message}</p>}
-    <div className="overflow-hidden rounded-2xl border border-[#E7E0D8] bg-white">
-      {loading ? <p className="p-8 text-center">Carregando...</p> : items.length === 0 ? <p className="p-8 text-center">Nenhum cadastro.</p> :
-        <div className="divide-y divide-[#E7E0D8]">{items.map((item) =>
-          <div key={item.id} className="flex flex-wrap items-center gap-3 p-4">
-            <span className="min-w-0 flex-1 font-semibold">{item.nome}</span>
-            {item.tipo_grade && <span className="rounded-full bg-[#F7F0E7] px-3 py-1 text-xs font-semibold text-[#6E625A]">{item.tipo_grade.replace('_', ' ')}</span>}
-            <span className={`rounded-full px-3 py-1 text-xs font-bold ${item.ativo ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>{item.ativo ? 'Ativa' : 'Inativa'}</span>
-            <button onClick={() => { setEditing(item); setName(item.nome); setGradeType(item.tipo_grade ?? 'unico'); }} className="text-sm font-bold text-[#C8722C]">Editar</button>
-            <button onClick={() => void toggle(item)} className="text-sm font-bold">{item.ativo ? 'Inativar' : 'Ativar'}</button>
-            <button onClick={() => setDeleting(item)} className="text-sm font-bold text-red-700">Excluir</button>
-          </div>)}</div>}
-    </div>
-    {deleting && <ConfirmDialog title={`Excluir ${itemLabel.toLowerCase()}`} message={`Deseja excluir “${deleting.nome}”?`} confirmLabel="Excluir" tone="danger" onCancel={() => setDeleting(null)} onConfirm={() => void remove()} />}
-  </>;
+  return (
+    <>
+      <form onSubmit={save} className="admin-panel mb-6 flex flex-col gap-3 rounded-2xl p-5 sm:flex-row">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={`Nome da ${itemLabel.toLowerCase()}`}
+          required
+          className="admin-input flex-1 rounded-lg px-4 py-3 outline-none"
+        />
+        {endpoint === 'categorias' && (
+          <select
+            value={gradeType}
+            onChange={(event) => setGradeType(event.target.value)}
+            className="admin-input rounded-lg px-4 py-3 outline-none"
+            aria-label="Tipo de grade"
+          >
+            <option value="roupas">Roupas</option>
+            <option value="calcados">Calçados</option>
+            <option value="chapeus_bones">Chapéus e bonés</option>
+            <option value="cintos">Cintos</option>
+            <option value="unico">Tamanho único</option>
+          </select>
+        )}
+        <button className="rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 font-bold text-white">
+          {editing ? 'Salvar alteração' : `Cadastrar ${itemLabel.toLowerCase()}`}
+        </button>
+        {editing && (
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setName('');
+              setGradeType('unico');
+            }}
+            className="admin-table-action-secondary rounded-lg px-5 py-3"
+          >
+            Cancelar
+          </button>
+        )}
+      </form>
+
+      {message && <p className="admin-empty-state mb-4 rounded-lg px-4 py-3 text-sm">{message}</p>}
+
+      <div className="admin-table-shell overflow-hidden rounded-2xl">
+        {loading ? (
+          <p className="admin-empty-state p-8 text-center">Carregando...</p>
+        ) : items.length === 0 ? (
+          <p className="admin-empty-state p-8 text-center">Nenhum cadastro.</p>
+        ) : (
+          <div className="divide-y divide-[color:var(--admin-border)]">
+            {items.map((item) => (
+              <div key={item.id} className="admin-list-row flex flex-wrap items-center gap-3 p-4">
+                <span className="min-w-0 flex-1 font-semibold text-[color:var(--admin-text)]">{item.nome}</span>
+                {item.tipo_grade && <span className="admin-badge">{item.tipo_grade.replace('_', ' ')}</span>}
+                <span className={`admin-badge ${item.ativo ? 'admin-badge-success' : ''}`}>
+                  {item.ativo ? 'Ativa' : 'Inativa'}
+                </span>
+                <button
+                  onClick={() => {
+                    setEditing(item);
+                    setName(item.nome);
+                    setGradeType(item.tipo_grade ?? 'unico');
+                  }}
+                  className="admin-table-action-secondary text-sm"
+                >
+                  Editar
+                </button>
+                <button onClick={() => void toggle(item)} className="admin-table-action-secondary text-sm">
+                  {item.ativo ? 'Inativar' : 'Ativar'}
+                </button>
+                <button onClick={() => setDeleting(item)} className="admin-table-action-danger text-sm">
+                  Excluir
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {deleting && (
+        <ConfirmDialog
+          title={`Excluir ${itemLabel.toLowerCase()}`}
+          message={`Deseja excluir “${deleting.nome}”?`}
+          confirmLabel="Excluir"
+          tone="danger"
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => void remove()}
+        />
+      )}
+    </>
+  );
 }

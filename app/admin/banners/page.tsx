@@ -266,7 +266,7 @@ export default function AdminBannersPage() {
   };
 
   const primaryInputClass =
-    'w-full rounded-lg border border-[#E7E0D8] bg-white px-4 py-3 text-sm text-[#241C17] outline-none transition focus:border-[#C8722C] focus:ring-2 focus:ring-[rgba(200,114,44,0.18)]';
+     'admin-input w-full rounded-lg px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-[rgba(200,114,44,0.18)]';
 
   return (
     <AdminShell title="Banners" subtitle="Gerencie banners desktop e celular da vitrine." active="banners">
@@ -283,25 +283,21 @@ export default function AdminBannersPage() {
         )}
 
         <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
-          <form onSubmit={handleSubmit} className="rounded-lg border border-[#E7E0D8] bg-white p-5 shadow-[0_10px_24px_rgba(74,45,26,0.06)] sm:p-6">
+          <form onSubmit={handleSubmit} className="admin-panel rounded-lg p-5 sm:p-6">
             <div className="mb-5 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-bold text-[#241C17]">{formTitle}</h2>
-                <p className="mt-1 text-sm text-[#6E625A]">Envie imagens separadas para desktop e celular.</p>
+                <h2 className="text-2xl font-bold text-[color:var(--admin-text)]">{formTitle}</h2>
+                <p className="mt-1 text-sm text-[color:var(--admin-muted)]">Envie imagens separadas para desktop e celular.</p>
               </div>
               {isEditing && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="rounded-lg border border-[#E7E0D8] px-3 py-2 text-xs font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7]"
-                >
+                <button type="button" onClick={resetForm} className="admin-table-action-secondary rounded-lg px-3 py-2 text-xs">
                   Cancelar
                 </button>
               )}
             </div>
 
             <label className="block">
-              <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">Titulo</span>
+              <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">Titulo</span>
               <input
                 value={titulo}
                 onChange={(event) => setTitulo(event.target.value)}
@@ -311,19 +307,17 @@ export default function AdminBannersPage() {
             </label>
 
             <label className="mt-4 block">
-              <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">Banner desktop</span>
+              <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">Banner desktop</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(event) => setDesktopImage(event.target.files?.[0] ?? null)}
                 className={primaryInputClass}
               />
-              <span className="mt-2 block text-xs leading-relaxed text-[#6E625A]">
-                {bannerDesktopGuidance}
-              </span>
+              <span className="mt-2 block text-xs leading-relaxed text-[color:var(--admin-muted)]">{bannerDesktopGuidance}</span>
             </label>
 
-            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Prévia desktop</p>
+            <p className="mt-3 text-xs font-bold uppercase text-[color:var(--admin-muted)]">Prévia desktop</p>
             <div className={adminBannerDesktopPreviewClass}>
               {desktopPreview ? (
                 <Image
@@ -335,26 +329,24 @@ export default function AdminBannersPage() {
                   className="object-cover object-center"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-sm font-medium text-[#6E625A]">
+                <div className="flex h-full items-center justify-center text-sm font-medium text-[color:var(--admin-muted)]">
                   Prévia desktop
                 </div>
               )}
             </div>
 
             <label className="mt-4 block">
-              <span className="mb-2 block text-sm font-bold text-[#4A2D1A]">Banner celular</span>
+              <span className="mb-2 block text-sm font-bold text-[color:var(--admin-text)]">Banner celular</span>
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(event) => setMobileImage(event.target.files?.[0] ?? null)}
                 className={primaryInputClass}
               />
-              <span className="mt-2 block text-xs leading-relaxed text-[#6E625A]">
-                {bannerMobileGuidance}
-              </span>
+              <span className="mt-2 block text-xs leading-relaxed text-[color:var(--admin-muted)]">{bannerMobileGuidance}</span>
             </label>
 
-            <p className="mt-3 text-xs font-bold uppercase text-[#6E625A]">Prévia mobile</p>
+            <p className="mt-3 text-xs font-bold uppercase text-[color:var(--admin-muted)]">Prévia mobile</p>
             <div className={adminBannerMobilePreviewClass}>
               {mobilePreview ? (
                 <Image
@@ -366,15 +358,15 @@ export default function AdminBannersPage() {
                   className="object-cover object-center"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-sm font-medium text-[#6E625A]">
+                <div className="flex h-full items-center justify-center text-sm font-medium text-[color:var(--admin-muted)]">
                   Prévia mobile
                 </div>
               )}
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3">
-                <span className="text-sm font-bold text-[#4A2D1A]">Ativo</span>
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3">
+                <span className="text-sm font-bold text-[color:var(--admin-text)]">Ativo</span>
                 <input
                   type="checkbox"
                   checked={principal || ativo}
@@ -383,8 +375,8 @@ export default function AdminBannersPage() {
                   className="h-5 w-5 accent-[#C8722C]"
                 />
               </label>
-              <label className="flex items-center justify-between gap-3 rounded-lg border border-[#E7E0D8] bg-[#F9F6F1] px-4 py-3">
-                <span className="text-sm font-bold text-[#4A2D1A]">Principal</span>
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3">
+                <span className="text-sm font-bold text-[color:var(--admin-text)]">Principal</span>
                 <input
                   type="checkbox"
                   checked={principal}
@@ -400,23 +392,23 @@ export default function AdminBannersPage() {
             <button
               type="submit"
               disabled={saving}
-              className="mt-5 w-full rounded-lg bg-[#C8722C] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.2)] transition hover:bg-[#9F5520] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 w-full rounded-lg bg-[color:var(--admin-accent)] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_18px_rgba(200,114,44,0.2)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {saving ? 'Salvando...' : 'Salvar'}
             </button>
           </form>
 
-          <section className="overflow-hidden rounded-lg border border-[#E7E0D8] bg-white shadow-[0_10px_24px_rgba(74,45,26,0.06)]">
-            <div className="border-b border-[#E7E0D8] px-5 py-4 sm:px-6">
-              <h2 className="text-2xl font-bold text-[#241C17]">Banners cadastrados</h2>
+          <section className="admin-table-shell overflow-hidden rounded-lg">
+            <div className="border-b border-[color:var(--admin-border)] px-5 py-4 sm:px-6">
+              <h2 className="text-2xl font-bold text-[color:var(--admin-text)]">Banners cadastrados</h2>
             </div>
 
             {loading ? (
-              <div className="px-6 py-12 text-center text-sm text-[#6E625A]">Carregando banners...</div>
+              <div className="admin-empty-state px-6 py-12 text-center text-sm">Carregando banners...</div>
             ) : banners.length === 0 ? (
-              <div className="px-6 py-12 text-center text-sm text-[#6E625A]">Nenhum banner cadastrado.</div>
+              <div className="admin-empty-state px-6 py-12 text-center text-sm">Nenhum banner cadastrado.</div>
             ) : (
-              <div className="divide-y divide-[#EFE7DD]">
+              <div className="divide-y divide-[color:var(--admin-border)]">
                 {banners.map((banner) => {
                   const desktopUrl = getDesktopUrl(banner);
                   const mobileUrl = getMobileUrl(banner);
@@ -426,7 +418,7 @@ export default function AdminBannersPage() {
                     <article key={banner.id} className="grid gap-4 px-5 py-5 lg:grid-cols-[220px_1fr] xl:grid-cols-[260px_1fr_auto]">
                       <div className="grid gap-3">
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Prévia desktop</p>
+                          <p className="mb-1 text-xs font-bold uppercase text-[color:var(--admin-muted)]">Prévia desktop</p>
                           <div className={adminBannerDesktopListPreviewClass}>
                             <Image
                               src={desktopUrl}
@@ -438,7 +430,7 @@ export default function AdminBannersPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="mb-1 text-xs font-bold uppercase text-[#6E625A]">Prévia mobile</p>
+                          <p className="mb-1 text-xs font-bold uppercase text-[color:var(--admin-muted)]">Prévia mobile</p>
                           <div className={adminBannerMobileListPreviewClass}>
                             <Image
                               src={mobileUrl}
@@ -453,12 +445,12 @@ export default function AdminBannersPage() {
 
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-bold text-[#241C17]">{banner.titulo || 'Banner sem titulo'}</h3>
-                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${banner.ativo ? 'bg-emerald-100 text-emerald-800' : 'bg-[#EFE7DD] text-[#6E625A]'}`}>
+                          <h3 className="text-lg font-bold text-[color:var(--admin-text)]">{banner.titulo || 'Banner sem titulo'}</h3>
+                          <span className={`admin-badge ${banner.ativo ? 'admin-badge-success' : ''}`}>
                             {banner.ativo ? 'Ativo' : 'Inativo'}
                           </span>
                           {banner.principal && (
-                            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-800">
+                            <span className="admin-badge admin-badge-warning">
                               Principal
                             </span>
                           )}
@@ -469,7 +461,7 @@ export default function AdminBannersPage() {
                         <button
                           type="button"
                           onClick={() => startEditing(banner)}
-                          className="rounded-lg border border-[#E7E0D8] px-4 py-2 text-sm font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7]"
+                          className="admin-table-action-secondary rounded-lg px-4 py-2 text-sm"
                         >
                           Editar
                         </button>
@@ -477,7 +469,7 @@ export default function AdminBannersPage() {
                           type="button"
                           onClick={() => runBannerAction(banner, 'toggle')}
                           disabled={(banner.principal && banner.ativo) || Boolean(currentAction)}
-                          className="rounded-lg border border-[#E7E0D8] px-4 py-2 text-sm font-bold text-[#4A2D1A] transition hover:bg-[#F7F0E7] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="admin-table-action-secondary rounded-lg px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {currentAction === 'toggle' ? 'Alterando...' : banner.ativo ? 'Inativar' : 'Ativar'}
                         </button>
@@ -485,7 +477,7 @@ export default function AdminBannersPage() {
                           type="button"
                           onClick={() => runBannerAction(banner, 'principal')}
                           disabled={(banner.principal && banner.ativo) || Boolean(currentAction)}
-                          className="rounded-lg bg-[#111827] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#C8722C] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-lg bg-[color:var(--admin-text)] px-4 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {currentAction === 'principal' ? 'Definindo...' : 'Definir principal'}
                         </button>

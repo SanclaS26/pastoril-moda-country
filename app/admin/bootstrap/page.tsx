@@ -9,7 +9,7 @@ type BootstrapResponse = {
 };
 
 const inputClassName =
-  'w-full rounded-lg border border-[#E7E0D8] bg-[#F9F6F1]/92 px-4 py-3 text-[#241C17] outline-none transition placeholder:text-[#9A8D83] focus:border-[#C8722C] focus:bg-white focus:ring-4 focus:ring-[#C8722C]/10';
+  'admin-input w-full rounded-lg px-4 py-3 outline-none transition';
 
 function normalizePhone(value: string) {
   return value.replace(/\D/g, '');
@@ -117,7 +117,7 @@ export default function AdminBootstrapPage() {
   }
 
   return (
-    <div className="relative min-h-[100svh] overflow-hidden bg-[#F9F6F1] px-4 text-[#241C17] sm:px-6">
+    <div className="relative min-h-[100svh] overflow-hidden bg-[color:var(--admin-bg)] px-4 text-[color:var(--admin-text)] sm:px-6">
       <Image
         src="/brand/login/login-bg2.png"
         alt=""
@@ -129,7 +129,7 @@ export default function AdminBootstrapPage() {
       <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(249,246,241,0.7)_0%,rgba(249,246,241,0.48)_60%,rgba(36,28,23,0.2)_100%)]" />
 
       <main className="relative z-10 mx-auto flex min-h-[100svh] w-full max-w-[560px] items-start justify-center py-6 sm:py-10">
-        <section className="w-full rounded-lg border border-[#E7E0D8] bg-[#FFFDFC]/95 px-5 py-6 shadow-[0_18px_46px_rgba(74,45,26,0.14)] backdrop-blur-[2px] sm:px-9 sm:py-8">
+        <section className="admin-modal-surface w-full rounded-lg px-5 py-6 shadow-[0_18px_46px_rgba(74,45,26,0.14)] backdrop-blur-[2px] sm:px-9 sm:py-8">
           <div className="mx-auto mb-5 h-[68px] w-[100px]">
             <div className="relative h-full w-full">
               <Image
@@ -144,23 +144,23 @@ export default function AdminBootstrapPage() {
           </div>
 
           <header className="mb-6 text-center">
-            <p className="text-xs font-bold uppercase text-[#A85C25]">Recuperação administrativa</p>
-            <h1 className="mt-2 text-2xl font-bold leading-tight text-[#4A2D1A] sm:text-3xl">
+            <p className="text-xs font-bold uppercase text-[color:var(--admin-accent)]">Recuperação administrativa</p>
+            <h1 className="mt-2 text-2xl font-bold leading-tight text-[color:var(--admin-text)] sm:text-3xl">
               Criar primeiro administrador
             </h1>
-            <p className="mx-auto mt-3 max-w-[430px] text-sm leading-6 text-[#6E625A]">
+            <p className="mx-auto mt-3 max-w-[430px] text-sm leading-6 text-[color:var(--admin-muted)]">
               Use esta página somente para recriar o primeiro administrador do sistema.
             </p>
           </header>
 
           {isSuccess ? (
             <div aria-live="polite" className="text-center">
-              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-4 text-sm font-semibold text-green-800">
+              <div className="rounded-lg border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-4 text-sm font-semibold text-[color:var(--admin-text)]">
                 Administrador criado com sucesso.
               </div>
               <Link
                 href="/admin/login"
-                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[#C8722C] px-5 py-3 font-bold text-white transition hover:bg-[#4A2D1A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C]"
+                className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-[color:var(--admin-accent)] px-5 py-3 font-bold text-white transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--admin-accent)]"
               >
                 Ir para o login administrativo
               </Link>
@@ -168,7 +168,7 @@ export default function AdminBootstrapPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div>
-                <label htmlFor="nome" className="mb-1.5 block text-sm font-semibold text-[#4A2D1A]">
+                <label htmlFor="nome" className="mb-1.5 block text-sm font-semibold text-[color:var(--admin-text)]">
                   Nome
                 </label>
                 <input
@@ -185,7 +185,7 @@ export default function AdminBootstrapPage() {
               </div>
 
               <div>
-                <label htmlFor="email" className="mb-1.5 block text-sm font-semibold text-[#4A2D1A]">
+                <label htmlFor="email" className="mb-1.5 block text-sm font-semibold text-[color:var(--admin-text)]">
                   E-mail
                 </label>
                 <input
@@ -203,8 +203,8 @@ export default function AdminBootstrapPage() {
               </div>
 
               <div>
-                <label htmlFor="celular" className="mb-1.5 block text-sm font-semibold text-[#4A2D1A]">
-                  Celular <span className="font-normal text-[#82766E]">(opcional)</span>
+                <label htmlFor="celular" className="mb-1.5 block text-sm font-semibold text-[color:var(--admin-text)]">
+                  Celular <span className="font-normal text-[color:var(--admin-muted)]">(opcional)</span>
                 </label>
                 <input
                   id="celular"
@@ -222,7 +222,7 @@ export default function AdminBootstrapPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="password" className="mb-1.5 block text-sm font-semibold text-[#4A2D1A]">
+                  <label htmlFor="password" className="mb-1.5 block text-sm font-semibold text-[color:var(--admin-text)]">
                     Senha
                   </label>
                   <input
@@ -240,10 +240,7 @@ export default function AdminBootstrapPage() {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="password-confirmation"
-                    className="mb-1.5 block text-sm font-semibold text-[#4A2D1A]"
-                  >
+                  <label htmlFor="password-confirmation" className="mb-1.5 block text-sm font-semibold text-[color:var(--admin-text)]">
                     Confirmar senha
                   </label>
                   <input
@@ -262,7 +259,7 @@ export default function AdminBootstrapPage() {
               </div>
 
               <div>
-                <label htmlFor="bootstrap-secret" className="mb-1.5 block text-sm font-semibold text-[#4A2D1A]">
+                <label htmlFor="bootstrap-secret" className="mb-1.5 block text-sm font-semibold text-[color:var(--admin-text)]">
                   Chave de bootstrap
                 </label>
                 <input
@@ -281,7 +278,7 @@ export default function AdminBootstrapPage() {
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                  className="rounded-lg border border-[color:var(--admin-border)] bg-[color:var(--admin-surface-soft)] px-4 py-3 text-sm font-medium text-[color:var(--admin-text)]"
                 >
                   {error}
                 </div>
@@ -290,7 +287,7 @@ export default function AdminBootstrapPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="min-h-12 w-full rounded-lg bg-[#C8722C] px-6 py-3 font-bold text-white shadow-[0_10px_22px_rgba(200,114,44,0.2)] transition hover:bg-[#4A2D1A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C8722C] disabled:cursor-not-allowed disabled:opacity-55"
+                className="min-h-12 w-full rounded-lg bg-[color:var(--admin-accent)] px-6 py-3 font-bold text-white shadow-[0_10px_22px_rgba(200,114,44,0.2)] transition hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--admin-accent)] disabled:cursor-not-allowed disabled:opacity-55"
               >
                 {isLoading ? 'Criando administrador...' : 'Criar administrador'}
               </button>

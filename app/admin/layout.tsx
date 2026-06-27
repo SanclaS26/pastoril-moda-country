@@ -27,7 +27,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div
       id="admin-theme-root"
       suppressHydrationWarning
-      className="admin-theme-light min-h-screen bg-[#F9F6F1]"
+      className="admin-theme-light min-h-screen bg-[color:var(--admin-bg)]"
     >
       <script dangerouslySetInnerHTML={{ __html: adminThemeScript }} />
       <AdminThemeHydrator />
